@@ -22,10 +22,19 @@ cardcore-server/
 │   └── decisions/       # ADRs — read these before making architectural changes
 ├── .github/
 │   ├── PULL_REQUEST_TEMPLATE.md
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug_report.yml
+│   │   └── config.yml   # Redirects features/questions to Discussions
 │   └── workflows/
-│       ├── pr.yml       # PR validation: title check, make check
-│       ├── main.yml     # Push to main: make check
-│       └── release.yml  # Tag push: validate, test, create GitHub Release
+│       ├── pr.yml             # PR validation: title check, make check
+│       ├── pr-changelog.yml   # PR events: changelog update reminder
+│       ├── main.yml           # Push to main: make check
+│       ├── release.yml        # Tag push: validate, test, create GitHub Release
+│       ├── labels-sync.yml    # Push to main: provision repository label set
+│       └── labels-apply.yml   # PR events: auto-apply scope/state labels
+├── scripts/
+│   ├── sync-labels.sh   # Source of truth for the repository label set
+│   └── apply-labels.sh  # Compute and apply labels for a PR
 ├── CONTRIBUTING.md      # Contribution guidelines
 ├── SECURITY.md          # Vulnerability reporting
 ├── Makefile             # Build/test/lint targets
@@ -55,6 +64,7 @@ cardcore-server/
 - Never tag a v1.0.0 or higher release
 - Never write multi-line commit messages — use a one-line subject only and put all detail in the PR description in accordance with `.github/PULL_REQUEST_TEMPLATE.md`, excluding checkbox items that are not relevant to the PR
 - Never cite `AGENTS.md` as the source of a rule from any other file in the repo
+- Never manually apply `scope:*` labels to PRs — they are computed automatically from changed paths by `scripts/apply-labels.sh`. Edit the script's path rules if a label is wrong.
 
 ## 5. Development Workflow
 1. Make a change

@@ -1,4 +1,4 @@
-.PHONY: test fmt vet lint lint-extra build doc check help
+.PHONY: test fmt vet lint lint-extra build doc check help create-labels apply-labels
 
 test: ## Run all tests
 	go test ./...
@@ -25,3 +25,10 @@ check: fmt vet lint test ## Run fmt, vet, lint, and test
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  %-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+create-labels: ## Provision the repository label set
+	./scripts/sync-labels.sh
+
+apply-labels: ## Compute and apply labels for PR=<n>
+	@if [ -z "$(PR)" ]; then echo "usage: make apply-labels PR=<pr-number>" >&2; exit 1; fi
+	./scripts/apply-labels.sh $(PR)

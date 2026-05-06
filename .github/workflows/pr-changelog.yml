@@ -1,0 +1,47 @@
+name: PR changelog
+
+# Maintainer note: uses pull_request_target so fork PRs get the
+# changelog reminder. Do NOT add `actions/checkout` of the PR ref in
+# future edits — that would execute fork code with write access. We
+# only read PR metadata via the GitHub API.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  changelog-nudge:
+    name: Changelog reminder
+    if: "!github.event.pull_request.draft && github.event.pull_request.user.login != 'dependabot[bot]'"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for changelog update
+        id: changelog
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CHANGED=$(gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --jq '.[].filename' | grep -c '^CHANGELOG\.md$' || true)
+          if [ "$CHANGED" -gt 0 ]; then
+            echo "modified=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "modified=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post reminder
+        if: steps.changelog.outputs.modified == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXISTING=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | contains("CHANGELOG.md")))] | length')
+          if [ "$EXISTING" -gt 0 ]; then
+            echo "Changelog reminder already posted, skipping."
+            exit 0
+          fi
+          gh pr comment "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --body \
+            "This PR doesn't update CHANGELOG.md. If the change is user-facing, please add a note under the \`[Unreleased]\` section."
