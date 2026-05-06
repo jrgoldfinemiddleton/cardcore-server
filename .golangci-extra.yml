@@ -1,0 +1,34 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - dupl        # duplicate code blocks
+    - funlen      # function length
+    - gocritic    # many small "could be cleaner" checks
+    - revive      # successor to golint; broad style ruleset
+
+  settings:
+    funlen:
+      lines: 100
+      statements: 60
+
+  exclusions:
+    generated: lax
+    rules:
+      - path: _test\.go
+        linters:
+          - dupl     # tests are often deliberately parallel; collapsing can obscure intent
+          - funlen   # table-driven and integration tests legitimately grow long
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

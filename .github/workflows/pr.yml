@@ -1,0 +1,43 @@
+name: PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  title-check:
+    name: Conventional Commits title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title
+        run: |
+          TITLE='${{ github.event.pull_request.title }}'
+          if [[ $TITLE =~ ^(feat|fix|docs|test|refactor|chore)(\(.+\))?!?:[[:space:]].+ ]]; then
+            echo "PR title is valid: $TITLE"
+          else
+            echo "::error::PR title does not follow Conventional Commits format."
+            echo ""
+            echo "Expected: type(scope): description"
+            echo "Got:      $TITLE"
+            echo ""
+            echo "Allowed types: feat, fix, docs, test, refactor, chore"
+            echo "Optional scope in parentheses, optional ! for breaking changes."
+            echo "See CONTRIBUTING.md for details."
+            exit 1
+          fi
+
+  check:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Run checks
+        run: make check
