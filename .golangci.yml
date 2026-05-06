@@ -1,0 +1,50 @@
+version: "2"
+
+linters:
+  enable:
+    - errorlint    # mishandling wrapped errors (errors.Is/As, %w)
+    - goconst      # repeated string/number literals that should be constants
+    - godot        # doc comments end with a period
+    - lll          # line length
+    - misspell     # common English misspellings
+    - nilerr       # returning nil after seeing a non-nil error
+    - nolintlint   # police any //nolint usage
+    - prealloc     # slices that should be preallocated
+    - thelper      # test helpers must call t.Helper()
+    - unparam      # unused function parameters / always-same return values
+    - whitespace   # leading/trailing whitespace inside funcs
+
+  settings:
+    goconst:
+      ignore-tests: true
+    lll:
+      line-length: 100
+      tab-width: 4
+
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+
+formatters:
+  enable:
+    - gci          # import grouping (stdlib / third-party / local)
+    - gofmt        # standard Go formatting
+
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/jrgoldfinemiddleton/cardcore-server)
+    gofmt:
+      simplify: true
+
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
