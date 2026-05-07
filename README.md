@@ -3,11 +3,21 @@
 A WebSocket game server and Bubble Tea TUI client for [Cardcore](https://github.com/jrgoldfinemiddleton/cardcore).
 
 [![CI](https://github.com/jrgoldfinemiddleton/cardcore-server/actions/workflows/main.yml/badge.svg)](https://github.com/jrgoldfinemiddleton/cardcore-server/actions/workflows/main.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/jrgoldfinemiddleton/cardcore-server.svg)](https://pkg.go.dev/github.com/jrgoldfinemiddleton/cardcore-server)
+[![Go Report Card](https://goreportcard.com/badge/github.com/jrgoldfinemiddleton/cardcore-server)](https://goreportcard.com/report/github.com/jrgoldfinemiddleton/cardcore-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## About
 
-Cardcore-server provides a localhost WebSocket server that hosts card games powered by the [cardcore](https://github.com/jrgoldfinemiddleton/cardcore) engine, plus a terminal UI client built with [Bubble Tea](https://charm.land/bubbletea/). The server exposes a JSON-over-WebSocket protocol for real-time gameplay; see [`doc/api.md`](doc/api.md) for the full specification.
+Cardcore Server provides a localhost WebSocket server that hosts card games powered by the [cardcore](https://github.com/jrgoldfinemiddleton/cardcore) engine, plus a terminal UI client built with [Bubble Tea](https://charm.land/bubbletea/). The server exposes a JSON-over-WebSocket protocol for real-time gameplay; see [`doc/api.md`](doc/api.md) for the full specification.
+
+## Design Philosophy
+
+- Minimal dependencies: stdlib-first, external deps require explicit approval.
+- Strict transport boundary: all clients use the real API, no in-process shortcuts.
+- Full-state snapshots: no incremental diffs, no sync bugs.
+- [Suckless](https://suckless.org/philosophy/) code design: small, readable, and composable.
+- Contributor-friendly: thorough docs, automated checks, and clear conventions lower the barrier to entry.
 
 ## Project Layout
 
@@ -15,21 +25,12 @@ Cardcore-server provides a localhost WebSocket server that hosts card games powe
 cardcore-server/
 ├── cmd/
 │   ├── server/          # Game server binary
-│   └── tui/             # Bubble Tea TUI client binary
-├── internal/
-│   └── server/
-│       ├── transport/   # HTTP/WebSocket plumbing
-│       ├── session/     # Session lifecycle and game goroutine
-│       └── view/        # Seat-filtered snapshot generation
-├── doc/
-│   ├── api.md           # Protocol specification
-│   ├── dependencies.md  # Approved external dependencies
-│   └── decisions/       # Architecture Decision Records
-├── CONTRIBUTING.md
-├── SECURITY.md
-├── Makefile
-├── .golangci.yml
-└── README.md
+│   └── tui/             # TUI client binary
+└── internal/
+    └── server/
+        ├── transport/   # HTTP/WebSocket plumbing
+        ├── session/     # Session lifecycle and game goroutine
+        └── view/        # Seat-filtered snapshot generation
 ```
 
 ## Requirements

@@ -44,7 +44,7 @@ An optional `!` after the type/scope indicates a breaking change: `feat(session)
 - **Tests are required.** Every code change should include corresponding tests.
 - **Run `make check`** before pushing. It runs formatting, vetting, linting, and tests.
 - **Update the changelog.** Add a note under the `## [Unreleased]` section in `CHANGELOG.md` for user-facing changes.
-- **Naming.** `cardcore-server` (lowercase, hyphenated) is the Go module name. In prose, use `Cardcore` for the overall project, `Cardcore Server` for the server component, and `Cardcore TUI` for the terminal client.
+- **Naming.** `cardcore-server` (lowercase, hyphenated) is the Go module name. In prose, use `Cardcore` for the overall project, `Cardcore Server` for the formal project name (titles, first introductions), and `the Cardcore server` in descriptive prose. `Cardcore TUI` for the terminal client.
 - **External dependencies.** Approved dependencies are listed in [`doc/dependencies.md`](doc/dependencies.md). New dependencies require discussion and explicit approval before introduction.
 
 ## Code Conventions

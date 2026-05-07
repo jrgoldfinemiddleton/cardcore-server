@@ -1,7 +1,8 @@
 # Approved Dependencies
 
 This document lists the external dependencies approved for use in `cardcore-server`.
-New dependencies require discussion and explicit approval before introduction.
+New dependencies require discussion and explicit approval before introduction
+(see [ADR-009](decisions/009-dependency-policy.md)).
 
 ## Runtime
 
