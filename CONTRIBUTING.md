@@ -47,6 +47,45 @@ An optional `!` after the type/scope indicates a breaking change: `feat(session)
 - **Naming.** `cardcore-server` (lowercase, hyphenated) is the Go module name. In prose, use `Cardcore` for the overall project, `Cardcore Server` for the formal project name (titles, first introductions), and `the Cardcore server` in descriptive prose. `Cardcore TUI` for the terminal client.
 - **External dependencies.** Approved dependencies are listed in [`doc/dependencies.md`](doc/dependencies.md). New dependencies require discussion and explicit approval before introduction.
 
+## Testing
+
+### Test layers
+
+| Layer | Package(s) | What it tests |
+|-------|-----------|---------------|
+| Unit (transport) | `internal/server/transport/` | HTTP handler routing, request parsing, response shapes. No game logic. Uses `net/http/httptest`. |
+| Unit (session) | `internal/server/session/` | Session goroutine lifecycle, command enqueue/dequeue, seq incrementing, token validation, AI turn triggering. |
+| Unit (view) | `internal/server/view/` | Snapshot projection correctness: given engine state + seat, assert correct masking (no other hands visible, correct `legal_actions`, correct scores). |
+| Integration | `internal/server/` or root | Real server on `:0`, real WebSocket client, play through a full game. Exercises the same code path as production. |
+| Protocol conformance | `internal/server/` or root | Table-driven: "send this message, expect this response shape." Validates wire format against `doc/api.md`. |
+| Game protocol | `internal/server/` or root | Game-specific message handling: do commands produce correct snapshots? Do game-specific error cases fire correctly? Full-game integration through all phases. Validates behavior against `doc/games/<game>/protocol.md`. |
+| TUI model | `cmd/tui/` | Bubble Tea model tests: send messages, assert on model state without rendering. Visual testing is manual. |
+| Stress | `internal/server/` or root | Full games with all-AI sessions across many iterations. Surfaces protocol issues, state machine edge cases, and resource leaks at volume. |
+
+### Benchmarks
+
+Benchmark targets:
+
+- Snapshot serialization throughput (JSON encoding of seat-filtered state)
+- Session command throughput (commands/sec through the full pipeline)
+- AI turn latency end-to-end (engine call + snapshot generation + broadcast)
+
+Benchmark conventions follow `cardcore`'s:
+
+- Use stdlib `testing.B` only (no third-party benchmark frameworks).
+- Share deterministic fixtures via `*_helpers_test.go` builders.
+- Place `Benchmark*` functions after `Test*` in the file.
+
+When changing performance-sensitive code, run benchmarks before and after and include the comparison in your PR description:
+
+```bash
+git stash
+make bench 2>&1 | tee /tmp/bench-old.txt
+git stash pop
+make bench 2>&1 | tee /tmp/bench-new.txt
+go tool benchstat /tmp/bench-old.txt /tmp/bench-new.txt
+```
+
 ## Code Conventions
 
 ### Doc comments

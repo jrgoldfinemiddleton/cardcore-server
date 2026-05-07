@@ -29,4 +29,4 @@ Structured logging via `log/slog` (stdlib). Per-component prefixes (`server`, `t
 ## Testing
 Multiple layers: unit tests per internal package, integration tests that spin up a real server on a random port and connect real WebSocket clients, and protocol conformance tests that validate the API contract from `doc/api.md`. The strict transport boundary pays off here — integration tests exercise the same code path as production.
 
-Stress testing runs full games with 4 AI players across many iterations to surface concurrency bugs, state machine violations, and protocol serialization issues that unit tests miss.
+Stress testing runs full games with 4 AI players across many iterations to surface protocol correctness issues, state machine edge cases, and resource leaks that unit tests miss.
