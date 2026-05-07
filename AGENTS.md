@@ -54,6 +54,9 @@ cardcore-server/
 - Within any file, all type/var/const declarations must precede all function declarations
 - In tests, name expected-value variables `want` (and corresponding actual-value variables `got`)
 - Test failure messages use `"got X, want Y"` form — no colon after `got`
+- Match test layer to the package: transport tests use `httptest`, session tests use test channels, view tests assert snapshot correctness, integration tests use real server + WebSocket
+- Integration tests must spin up a real server on `:0` and connect via WebSocket — no mocking the transport boundary
+- Protocol conformance tests are table-driven: one row per message type × expected response
 
 ## 4. Never Do
 - Never add dependencies not listed in `doc/dependencies.md` without explicit approval
@@ -81,6 +84,9 @@ cardcore-server/
 - **No global state**: all state is in structs passed explicitly
 - **Logging**: use `log/slog` with per-component prefixes
 - **Testing**: use standard `testing` package; test files are `*_test.go` in the same package
+- **Test layers**: unit (per package), integration (real server + WS), protocol conformance (table-driven), game protocol (game-specific commands + snapshots), TUI model, stress (all-AI at volume)
+- **Stress tests**: run full games with all-AI sessions; gated behind a build tag so they don't run during `make check`
+- **Benchmarks**: stdlib `testing.B` only; share fixtures via `*_helpers_test.go`; place `Benchmark*` after `Test*`
 - **Formatting**: `gofmt` is enforced by `make check`
 - **Function ordering**: follow the conventions in [CONTRIBUTING.md](CONTRIBUTING.md#code-conventions)
 - **Import grouping**: stdlib, then third-party, then local (enforced by `gci` via `make lint`)
