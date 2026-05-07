@@ -1,7 +1,7 @@
 # AI Agent Guidance (AGENTS.md)
 
 ## 1. Project Summary
-Cardcore-server is a WebSocket game server and Bubble Tea TUI client for the [cardcore](https://github.com/jrgoldfinemiddleton/cardcore) engine. The server hosts card game sessions over a JSON-over-WebSocket protocol; the TUI connects as a player client. External dependencies are permitted (see `doc/dependencies.md` for the approved list).
+Cardcore Server is a WebSocket game server and Bubble Tea TUI client for the [cardcore](https://github.com/jrgoldfinemiddleton/cardcore) engine. The server hosts card game sessions over a JSON-over-WebSocket protocol; the TUI connects as a player client. External dependencies are permitted (see `doc/dependencies.md` for the approved list).
 
 Module: `github.com/jrgoldfinemiddleton/cardcore-server`
 
@@ -86,7 +86,12 @@ cardcore-server/
 - **Import grouping**: stdlib, then third-party, then local (enforced by `gci` via `make lint`)
 
 ## 7. Architecture Decisions
-Read `doc/decisions/` for the rationale behind key choices.
+Read `doc/decisions/` for the rationale behind key choices. Important ADRs:
+- ADR-003: Repo scope — what lives here vs separate repos
+- ADR-004: Strict transport boundary — no in-process shortcuts
+- ADR-006: Session ownership — one goroutine per session, no locks
+- ADR-007: State sync — full snapshots, no incremental diffs
+- ADR-008: Authentication — capability-based seat tokens
 
 ## 8. When to Check In With the Human
 - Before making any architectural change not covered by an ADR
