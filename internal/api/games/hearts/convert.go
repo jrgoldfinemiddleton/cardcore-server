@@ -1,10 +1,10 @@
-package hearts
+package heartsapi
 
 import (
 	"fmt"
 
 	"github.com/jrgoldfinemiddleton/cardcore"
-	enginehearts "github.com/jrgoldfinemiddleton/cardcore/games/hearts"
+	"github.com/jrgoldfinemiddleton/cardcore/games/hearts"
 )
 
 // rankWireNames maps engine rank values (by index) to their wire-format strings.
@@ -109,7 +109,7 @@ func CardToEngine(c Card) (cardcore.Card, error) {
 }
 
 // PhaseToWire converts an engine Hearts phase to its wire-format string.
-func PhaseToWire(p enginehearts.Phase) string {
+func PhaseToWire(p hearts.Phase) string {
 	if int(p) < len(phaseWireNames) {
 		return phaseWireNames[p]
 	}
@@ -117,7 +117,7 @@ func PhaseToWire(p enginehearts.Phase) string {
 }
 
 // PassDirToWire converts an engine Hearts pass direction to its wire-format string.
-func PassDirToWire(d enginehearts.PassDirection) string {
+func PassDirToWire(d hearts.PassDirection) string {
 	if int(d) < len(passDirWireNames) {
 		return passDirWireNames[d]
 	}

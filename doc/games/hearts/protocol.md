@@ -76,7 +76,7 @@ game-specific fields for Hearts:
 | `turn` | integer | Seat index of the player who must act next. |
 | `hearts_broken` | boolean | Whether hearts have been played (to any trick) this round. |
 | `hand` | array of card objects | The receiving player's current hand, sorted. |
-| `other_hand_counts` | array of integers | Number of cards in each seat's hand, indexed by seat. Includes the player's own seat for positional consistency. |
+| `hand_counts` | array of integers | Number of cards in each seat's hand, indexed by seat. |
 | `trick` | array of trick entries | Cards played to the current trick so far, in play order. |
 | `scores` | array of integers | Cumulative scores per seat across all completed rounds. During an active round, this reflects the total as of the last completed round. |
 | `round_points` | array of integers | Penalty points accumulated this round per seat. Resets to zero at the start of each round. |
@@ -171,7 +171,7 @@ Player view, seat 0, round 1, trick 3:
     { "rank": "ace", "suit": "spades" },
     { "rank": "three", "suit": "spades" }
   ],
-  "other_hand_counts": [11, 11, 10, 10],
+  "hand_counts": [11, 11, 10, 10],
   "trick": [
     { "seat": 2, "card": { "rank": "king", "suit": "diamonds" } },
     { "seat": 3, "card": { "rank": "five", "suit": "diamonds" } }

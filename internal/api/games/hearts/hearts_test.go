@@ -1,11 +1,11 @@
-package hearts
+package heartsapi
 
 import (
 	"encoding/json"
 	"testing"
 
 	"github.com/jrgoldfinemiddleton/cardcore"
-	enginehearts "github.com/jrgoldfinemiddleton/cardcore/games/hearts"
+	"github.com/jrgoldfinemiddleton/cardcore/games/hearts"
 )
 
 // TestAllCardsRoundTrip verifies every card maps to wire format and back.
@@ -92,14 +92,14 @@ func TestSuitFromWireError(t *testing.T) {
 // TestPhaseToWire verifies engine phases map to wire strings.
 func TestPhaseToWire(t *testing.T) {
 	cases := []struct {
-		phase enginehearts.Phase
+		phase hearts.Phase
 		want  string
 	}{
-		{enginehearts.PhaseDeal, "deal"},
-		{enginehearts.PhasePass, "passing"},
-		{enginehearts.PhasePlay, "playing"},
-		{enginehearts.PhaseScore, "round_complete"},
-		{enginehearts.PhaseEnd, "game_over"},
+		{hearts.PhaseDeal, "deal"},
+		{hearts.PhasePass, "passing"},
+		{hearts.PhasePlay, "playing"},
+		{hearts.PhaseScore, "round_complete"},
+		{hearts.PhaseEnd, "game_over"},
 	}
 	for _, tc := range cases {
 		got := PhaseToWire(tc.phase)
@@ -112,13 +112,13 @@ func TestPhaseToWire(t *testing.T) {
 // TestPassDirToWire verifies pass directions map to wire strings.
 func TestPassDirToWire(t *testing.T) {
 	cases := []struct {
-		dir  enginehearts.PassDirection
+		dir  hearts.PassDirection
 		want string
 	}{
-		{enginehearts.PassLeft, "left"},
-		{enginehearts.PassRight, "right"},
-		{enginehearts.PassAcross, "across"},
-		{enginehearts.PassHold, "none"},
+		{hearts.PassLeft, "left"},
+		{hearts.PassRight, "right"},
+		{hearts.PassAcross, "across"},
+		{hearts.PassHold, "none"},
 	}
 	for _, tc := range cases {
 		got := PassDirToWire(tc.dir)
@@ -152,7 +152,7 @@ func TestPlayerSnapshotJSON(t *testing.T) {
 			{Rank: "ace", Suit: "spades"},
 			{Rank: "three", Suit: "spades"},
 		},
-		OtherHandCounts: []int{11, 11, 10, 10},
+		HandCounts: []int{11, 11, 10, 10},
 		Trick: []TrickEntry{
 			{Seat: 2, Card: Card{Rank: "king", Suit: "diamonds"}},
 			{Seat: 3, Card: Card{Rank: "five", Suit: "diamonds"}},
@@ -205,11 +205,11 @@ func TestPlayerSnapshotJSON(t *testing.T) {
 	if got.Hand[0] != (Card{Rank: "four", Suit: "clubs"}) {
 		t.Errorf("got Hand[0] %v, want %v", got.Hand[0], Card{Rank: "four", Suit: "clubs"})
 	}
-	if len(got.OtherHandCounts) != 4 {
-		t.Errorf("got OtherHandCounts length %d, want %d", len(got.OtherHandCounts), 4)
+	if len(got.HandCounts) != 4 {
+		t.Errorf("got HandCounts length %d, want %d", len(got.HandCounts), 4)
 	}
-	if got.OtherHandCounts[2] != 10 {
-		t.Errorf("got OtherHandCounts[2] %d, want %d", got.OtherHandCounts[2], 10)
+	if got.HandCounts[2] != 10 {
+		t.Errorf("got HandCounts[2] %d, want %d", got.HandCounts[2], 10)
 	}
 	if len(got.Trick) != 2 {
 		t.Errorf("got Trick length %d, want %d", len(got.Trick), 2)
