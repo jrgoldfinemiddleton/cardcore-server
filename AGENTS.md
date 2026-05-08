@@ -12,10 +12,15 @@ cardcore-server/
 │   ├── server/          # Game server binary
 │   └── tui/             # Bubble Tea TUI client binary
 ├── internal/
+│   ├── api/
+│   │   ├── api.go        # Game-agnostic message envelopes and error codes
+│   │   └── games/
+│   │       └── <game>/   # Wire-format DTOs and conversion functions
 │   └── server/
 │       ├── transport/   # HTTP/WebSocket plumbing
 │       ├── session/     # Session lifecycle and game goroutine
-│       └── view/        # Seat-filtered snapshot generation
+│       └── view/
+│           └── <game>/  # Seat-filtered snapshot generation
 ├── doc/
 │   ├── api.md           # Protocol specification
 │   ├── dependencies.md  # Approved external dependencies

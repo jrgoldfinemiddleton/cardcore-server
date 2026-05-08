@@ -53,9 +53,10 @@ An optional `!` after the type/scope indicates a breaking change: `feat(session)
 
 | Layer | Package(s) | What it tests |
 |-------|-----------|---------------|
+| Unit (api) | `internal/api/`, `internal/api/games/<game>/` | Wire-format DTO serialization round-trips, conversion function correctness (engine ↔ wire mapping). |
 | Unit (transport) | `internal/server/transport/` | HTTP handler routing, request parsing, response shapes. No game logic. Uses `net/http/httptest`. |
 | Unit (session) | `internal/server/session/` | Session goroutine lifecycle, command enqueue/dequeue, seq incrementing, token validation, AI turn triggering. |
-| Unit (view) | `internal/server/view/` | Snapshot projection correctness: given engine state + seat, assert correct masking (no other hands visible, correct `legal_actions`, correct scores). |
+| Unit (view) | `internal/server/view/<game>/` | Snapshot projection correctness: given engine state + seat, assert correct masking (no other hands visible, correct `legal_actions`, correct scores). |
 | Integration | `internal/server/` or root | Real server on `:0`, real WebSocket client, play through a full game. Exercises the same code path as production. |
 | Protocol conformance | `internal/server/` or root | Table-driven: "send this message, expect this response shape." Validates wire format against `doc/api.md`. |
 | Game protocol | `internal/server/` or root | Game-specific message handling: do commands produce correct snapshots? Do game-specific error cases fire correctly? Full-game integration through all phases. Validates behavior against `doc/games/<game>/protocol.md`. |
