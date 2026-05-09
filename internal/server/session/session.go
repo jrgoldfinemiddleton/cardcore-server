@@ -11,6 +11,12 @@ const (
 	Expired  State = "expired"
 )
 
+// Seat type identifiers.
+const (
+	SeatHuman = "human"
+	SeatAI    = "ai"
+)
+
 // SeatConfig describes a single seat's setup at session creation time.
 type SeatConfig struct {
 	// Type is "human" or "ai".
@@ -26,9 +32,9 @@ type Config struct {
 	Game string `json:"game"`
 	// Seats defines each seat's configuration.
 	Seats []SeatConfig `json:"seats"`
-	// AIDelayMS is the minimum delay in milliseconds between AI moves.
-	// Defaults to 500 if not set.
-	AIDelayMS int `json:"ai_delay_ms,omitempty"`
+	// AIDelayMS is the minimum delay in milliseconds between AI
+	// moves. Nil means use the default (500ms).
+	AIDelayMS *int `json:"ai_delay_ms,omitempty"`
 }
 
 // PatchConfig holds optional fields for updating a session in draft state.
