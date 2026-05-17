@@ -78,3 +78,236 @@ Localhost TCP on `127.0.0.1:0` — the OS picks a free port at startup. No unix 
 External dependencies require explicit approval. The approved list lives in `doc/dependencies.md`. The `cardcore` engine is the only domain dependency; the Charm stack provides TUI rendering; `coder/websocket` provides WebSocket transport. All other functionality uses the Go standard library.
 
 Dev tools (golangci-lint, pkgsite) are managed via the `tool` directive in `go.mod` and compiled automatically on first use.
+
+## Session Goroutine Architecture
+
+This section describes the goroutine and communication model for the Cardcore Server session layer.
+
+### Overview
+
+```mermaid
+graph LR
+    subgraph Clients
+        P1[Player]
+        P2[Player]
+        Obs[Observer]
+    end
+
+    WH[WS Handler]
+    M[Manager]
+
+    subgraph Session
+        SG[Session Goroutine]
+    end
+
+    P1 <-->|WebSocket| WH
+    P2 <-->|WebSocket| WH
+    Obs <-->|WebSocket| WH
+
+    WH -->|SubmitAction| M
+    WH -->|SubscribePlayer| M
+    WH -->|SubscribeObserver| M
+
+    M -->|playCmd| SG
+    M -->|subscribeCmd| SG
+    M -->|shutdown| SG
+
+    SG -->|state updates| WH
+
+    style SG fill:#e1f5e1,stroke:#333,stroke-width:2px
+    style M fill:#e1e1f5,stroke:#333
+```
+
+### Two Communication Patterns
+
+#### Pattern 1: Synchronous (SubmitAction)
+
+The WebSocket handler calls `Manager.SubmitAction()`, which blocks until the session goroutine responds.
+
+```mermaid
+sequenceDiagram
+    actor Client
+    participant WH as WebSocket Handler
+    participant M as Manager
+    participant SG as Session Goroutine
+
+    Client->>WH: play card 2H (seq:7)
+    WH->>M: SubmitAction(id, 0, msg)
+    Note over M: Creates throwaway resp chan
+    M->>SG: send playCmd on cmds
+    M->>M: block on <-resp
+    SG->>SG: process command
+    SG->>M: send SubmitResult on resp
+    M-->>WH: return SubmitResult
+    WH->>Client: ack or error
+```
+
+#### Pattern 2: Asynchronous (SubscribePlayer)
+
+The WebSocket handler gets a channel immediately and reads snapshots from it continuously.
+
+```mermaid
+sequenceDiagram
+    actor Client
+    participant WH as WebSocket Handler
+    participant M as Manager
+    participant SG as Session Goroutine
+
+    Client->>WH: connect with token
+    WH->>M: SubscribePlayer(id, seat)
+    M->>SG: send subscribeCmd on cmds
+    M-->>WH: return snapshot chan
+    WH->>WH: start goroutine reading ch
+
+    Note over Client,WH: Later: another player acts
+    Client->>WH: play card
+    WH->>M: SubmitAction
+    M->>SG: playCmd
+    SG->>SG: broadcastSnapshot()
+    SG->>WH: send snapshot on ch
+    WH->>Client: snapshot JSON
+```
+
+### Goroutine Ownership
+
+```mermaid
+graph LR
+    Client["Client"]
+    Main["HTTP Server"]
+    M["Manager"]
+
+    subgraph PerConnection["Per WebSocket Connection"]
+        WH["WS Handler"]
+        WR["WS Writer"]
+    end
+
+    subgraph PerSession["Per Active Session"]
+        SG["Session Goroutine"]
+    end
+
+    Client <-->|WebSocket| WH
+    Main -->|upgrades| WH
+    WH -->|creates| WR
+    WH -->|calls| M
+    M -->|creates| SG
+    SG -->|snapshots| WR
+    WR -->|WebSocket| Client
+    SG -->|results| WH
+
+    style SG fill:#f9f
+    style WH fill:#bbf
+    style WR fill:#bbf
+```
+
+### Session Design Decisions
+
+| Aspect | Choice | Why |
+|--------|--------|-----|
+| Manager | Struct with `sync.RWMutex` | Simple registry, no event loop needed |
+| Session | Goroutine with `for { select {} }` | Owns game state, serializes mutations |
+| Commands | Buffered `chan command` (size 64) | Decouples Manager from session goroutine |
+| Response | Throwaway `chan SubmitResult` (size 1) | Enables synchronous call across goroutines |
+| Snapshots | Buffered `chan []byte` (size 64) | Session broadcasts without blocking |
+| Shutdown | `close(cancel)` then `close(done)` | Clean shutdown with exit confirmation |
+
+### The Three Layers
+
+| Layer | Goroutine? | Role |
+|-------|-----------|------|
+| `session.go` types | No | Wire format — JSON structs for HTTP/WebSocket |
+| Manager | No | Registry — creates sessions, tracks state, starts/stops |
+| Session (goroutine) | Yes | Game engine runner — processes actions, broadcasts state |
+
+## Message Field Lifecycle (Example: Hearts)
+
+What happens to each field as a client message flows through the system.
+
+### Client JSON (what the client sends)
+
+```json
+{
+  "type": "play_card",
+  "action_id": "play-abc123",
+  "seq": 7,
+  "payload": {
+    "card": {
+      "rank": "2",
+      "suit": "hearts"
+    }
+  }
+}
+```
+
+### After Transport Parses (api.InboundMessage)
+
+All fields preserved, `payload` becomes raw bytes:
+
+```go
+type InboundMessage struct {
+    Type     string          // "play_card"
+    ActionID string          // "play-abc123"
+    Seq      int             // 7
+    Payload  json.RawMessage // {"card":{"rank":"2","suit":"hearts"}}
+}
+```
+
+### After Session Goroutine Processes
+
+The session goroutine **consumes** three fields before calling the adapter. They are stripped from what the adapter sees:
+
+| Field | Used For | Reaches Adapter? |
+|-------|----------|-----------------|
+| `type` | Dispatch to correct handler | Yes (adapter switches on this) |
+| `action_id` | Deduplication (replay protection) | **No** — consumed by session |
+| `seq` | Ordering check (stale detection) | **No** — consumed by session |
+
+### After Adapter Parses Payload (heartsapi.PlayCardPayload)
+
+The adapter unmarshals `InboundMessage.Payload` into the game-specific struct:
+
+```go
+type PlayCardPayload struct {
+    Card Card `json:"card"`
+}
+
+type Card struct {
+    Rank string `json:"rank"` // "2"
+    Suit string `json:"suit"` // "hearts"
+}
+```
+
+### Field Survivors Summary
+
+| Original Field | Survives To Engine? | Where Consumed |
+|----------------|---------------------|----------------|
+| `type` | Partially (used for dispatch) | Transport → Adapter |
+| `action_id` | **No** | Session goroutine (dedup) |
+| `seq` | **No** | Session goroutine (ordering) |
+| `payload.card.rank` | **Yes** → `Card.Rank` | Adapter → Engine |
+| `payload.card.suit` | **Yes** → `Card.Suit` | Adapter → Engine |
+
+### pass_cards (comparison)
+
+```json
+{
+  "type": "pass_cards",
+  "action_id": "pass-xyz789",
+  "seq": 5,
+  "payload": {
+    "cards": [
+      {"rank": "Q", "suit": "spades"},
+      {"rank": "3", "suit": "hearts"},
+      {"rank": "A", "suit": "diamonds"}
+    ]
+  }
+}
+```
+
+Same stripping applies:
+- `action_id` and `seq` consumed by session goroutine
+- `type` used for dispatch
+- `payload.cards[]` → `PassCardsPayload.Cards[]` → engine
+
+### Design Principle
+
+The generic envelope (`api.InboundMessage`) carries **cross-cutting concerns** (action_id, seq) that every game needs. The game-specific payload carries only **game data** (cards, moves, coordinates, etc.). The session layer handles the cross-cutting stuff so the game adapter doesn't have to care about replay detection or ordering.

@@ -46,8 +46,8 @@ type PatchConfig struct {
 	AIDelayMS *int `json:"ai_delay_ms,omitempty"`
 }
 
-// SeatInfo is returned from session creation with the seat's token.
-// Token is only present for human seats.
+// SeatInfo is returned from session creation and update with the seat's
+// token. Token is only present for human seats.
 type SeatInfo struct {
 	// Index is the 0-based seat position.
 	Index int `json:"index"`
