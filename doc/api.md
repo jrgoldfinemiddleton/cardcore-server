@@ -72,6 +72,26 @@ session. Sessions do not auto-expire (except on process exit).
 
 ## HTTP Endpoints
 
+### HTTP Endpoint → Manager Method Mapping
+
+| Endpoint | Manager Method | Success Status | Error Statuses |
+|----------|----------------|----------------|----------------|
+| `POST /sessions` | `Create(Config)` | `201 Created` | `400 Bad Request` |
+| `GET /sessions` | `List()` | `200 OK` | — |
+| `GET /sessions/{id}` | `Get(id)` | `200 OK` | `404 Not Found` |
+| `PATCH /sessions/{id}` | `Update(id, PatchConfig)` | `200 OK` | `404 Not Found`, `409 Conflict`, `400 Bad Request` |
+| `POST /sessions/{id}/start` | `Start(id)` | `200 OK` | `404 Not Found`, `409 Conflict` |
+| `DELETE /sessions/{id}` | `Delete(id)` | `204 No Content` | `404 Not Found` |
+
+**Error status mapping:**
+
+| Internal Error | HTTP Status |
+|----------------|-------------|
+| `ErrNotFound` | `404 Not Found` |
+| `ErrNotDraft` / `ErrNotActive` | `409 Conflict` |
+| `validateConfig` errors | `400 Bad Request` |
+| Generic/unexpected errors | `500 Internal Server Error` |
+
 ### Create session
 
 ```
