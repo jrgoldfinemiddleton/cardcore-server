@@ -61,7 +61,10 @@ while IFS= read -r f; do
 			add_want "scope:ci" ;;
 		.github/PULL_REQUEST_TEMPLATE.md|.github/ISSUE_TEMPLATE/*|scripts/*|.gitignore|LICENSE|SECURITY.md)
 			add_want "scope:meta" ;;
-		internal/api/*|doc/api.md)
+		doc/api.md)
+			add_want "scope:api"
+			add_want "scope:docs" ;;
+		internal/api/*)
 			add_want "scope:api" ;;
 		internal/server/*|cmd/server/*)
 			add_want "scope:server" ;;
