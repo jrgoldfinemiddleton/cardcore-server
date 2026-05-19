@@ -35,6 +35,9 @@ coverage.html
 # Maintainer runbook (local only)
 doc/maintainer-runbook.md
 
+# Proposed architecture plans (local only)
+doc/plans/
+
 # Repository configuration script (local only)
 scripts/configure-repo.sh
 

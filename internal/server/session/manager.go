@@ -10,7 +10,7 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
 )
 
-const defaultAIDelayMS = 500
+const defaultPacingDelayMS = 500
 
 // Sentinel errors returned by Manager methods.
 var (
@@ -147,9 +147,9 @@ func (m *Manager) Update(
 
 	if patch.Seats != nil {
 		cfg := Config{
-			Game:      e.config.Game,
-			Seats:     patch.Seats,
-			AIDelayMS: e.config.AIDelayMS,
+			Game:          e.config.Game,
+			Seats:         patch.Seats,
+			PacingDelayMS: e.config.PacingDelayMS,
 		}
 		if err := validateConfig(cfg); err != nil {
 			return nil, nil, err
@@ -164,8 +164,8 @@ func (m *Manager) Update(
 		return e.info(id), seats, nil
 	}
 
-	if patch.AIDelayMS != nil {
-		e.config.AIDelayMS = patch.AIDelayMS
+	if patch.PacingDelayMS != nil {
+		e.config.PacingDelayMS = patch.PacingDelayMS
 	}
 
 	return e.info(id), nil, nil
@@ -196,7 +196,9 @@ func (m *Manager) Start(id string) error {
 	sessionID := id
 	onDone := func(finalState State) {
 		m.mu.Lock()
-		if entry, ok := m.sessions[sessionID]; ok {
+		// Only transition from Active. Delete may have already set
+		// Expired by the time the goroutine's exit callback fires.
+		if entry, ok := m.sessions[sessionID]; ok && entry.state == Active {
 			entry.state = finalState
 		}
 		m.mu.Unlock()
@@ -208,9 +210,8 @@ func (m *Manager) Start(id string) error {
 }
 
 // Delete transitions the session to expired, shutting down the session
-// goroutine if it is running. The session is removed from lookup but
-// may remain in memory until the goroutine exits. Returns ErrNotFound
-// if the session does not exist or is already expired.
+// goroutine if it is running. Returns ErrNotFound if the session does
+// not exist or is already expired.
 func (m *Manager) Delete(id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -219,7 +220,9 @@ func (m *Manager) Delete(id string) error {
 	if !ok || e.state == Expired {
 		return ErrNotFound
 	}
-	if e.sess != nil {
+	// Only close cancel when the session is Active. A Finished
+	// session's goroutine has already exited; double-closing panics.
+	if e.state == Active {
 		close(e.sess.cancel)
 	}
 	e.state = Expired
@@ -229,7 +232,7 @@ func (m *Manager) Delete(id string) error {
 // SubscribePlayer opens a buffered channel that receives snapshot updates
 // for seat. If seat already has an active subscriber, the previous
 // channel is closed and replaced. Returns ErrNotFound (missing/expired)
-// or ErrNotActive if the session is in draft state.
+// or ErrNotActive if the session is not active.
 func (m *Manager) SubscribePlayer(id string, seat int) (chan []byte, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -238,20 +241,31 @@ func (m *Manager) SubscribePlayer(id string, seat int) (chan []byte, error) {
 	if !ok || e.state == Expired {
 		return nil, ErrNotFound
 	}
-	if e.state != Active && e.state != Finished {
+	if e.state != Active {
 		return nil, ErrNotActive
 	}
 
 	ch := make(chan []byte, subChanSize)
-	e.sess.cmds <- subscribePlayerCmd{seat: seat, ch: ch}
-	return ch, nil
+
+	// Delete may have closed the goroutine's cancel channel and still
+	// hold the write lock, so e.state still reads Active even though
+	// the goroutine has already exited and closed done. <-done is the
+	// definitive signal that the goroutine is dead.
+	select {
+	case <-e.sess.done:
+		return nil, ErrNotActive
+	case e.sess.cmds <- subscribePlayerCmd{seat: seat, ch: ch}:
+		return ch, nil
+	default:
+		return nil, errors.New("command queue full")
+	}
 }
 
 // SubscribeObserver opens a buffered channel that receives every
 // broadcast snapshot for the session. Observers do not replace each
 // other; multiple observer channels may be active concurrently. Returns
-// ErrNotFound (missing/expired) or ErrNotActive if the session is in
-// draft state.
+// ErrNotFound (missing/expired) or ErrNotActive if the session is not
+// active.
 func (m *Manager) SubscribeObserver(id string) (chan []byte, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -260,19 +274,30 @@ func (m *Manager) SubscribeObserver(id string) (chan []byte, error) {
 	if !ok || e.state == Expired {
 		return nil, ErrNotFound
 	}
-	if e.state != Active && e.state != Finished {
+	if e.state != Active {
 		return nil, ErrNotActive
 	}
 
 	ch := make(chan []byte, subChanSize)
-	e.sess.cmds <- subscribeObserverCmd{ch: ch}
-	return ch, nil
+
+	// Delete may have closed the goroutine's cancel channel and still
+	// hold the write lock, so e.state still reads Active even though
+	// the goroutine has already exited and closed done. <-done is the
+	// definitive signal that the goroutine is dead.
+	select {
+	case <-e.sess.done:
+		return nil, ErrNotActive
+	case e.sess.cmds <- subscribeObserverCmd{ch: ch}:
+		return ch, nil
+	default:
+		return nil, errors.New("command queue full")
+	}
 }
 
 // UnsubscribePlayer sends an unsubscribe command to the session
 // goroutine for seat, causing the goroutine to close the player's
 // snapshot channel. Returns ErrNotFound (missing/expired) or
-// ErrNotActive if the session is in draft state.
+// ErrNotActive if the session is not active.
 func (m *Manager) UnsubscribePlayer(id string, seat int) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -281,18 +306,28 @@ func (m *Manager) UnsubscribePlayer(id string, seat int) error {
 	if !ok || e.state == Expired {
 		return ErrNotFound
 	}
-	if e.state != Active && e.state != Finished {
+	if e.state != Active {
 		return ErrNotActive
 	}
 
-	e.sess.cmds <- unsubscribeCmd{seat: seat}
-	return nil
+	// Delete may have closed the goroutine's cancel channel and still
+	// hold the write lock, so e.state still reads Active even though
+	// the goroutine has already exited and closed done. <-done is the
+	// definitive signal that the goroutine is dead.
+	select {
+	case <-e.sess.done:
+		return ErrNotActive
+	case e.sess.cmds <- unsubscribeCmd{seat: seat}:
+		return nil
+	default:
+		return errors.New("command queue full")
+	}
 }
 
 // UnsubscribeObserver sends an unsubscribe command for ch to the
 // session goroutine, causing the goroutine to remove and close ch from
 // the observer list. Returns ErrNotFound (missing/expired) or
-// ErrNotActive if the session is in draft state.
+// ErrNotActive if the session is not active.
 func (m *Manager) UnsubscribeObserver(id string, ch chan []byte) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -301,12 +336,22 @@ func (m *Manager) UnsubscribeObserver(id string, ch chan []byte) error {
 	if !ok || e.state == Expired {
 		return ErrNotFound
 	}
-	if e.state != Active && e.state != Finished {
+	if e.state != Active {
 		return ErrNotActive
 	}
 
-	e.sess.cmds <- unsubscribeCmd{seat: -1, ch: ch}
-	return nil
+	// Delete may have closed the goroutine's cancel channel and still
+	// hold the write lock, so e.state still reads Active even though
+	// the goroutine has already exited and closed done. <-done is the
+	// definitive signal that the goroutine is dead.
+	select {
+	case <-e.sess.done:
+		return ErrNotActive
+	case e.sess.cmds <- unsubscribeCmd{seat: -1, ch: ch}:
+		return nil
+	default:
+		return errors.New("command queue full")
+	}
 }
 
 // SubmitAction submits a player command from seat to the session goroutine
@@ -337,11 +382,17 @@ func (m *Manager) SubmitAction(
 
 	// The send is non-blocking (with a default case) because this method
 	// holds an RLock; blocking on a full cmd channel would stall all other
-	// read operations on the Manager. The receive blocks because the caller
-	// is synchronously waiting for the goroutine to process this command.
+	// read operations on the Manager. The receive is also guarded with
+	// <-done so that the caller does not block forever if the goroutine
+	// exits after the send to cmds succeeds but before it responds on resp.
 	select {
 	case e.sess.cmds <- cmd:
-		return <-resp, nil
+		select {
+		case result := <-resp:
+			return result, nil
+		case <-e.sess.done:
+			return SubmitResult{}, ErrNotActive
+		}
 	default:
 		return SubmitResult{}, errors.New("command queue full")
 	}
@@ -359,21 +410,21 @@ func (e *entry) info(id string) *SessionInfo {
 		}
 	}
 	return &SessionInfo{
-		SessionID: id,
-		Game:      e.config.Game,
-		State:     e.state,
-		Seats:     details,
-		AIDelayMS: e.delay(),
+		SessionID:     id,
+		Game:          e.config.Game,
+		State:         e.state,
+		Seats:         details,
+		PacingDelayMS: e.delay(),
 	}
 }
 
-// delay returns the resolved AI delay in milliseconds, applying the
-// default when the config value is nil.
+// delay returns the resolved pacing delay in milliseconds, applying
+// the default when the config value is nil.
 func (e *entry) delay() int {
-	if e.config.AIDelayMS != nil {
-		return *e.config.AIDelayMS
+	if e.config.PacingDelayMS != nil {
+		return *e.config.PacingDelayMS
 	}
-	return defaultAIDelayMS
+	return defaultPacingDelayMS
 }
 
 // generateSessionID returns a 32-character hex string from 16 random

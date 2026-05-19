@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
 )
@@ -77,9 +78,9 @@ func TestCreateInvalidConfig(t *testing.T) {
 	}
 }
 
-// TestCreateAIDelayDefault verifies that omitting AIDelayMS uses the
-// default value.
-func TestCreateAIDelayDefault(t *testing.T) {
+// TestCreatePacingDelayDefault verifies that omitting PacingDelayMS uses
+// the default value.
+func TestCreatePacingDelayDefault(t *testing.T) {
 	m := NewManager(mockGameFactory())
 	cfg := Config{
 		Game: "hearts",
@@ -100,17 +101,17 @@ func TestCreateAIDelayDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get() error: %v", err)
 	}
-	if info.AIDelayMS != defaultAIDelayMS {
+	if info.PacingDelayMS != defaultPacingDelayMS {
 		t.Errorf(
-			"got ai_delay_ms %d, want %d",
-			info.AIDelayMS, defaultAIDelayMS,
+			"got pacing_delay_ms %d, want %d",
+			info.PacingDelayMS, defaultPacingDelayMS,
 		)
 	}
 }
 
-// TestCreateAIDelayZero verifies that explicitly setting AIDelayMS to 0
-// is preserved.
-func TestCreateAIDelayZero(t *testing.T) {
+// TestCreatePacingDelayZero verifies that explicitly setting PacingDelayMS
+// to 0 is preserved.
+func TestCreatePacingDelayZero(t *testing.T) {
 	m := NewManager(mockGameFactory())
 	delay := 0
 	cfg := Config{
@@ -121,7 +122,7 @@ func TestCreateAIDelayZero(t *testing.T) {
 			{Type: SeatHuman},
 			{Type: SeatAI, AIType: "random"},
 		},
-		AIDelayMS: &delay,
+		PacingDelayMS: &delay,
 	}
 
 	info, _, err := m.Create(cfg)
@@ -133,8 +134,8 @@ func TestCreateAIDelayZero(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get() error: %v", err)
 	}
-	if info.AIDelayMS != 0 {
-		t.Errorf("got ai_delay_ms %d, want 0", info.AIDelayMS)
+	if info.PacingDelayMS != 0 {
+		t.Errorf("got pacing_delay_ms %d, want 0", info.PacingDelayMS)
 	}
 }
 
@@ -161,8 +162,8 @@ func TestGetReturnsSessionInfo(t *testing.T) {
 	if info.Game != "hearts" {
 		t.Errorf("got game %q, want \"hearts\"", info.Game)
 	}
-	if info.AIDelayMS != 0 {
-		t.Errorf("got ai_delay_ms %d, want 0", info.AIDelayMS)
+	if info.PacingDelayMS != 0 {
+		t.Errorf("got pacing_delay_ms %d, want 0", info.PacingDelayMS)
 	}
 	if got := len(info.Seats); got != 4 {
 		t.Fatalf("got %d seats, want 4", got)
@@ -226,12 +227,12 @@ func TestUpdateDraftSucceeds(t *testing.T) {
 	id := info.SessionID
 
 	newDelay := 100
-	info, updatedSeats, err := m.Update(id, PatchConfig{AIDelayMS: &newDelay})
+	info, updatedSeats, err := m.Update(id, PatchConfig{PacingDelayMS: &newDelay})
 	if err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
-	if info.AIDelayMS != 100 {
-		t.Errorf("got ai_delay_ms %d, want 100", info.AIDelayMS)
+	if info.PacingDelayMS != 100 {
+		t.Errorf("got pacing_delay_ms %d, want 100", info.PacingDelayMS)
 	}
 	if updatedSeats != nil {
 		t.Errorf("got %d updated seats, want nil", len(updatedSeats))
@@ -347,6 +348,31 @@ func TestDeleteNotFound(t *testing.T) {
 	}
 }
 
+// TestDeleteIdempotent verifies that deleting the same session twice
+// returns ErrNotFound without panicking.
+func TestDeleteIdempotent(t *testing.T) {
+	m := NewManager(mockGameFactory())
+	cfg := validHeartsCfg()
+
+	info, _, err := m.Create(cfg)
+	if err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+	id := info.SessionID
+	if err := m.Start(id); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+
+	if err := m.Delete(id); err != nil {
+		t.Fatalf("Delete() error: %v", err)
+	}
+
+	err = m.Delete(id)
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("got error %v, want ErrNotFound", err)
+	}
+}
+
 // TestManagerConcurrency exercises Create, Get, List, Update, and
 // Delete from multiple goroutines to surface race conditions under
 // go test -race.
@@ -366,7 +392,7 @@ func TestManagerConcurrency(t *testing.T) {
 				_, _ = m.Get(id)
 				m.List()
 				delay := 100
-				_, _, _ = m.Update(id, PatchConfig{AIDelayMS: &delay})
+				_, _, _ = m.Update(id, PatchConfig{PacingDelayMS: &delay})
 				_ = m.Delete(id)
 			}
 		})
@@ -501,5 +527,198 @@ func TestManagerUnsubscribeObserverSendsCommand(t *testing.T) {
 
 	if err := m.UnsubscribeObserver(id, ch); err != nil {
 		t.Fatalf("UnsubscribeObserver() error: %v", err)
+	}
+}
+
+// TestManagerSubmitActionRejectsFinished verifies that SubmitAction
+// rejects commands when the session has finished.
+func TestManagerSubmitActionRejectsFinished(t *testing.T) {
+	m := NewManager(stepFinishedGameFactory())
+	id := mustCreateAndStart(t, m, validHeartsCfg())
+
+	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
+		Type:     "test",
+		ActionID: "action1",
+		Seq:      0,
+	})
+	if err != nil {
+		t.Fatalf("SubmitAction() error: %v", err)
+	}
+
+	waitForFinished(t, m, id)
+
+	_, err = m.SubmitAction(id, 0, &api.InboundMessage{
+		Type:     "test",
+		ActionID: "action2",
+		Seq:      1,
+	})
+	if !errors.Is(err, ErrNotActive) {
+		t.Errorf("got error %v, want ErrNotActive", err)
+	}
+}
+
+// TestManagerSubscribePlayerRejectsFinished verifies that SubscribePlayer
+// rejects new subscriptions when the session has finished.
+func TestManagerSubscribePlayerRejectsFinished(t *testing.T) {
+	m := NewManager(stepFinishedGameFactory())
+	id := mustCreateAndStart(t, m, validHeartsCfg())
+
+	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
+		Type:     "test",
+		ActionID: "action1",
+		Seq:      0,
+	})
+	if err != nil {
+		t.Fatalf("SubmitAction() error: %v", err)
+	}
+
+	waitForFinished(t, m, id)
+
+	_, err = m.SubscribePlayer(id, 0)
+	if !errors.Is(err, ErrNotActive) {
+		t.Errorf("got error %v, want ErrNotActive", err)
+	}
+}
+
+// TestManagerSubscribeObserverRejectsFinished verifies that
+// SubscribeObserver rejects new subscriptions when the session has
+// finished.
+func TestManagerSubscribeObserverRejectsFinished(t *testing.T) {
+	m := NewManager(stepFinishedGameFactory())
+	id := mustCreateAndStart(t, m, validHeartsCfg())
+
+	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
+		Type:     "test",
+		ActionID: "action1",
+		Seq:      0,
+	})
+	if err != nil {
+		t.Fatalf("SubmitAction() error: %v", err)
+	}
+
+	waitForFinished(t, m, id)
+
+	_, err = m.SubscribeObserver(id)
+	if !errors.Is(err, ErrNotActive) {
+		t.Errorf("got error %v, want ErrNotActive", err)
+	}
+}
+
+// TestManagerUnsubscribePlayerRejectsFinished verifies that
+// UnsubscribePlayer rejects unsubscribes when the session has finished.
+func TestManagerUnsubscribePlayerRejectsFinished(t *testing.T) {
+	m := NewManager(stepFinishedGameFactory())
+	id := mustCreateAndStart(t, m, validHeartsCfg())
+
+	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
+		Type:     "test",
+		ActionID: "action1",
+		Seq:      0,
+	})
+	if err != nil {
+		t.Fatalf("SubmitAction() error: %v", err)
+	}
+
+	waitForFinished(t, m, id)
+
+	err = m.UnsubscribePlayer(id, 0)
+	if !errors.Is(err, ErrNotActive) {
+		t.Errorf("got error %v, want ErrNotActive", err)
+	}
+}
+
+// TestManagerUnsubscribeObserverRejectsFinished verifies that
+// UnsubscribeObserver rejects unsubscribes when the session has
+// finished.
+func TestManagerUnsubscribeObserverRejectsFinished(t *testing.T) {
+	m := NewManager(stepFinishedGameFactory())
+	id := mustCreateAndStart(t, m, validHeartsCfg())
+
+	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
+		Type:     "test",
+		ActionID: "action1",
+		Seq:      0,
+	})
+	if err != nil {
+		t.Fatalf("SubmitAction() error: %v", err)
+	}
+
+	waitForFinished(t, m, id)
+
+	err = m.UnsubscribeObserver(id, nil)
+	if !errors.Is(err, ErrNotActive) {
+		t.Errorf("got error %v, want ErrNotActive", err)
+	}
+}
+
+// TestSubmitActionDoesNotBlockAfterGoroutineExits verifies that
+// SubmitAction returns ErrNotActive within a timeout after the session
+// goroutine has finished naturally, instead of blocking forever on the
+// response channel.
+func TestSubmitActionDoesNotBlockAfterGoroutineExits(t *testing.T) {
+	m := NewManager(stepFinishedGameFactory())
+	id := mustCreateAndStart(t, m, validHeartsCfg())
+
+	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
+		Type:     "test",
+		ActionID: "action1",
+		Seq:      0,
+	})
+	if err != nil {
+		t.Fatalf("SubmitAction() error: %v", err)
+	}
+
+	waitForFinished(t, m, id)
+
+	done := make(chan struct{})
+	var resultErr error
+	go func() {
+		_, resultErr = m.SubmitAction(id, 0, &api.InboundMessage{
+			Type:     "test",
+			ActionID: "action2",
+			Seq:      1,
+		})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		if !errors.Is(resultErr, ErrNotActive) {
+			t.Errorf("got error %v, want ErrNotActive", resultErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("SubmitAction blocked forever after goroutine exit")
+	}
+}
+
+// TestOnDoneGuardDoesNotOverwriteExpired verifies that the onDone
+// callback only transitions state from Active, preventing a race where
+// Delete sets Expired and a late onDone(Finished) overwrites it.
+func TestOnDoneGuardDoesNotOverwriteExpired(t *testing.T) {
+	m := NewManager(mockGameFactory())
+
+	// Manually create an entry in Expired state.
+	m.mu.Lock()
+	m.sessions["test"] = &entry{
+		state: Expired,
+	}
+	m.mu.Unlock()
+
+	// Simulate the onDone callback with Finished.
+	onDone := func(finalState State) {
+		m.mu.Lock()
+		if e, ok := m.sessions["test"]; ok && e.state == Active {
+			e.state = finalState
+		}
+		m.mu.Unlock()
+	}
+	onDone(Finished)
+
+	// Verify state is still Expired.
+	m.mu.RLock()
+	state := m.sessions["test"].state
+	m.mu.RUnlock()
+	if state != Expired {
+		t.Errorf("got state %q, want Expired", state)
 	}
 }

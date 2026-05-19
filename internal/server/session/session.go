@@ -32,9 +32,10 @@ type Config struct {
 	Game string `json:"game"`
 	// Seats defines each seat's configuration.
 	Seats []SeatConfig `json:"seats"`
-	// AIDelayMS is the minimum delay in milliseconds between AI
-	// moves. Nil means use the default (500ms).
-	AIDelayMS *int `json:"ai_delay_ms,omitempty"`
+	// PacingDelayMS is the delay in milliseconds between state
+	// transitions that require UX pacing (e.g., trick completion,
+	// round completion, AI turns). Nil means use the default (500ms).
+	PacingDelayMS *int `json:"pacing_delay_ms,omitempty"`
 }
 
 // PatchConfig holds optional fields for updating a session in draft state.
@@ -42,8 +43,8 @@ type Config struct {
 type PatchConfig struct {
 	// Seats replaces the seat configuration when non-nil.
 	Seats []SeatConfig `json:"seats,omitempty"`
-	// AIDelayMS updates the AI move delay when non-nil.
-	AIDelayMS *int `json:"ai_delay_ms,omitempty"`
+	// PacingDelayMS updates the pacing delay when non-nil.
+	PacingDelayMS *int `json:"pacing_delay_ms,omitempty"`
 }
 
 // SeatInfo is returned from session creation and update with the seat's
@@ -94,6 +95,6 @@ type SessionInfo struct {
 	State State `json:"state"`
 	// Seats describes each seat's configuration.
 	Seats []SeatDetail `json:"seats"`
-	// AIDelayMS is the configured AI move delay in milliseconds.
-	AIDelayMS int `json:"ai_delay_ms"`
+	// PacingDelayMS is the configured pacing delay in milliseconds.
+	PacingDelayMS int `json:"pacing_delay_ms"`
 }

@@ -2,6 +2,7 @@ package session
 
 import (
 	"testing"
+	"time"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
 )
@@ -9,6 +10,9 @@ import (
 // mockGame is a minimal Game implementation for testing Manager
 // lifecycle and session goroutine behavior without a real engine.
 type mockGame struct{}
+
+// stepFinishedGame is a mock Game that always returns StepFinished.
+type stepFinishedGame struct{}
 
 // HandleAction implements Game.HandleAction for mockGame.
 func (m *mockGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -37,6 +41,36 @@ func (m *mockGame) PlayerSnapshot(int, int) any {
 
 // ObserverSnapshot implements Game.ObserverSnapshot for mockGame.
 func (m *mockGame) ObserverSnapshot(int) any {
+	return nil
+}
+
+// HandleAction implements Game.HandleAction for stepFinishedGame.
+func (s *stepFinishedGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
+	return StepResult{Outcome: StepFinished}, nil
+}
+
+// AIPlay implements Game.AIPlay for stepFinishedGame.
+func (s *stepFinishedGame) AIPlay(int) (StepResult, error) {
+	return StepResult{}, nil
+}
+
+// Resume implements Game.Resume for stepFinishedGame.
+func (s *stepFinishedGame) Resume() (StepResult, error) {
+	return StepResult{}, nil
+}
+
+// Turn implements Game.Turn for stepFinishedGame.
+func (s *stepFinishedGame) Turn() int {
+	return 0
+}
+
+// PlayerSnapshot implements Game.PlayerSnapshot for stepFinishedGame.
+func (s *stepFinishedGame) PlayerSnapshot(int, int) any {
+	return nil
+}
+
+// ObserverSnapshot implements Game.ObserverSnapshot for stepFinishedGame.
+func (s *stepFinishedGame) ObserverSnapshot(int) any {
 	return nil
 }
 
@@ -74,6 +108,31 @@ func validHeartsCfg() Config {
 			{Type: SeatHuman},
 			{Type: SeatAI, AIType: "random"},
 		},
-		AIDelayMS: &delay,
+		PacingDelayMS: &delay,
 	}
+}
+
+// stepFinishedGameFactory returns a game factory that creates games which
+// immediately finish on any action.
+func stepFinishedGameFactory() func(Config) (Game, error) {
+	return func(Config) (Game, error) {
+		return &stepFinishedGame{}, nil
+	}
+}
+
+// waitForFinished polls Get until the session reaches Finished state or
+// the timeout expires.
+func waitForFinished(t *testing.T, m *Manager, id string) {
+	t.Helper()
+	for range 100 {
+		info, err := m.Get(id)
+		if err != nil {
+			t.Fatalf("Get() error: %v", err)
+		}
+		if info.State == Finished {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("session did not reach finished state")
 }
