@@ -47,18 +47,34 @@ type session struct {
 	onDone func(State)
 
 	// closeOnce ensures closeSubscribers is idempotent.
+	// When Delete races with natural game completion, the goroutine
+	// may call closeSubscribers from handleStepResult(StepFinished)
+	// and then again from the <-cancel branch in a subsequent select
+	// iteration. sync.Once prevents a double-close panic.
 	closeOnce sync.Once
+
+	// finished is set when the game reaches a terminal state,
+	// signaling run() to exit after the current command completes.
+	finished bool
 }
 
 // run is the session goroutine event loop.
 func (s *session) run() {
+	// done signals that the goroutine has exited and all subscriber
+	// channels have been closed. Manager methods use <-done to detect
+	// shutdown and avoid blocking on a dead session.
 	defer close(s.done)
 	for {
 		select {
 		case cmd := <-s.cmds:
 			s.handleCommand(cmd)
+			if s.finished {
+				s.drainCmds()
+				return
+			}
 		case <-s.cancel:
 			s.closeSubscribers()
+			s.drainCmds()
 			return
 		}
 	}
@@ -152,6 +168,7 @@ func (s *session) handleStepResult(res StepResult) {
 		if s.onDone != nil {
 			s.onDone(Finished)
 		}
+		s.finished = true
 	}
 }
 
@@ -174,8 +191,10 @@ func (s *session) autoResume() {
 }
 
 // scheduleAI checks if the next turn is AI and schedules it.
-// TODO: Implement AI turn scheduling — if the next seat is AI, spawn a
-// goroutine that sleeps for AIDelayMS then submits an AI move via s.cmds.
+// TODO: Implement AI turn scheduling — if the next seat is AI, sleep for
+// PacingDelayMS then call s.game.AIPlay(seat) and pass the returned
+// StepResult to s.handleStepResult. This runs synchronously within the
+// session goroutine; no additional goroutines are spawned.
 // If the next seat is human, this function returns immediately and the
 // session goroutine waits for the next human playCmd.
 func (s *session) scheduleAI() {
@@ -284,7 +303,9 @@ func (s *session) handleUnsubscribe(c unsubscribeCmd) {
 	}
 }
 
-// closeSubscribers closes all subscriber channels exactly once.
+// closeSubscribers closes all subscriber channels exactly once and
+// clears the subscriber maps so that any later unsubscribe does not
+// attempt to close an already-closed channel.
 func (s *session) closeSubscribers() {
 	s.closeOnce.Do(func() {
 		for _, ch := range s.players {
@@ -293,7 +314,37 @@ func (s *session) closeSubscribers() {
 		for _, ch := range s.observers {
 			close(ch)
 		}
+		s.players = make(map[int]chan []byte)
+		s.observers = nil
 	})
+}
+
+// drainCmds processes commands left in the buffer after the event loop
+// exits. It closes subscriber channels and sends errors on playCmd.resp
+// so that external callers do not block forever on a dead goroutine.
+func (s *session) drainCmds() {
+	for {
+		select {
+		case cmd := <-s.cmds:
+			switch c := cmd.(type) {
+			case playCmd:
+				select {
+				case c.resp <- SubmitResult{Err: &api.ErrorMessage{
+					Type:      errType,
+					ErrorCode: api.ErrGameOver,
+					Message:   "session finished",
+				}}:
+				default:
+				}
+			case subscribePlayerCmd:
+				close(c.ch)
+			case subscribeObserverCmd:
+				close(c.ch)
+			}
+		default:
+			return
+		}
+	}
 }
 
 // evictArbitraryActionID removes an arbitrary entry from the action ID cache.
@@ -306,8 +357,8 @@ func (s *session) evictArbitraryActionID() {
 
 // delay returns the configured delay in milliseconds.
 func (c Config) delay() int {
-	if c.AIDelayMS != nil {
-		return *c.AIDelayMS
+	if c.PacingDelayMS != nil {
+		return *c.PacingDelayMS
 	}
 	return 500
 }

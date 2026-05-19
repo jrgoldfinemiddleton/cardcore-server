@@ -32,7 +32,9 @@ type playCmd struct {
 	// msg is the inbound wire message.
 	msg *api.InboundMessage
 	// resp receives the synchronous SubmitResult.
-	resp chan<- SubmitResult
+	// Bidirectional so the session goroutine can send an error
+	// response when it exits before processing a buffered command.
+	resp chan SubmitResult
 }
 
 // subscribePlayerCmd registers a player subscriber.

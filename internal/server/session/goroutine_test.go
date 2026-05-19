@@ -8,9 +8,6 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
 )
 
-// stepFinishedGame is a mock Game that always returns StepFinished.
-type stepFinishedGame struct{}
-
 // TestSessionHandlePlayIncrementsSeq verifies that a valid play command
 // increments the sequence number.
 func TestSessionHandlePlayIncrementsSeq(t *testing.T) {
@@ -199,6 +196,74 @@ func TestSessionGameOverClosesSubscribers(t *testing.T) {
 	}
 }
 
+// TestSessionGoroutineExitsOnStepFinished verifies that the session
+// goroutine exits after StepFinished without requiring cancel.
+func TestSessionGoroutineExitsOnStepFinished(t *testing.T) {
+	g := &stepFinishedGame{}
+	s := newSession("test", g, Config{}, nil)
+
+	resp := make(chan SubmitResult, 1)
+	s.cmds <- playCmd{
+		seat: 0,
+		msg: &api.InboundMessage{
+			Type:     "test",
+			ActionID: "action1",
+			Seq:      0,
+		},
+		resp: resp,
+	}
+	<-resp
+
+	select {
+	case <-s.done:
+		// Goroutine exited as expected.
+	case <-time.After(time.Second):
+		t.Fatal("goroutine did not exit within 1 second after StepFinished")
+	}
+}
+
+// TestSessionDrainCmdsClosesPendingSubscribers verifies that a
+// subscribe command buffered while the goroutine exits on StepFinished
+// has its channel closed by drainCmds so the caller does not block
+// forever.
+func TestSessionDrainCmdsClosesPendingSubscribers(t *testing.T) {
+	g := &stepFinishedGame{}
+	s := newSession("test", g, Config{}, nil)
+
+	resp := make(chan SubmitResult, 1)
+	s.cmds <- playCmd{
+		seat: 0,
+		msg: &api.InboundMessage{
+			Type:     "test",
+			ActionID: "action1",
+			Seq:      0,
+		},
+		resp: resp,
+	}
+
+	ch := make(chan []byte, subChanSize)
+	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch}
+
+	<-resp
+
+	select {
+	case <-s.done:
+		// Goroutine exited.
+	case <-time.After(time.Second):
+		t.Fatal("goroutine did not exit")
+	}
+
+	select {
+	case _, ok := <-ch:
+		if ok {
+			t.Fatal("expected ch to be closed, got data")
+		}
+		// ch is closed by drainCmds.
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("ch not closed — drainCmds did not run")
+	}
+}
+
 // TestSessionGoroutineExitsOnCancel verifies that closing the cancel
 // channel causes the goroutine to exit.
 func TestSessionGoroutineExitsOnCancel(t *testing.T) {
@@ -263,6 +328,37 @@ func TestSessionUnsubscribeObserverClosesChannel(t *testing.T) {
 	}
 }
 
+// TestDrainCmdsHandlesPlayCmd verifies that drainCmds sends an error
+// result on a buffered playCmd's response channel.
+func TestDrainCmdsHandlesPlayCmd(t *testing.T) {
+	g := &mockGame{}
+	s := newSession("test", g, Config{}, nil)
+	defer close(s.cancel)
+
+	resp := make(chan SubmitResult, 1)
+	s.cmds <- playCmd{
+		seat: 0,
+		msg: &api.InboundMessage{
+			Type:     "test",
+			ActionID: "action1",
+			Seq:      0,
+		},
+		resp: resp,
+	}
+
+	// drainCmds is called directly — no goroutine involvement needed.
+	s.drainCmds()
+
+	select {
+	case result := <-resp:
+		if result.Err == nil {
+			t.Fatal("expected error from drainCmds, got nil")
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("drainCmds did not send on playCmd.resp")
+	}
+}
+
 // TestSessionSeqMonotonicity verifies that seq increases monotonically
 // across multiple plays.
 func TestSessionSeqMonotonicity(t *testing.T) {
@@ -287,34 +383,4 @@ func TestSessionSeqMonotonicity(t *testing.T) {
 	if got, want := s.seq, 5; got != want {
 		t.Errorf("seq: got %d, want %d", got, want)
 	}
-}
-
-// HandleAction implements Game.HandleAction for stepFinishedGame.
-func (s *stepFinishedGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
-	return StepResult{Outcome: StepFinished}, nil
-}
-
-// AIPlay implements Game.AIPlay for stepFinishedGame.
-func (s *stepFinishedGame) AIPlay(int) (StepResult, error) {
-	return StepResult{}, nil
-}
-
-// Resume implements Game.Resume for stepFinishedGame.
-func (s *stepFinishedGame) Resume() (StepResult, error) {
-	return StepResult{}, nil
-}
-
-// Turn implements Game.Turn for stepFinishedGame.
-func (s *stepFinishedGame) Turn() int {
-	return 0
-}
-
-// PlayerSnapshot implements Game.PlayerSnapshot for stepFinishedGame.
-func (s *stepFinishedGame) PlayerSnapshot(int, int) any {
-	return nil
-}
-
-// ObserverSnapshot implements Game.ObserverSnapshot for stepFinishedGame.
-func (s *stepFinishedGame) ObserverSnapshot(int) any {
-	return nil
 }
