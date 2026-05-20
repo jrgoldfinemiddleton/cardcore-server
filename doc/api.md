@@ -133,7 +133,7 @@ WebSocket endpoint.
 
 | Status | Condition |
 |--------|-----------|
-| `400 Bad Request` | Invalid game identifier, invalid seat config, missing `ai_type` for AI seat. |
+| `400 Bad Request` | Invalid game identifier, invalid seat config (including game-specific rules like seat count), missing `ai_type` for AI seat, unknown `ai_type`. |
 
 ---
 
@@ -204,7 +204,13 @@ Updates session configuration. Only valid in `draft` state.
 | `pacing_delay_ms` | integer | Update pacing delay in milliseconds. |
 
 **Response:** `200 OK` — returns the full session details (same shape
-as `GET /sessions/{id}`).
+as `GET /sessions/{id}`), plus an optional `seat_tokens` field when the
+seat configuration was changed.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| *(same as `GET /sessions/{id}`)* | | All `SessionInfo` fields. |
+| `seat_tokens` | array of `SeatInfo` | **Present only when `seats` was updated.** Contains fresh bearer tokens for the new seat configuration. |
 
 **Errors:**
 
@@ -212,7 +218,7 @@ as `GET /sessions/{id}`).
 |--------|-----------|
 | `404 Not Found` | Session does not exist or has expired. |
 | `409 Conflict` | Session is not in `draft` state. |
-| `400 Bad Request` | Invalid configuration. |
+| `400 Bad Request` | Invalid configuration (including game-specific rules like seat count or unknown `ai_type`). |
 
 ---
 

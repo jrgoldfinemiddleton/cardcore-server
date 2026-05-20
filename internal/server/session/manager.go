@@ -14,10 +14,11 @@ const defaultPacingDelayMS = 500
 
 // Sentinel errors returned by Manager methods.
 var (
-	ErrNotFound  = errors.New("session not found")
-	ErrNotDraft  = errors.New("session is not in draft state")
-	ErrNotActive = errors.New("session not active")
-	ErrNotReady  = errors.New("session start not implemented")
+	ErrNotFound      = errors.New("session not found")
+	ErrNotDraft      = errors.New("session is not in draft state")
+	ErrNotActive     = errors.New("session not active")
+	ErrNotReady      = errors.New("session start not implemented")
+	ErrInvalidConfig = errors.New("invalid session configuration")
 )
 
 // entry holds the internal state of a session within the Manager.
@@ -118,7 +119,7 @@ func (m *Manager) List() []SessionSummary {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	var out []SessionSummary
+	out := make([]SessionSummary, 0)
 	for id, e := range m.sessions {
 		if e.state == Expired {
 			continue
@@ -511,20 +512,22 @@ func buildSeatInfo(configs []SeatConfig) ([]SeatInfo, error) {
 // validateConfig checks game-agnostic constraints on a session config.
 func validateConfig(cfg Config) error {
 	if cfg.Game == "" {
-		return errors.New("game is required")
+		return fmt.Errorf("%w: game is required", ErrInvalidConfig)
 	}
 	if len(cfg.Seats) == 0 {
-		return errors.New("at least one seat is required")
+		return fmt.Errorf("%w: at least one seat is required", ErrInvalidConfig)
 	}
 	for i, s := range cfg.Seats {
 		if s.Type != SeatHuman && s.Type != SeatAI {
 			return fmt.Errorf(
-				"seat %d: type must be \"human\" or \"ai\"", i,
+				"%w: seat %d: type must be \"human\" or \"ai\"",
+				ErrInvalidConfig, i,
 			)
 		}
 		if s.Type == SeatAI && s.AIType == "" {
 			return fmt.Errorf(
-				"seat %d: ai_type is required for AI seats", i,
+				"%w: seat %d: ai_type is required for AI seats",
+				ErrInvalidConfig, i,
 			)
 		}
 	}

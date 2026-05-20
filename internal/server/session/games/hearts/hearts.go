@@ -39,8 +39,8 @@ func NewAdapter(
 ) (*Adapter, error) {
 	if len(seats) != hearts.NumPlayers {
 		return nil, fmt.Errorf(
-			"hearts requires %d seats, got %d",
-			hearts.NumPlayers, len(seats),
+			"%w: hearts requires %d seats, got %d",
+			session.ErrInvalidConfig, hearts.NumPlayers, len(seats),
 		)
 	}
 
@@ -338,6 +338,8 @@ func newPlayer(
 	case "heuristic":
 		return ai.NewHeuristic(rng), nil
 	default:
-		return nil, fmt.Errorf("unknown ai_type: %q", aiType)
+		return nil, fmt.Errorf(
+			"%w: unknown ai_type: %q", session.ErrInvalidConfig, aiType,
+		)
 	}
 }
