@@ -27,6 +27,9 @@ type Server struct {
 	// listener is the TCP listener, stored so Addr() can return the
 	// actual bound address (needed when Addr is ":0").
 	listener net.Listener
+	// mux is the HTTP request multiplexer (router) that maps URL patterns
+	// to handler functions.
+	mux *http.ServeMux
 }
 
 // responseWriter wraps http.ResponseWriter to capture the status code.
@@ -39,26 +42,27 @@ type responseWriter struct {
 func NewServer(cfg Config) *Server {
 	logger := slog.Default()
 
-	mux := http.NewServeMux()
+	s := &Server{
+		mgr:    cfg.Manager,
+		logger: logger,
+		mux:    http.NewServeMux(),
+	}
+	s.registerRoutes()
 
 	addr := cfg.Addr
 	if addr == "" {
 		addr = "127.0.0.1:0"
 	}
 
-	srv := &http.Server{
+	s.srv = &http.Server{
 		Addr:           addr,
-		Handler:        recoveryMiddleware(requestLogMiddleware(mux)),
+		Handler:        recoveryMiddleware(requestLogMiddleware(s.mux)),
 		ReadTimeout:    cfg.ReadTimeout,
 		WriteTimeout:   cfg.WriteTimeout,
 		MaxHeaderBytes: cfg.MaxHeaderBytes,
 	}
 
-	return &Server{
-		srv:    srv,
-		mgr:    cfg.Manager,
-		logger: logger,
-	}
+	return s
 }
 
 // Start begins listening on the configured address and serving HTTP

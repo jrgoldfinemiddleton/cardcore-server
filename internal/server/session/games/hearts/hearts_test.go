@@ -2,6 +2,7 @@ package heartssession
 
 import (
 	"encoding/json"
+	"errors"
 	"math/rand/v2"
 	"testing"
 
@@ -38,6 +39,9 @@ func TestNewAdapterWrongSeatCount(t *testing.T) {
 	if err == nil {
 		t.Fatal("got nil error, want seat count error")
 	}
+	if !errors.Is(err, session.ErrInvalidConfig) {
+		t.Errorf("got error %v, want wrapping ErrInvalidConfig", err)
+	}
 }
 
 // TestNewAdapterUnknownAIType verifies that an unknown ai_type is
@@ -52,6 +56,9 @@ func TestNewAdapterUnknownAIType(t *testing.T) {
 	_, err := NewAdapter(seats, testRNG())
 	if err == nil {
 		t.Fatal("got nil error, want unknown ai_type error")
+	}
+	if !errors.Is(err, session.ErrInvalidConfig) {
+		t.Errorf("got error %v, want wrapping ErrInvalidConfig", err)
 	}
 }
 
