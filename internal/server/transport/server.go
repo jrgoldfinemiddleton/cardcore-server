@@ -1,0 +1,142 @@
+package transport
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net"
+	"net/http"
+	"runtime/debug"
+	"sync"
+	"time"
+
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
+)
+
+// Server is the HTTP and WebSocket game server.
+type Server struct {
+	// srv is the underlying HTTP server.
+	srv *http.Server
+	// mgr is the session manager.
+	mgr *session.Manager
+	// logger is the structured logger.
+	logger *slog.Logger
+	// mu protects listener.
+	mu sync.RWMutex
+	// listener is the TCP listener, stored so Addr() can return the
+	// actual bound address (needed when Addr is ":0").
+	listener net.Listener
+}
+
+// responseWriter wraps http.ResponseWriter to capture the status code.
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+// NewServer creates a new server with the given configuration.
+func NewServer(cfg Config) *Server {
+	logger := slog.Default()
+
+	mux := http.NewServeMux()
+
+	addr := cfg.Addr
+	if addr == "" {
+		addr = "127.0.0.1:0"
+	}
+
+	srv := &http.Server{
+		Addr:           addr,
+		Handler:        recoveryMiddleware(requestLogMiddleware(mux)),
+		ReadTimeout:    cfg.ReadTimeout,
+		WriteTimeout:   cfg.WriteTimeout,
+		MaxHeaderBytes: cfg.MaxHeaderBytes,
+	}
+
+	return &Server{
+		srv:    srv,
+		mgr:    cfg.Manager,
+		logger: logger,
+	}
+}
+
+// Start begins listening on the configured address and serving HTTP
+// requests. It blocks until the server is shut down.
+func (s *Server) Start() error {
+	ln, err := net.Listen("tcp", s.srv.Addr)
+	if err != nil {
+		return fmt.Errorf("listen: %w", err)
+	}
+	s.mu.Lock()
+	s.listener = ln
+	s.mu.Unlock()
+
+	s.logger.Info("server listening",
+		"addr", s.Addr(),
+	)
+
+	return s.srv.Serve(ln)
+}
+
+// Stop gracefully shuts down the server.
+func (s *Server) Stop(ctx context.Context) error {
+	return s.srv.Shutdown(ctx)
+}
+
+// Addr returns the actual TCP address the server is listening on.
+// Returns an empty string if Start has not been called.
+func (s *Server) Addr() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.listener == nil {
+		return ""
+	}
+	return s.listener.Addr().String()
+}
+
+// WriteHeader captures the status code before delegating.
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+// recoveryMiddleware recovers from panics in HTTP handlers and logs
+// the stack trace. It re-panics http.ErrAbortHandler so that
+// net/http can handle it correctly.
+func recoveryMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				if err, ok := rec.(error); ok && errors.Is(err, http.ErrAbortHandler) {
+					panic(rec)
+				}
+				slog.Error("handler panic",
+					"error", rec,
+					"stack", string(debug.Stack()),
+					"path", r.URL.Path,
+					"method", r.Method,
+				)
+				http.Error(w, "internal server error",
+					http.StatusInternalServerError)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+// requestLogMiddleware logs each HTTP request with method, path,
+// status, and duration.
+func requestLogMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		ww := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		next.ServeHTTP(ww, r)
+		slog.Info("request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", ww.statusCode,
+			"duration", time.Since(start),
+		)
+	})
+}
