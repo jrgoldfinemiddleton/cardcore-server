@@ -722,3 +722,145 @@ func TestOnDoneGuardDoesNotOverwriteExpired(t *testing.T) {
 		t.Errorf("got state %q, want Expired", state)
 	}
 }
+
+// TestLookupTokenValid verifies that LookupToken returns the correct
+// session and seat for a valid human seat token.
+func TestLookupTokenValid(t *testing.T) {
+	m := NewManager(mockGameFactory())
+	cfg := validHeartsCfg()
+
+	info, seats, err := m.Create(cfg)
+	if err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+
+	// Find first human seat with token.
+	var token string
+	var wantSeat int
+	for i, s := range seats {
+		if s.Type == SeatHuman && s.Token != "" {
+			token = s.Token
+			wantSeat = i
+			break
+		}
+	}
+	if token == "" {
+		t.Fatal("no human seat token found")
+	}
+
+	gotID, gotSeat, err := m.LookupToken(token)
+	if err != nil {
+		t.Fatalf("LookupToken() error: %v", err)
+	}
+	if gotID != info.SessionID {
+		t.Errorf("got sessionID %q, want %q", gotID, info.SessionID)
+	}
+	if gotSeat != wantSeat {
+		t.Errorf("got seat %d, want %d", gotSeat, wantSeat)
+	}
+}
+
+// TestLookupTokenInvalid verifies that LookupToken returns ErrNotFound
+// for a non-existent token.
+func TestLookupTokenInvalid(t *testing.T) {
+	m := NewManager(mockGameFactory())
+
+	_, _, err := m.LookupToken("invalid-token")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("got error %v, want ErrNotFound", err)
+	}
+}
+
+// TestLookupTokenAfterDelete verifies that LookupToken returns
+// ErrNotFound after the session is deleted.
+func TestLookupTokenAfterDelete(t *testing.T) {
+	m := NewManager(mockGameFactory())
+	cfg := validHeartsCfg()
+
+	info, seats, err := m.Create(cfg)
+	if err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+
+	// Find first human seat token.
+	var token string
+	for _, s := range seats {
+		if s.Type == SeatHuman && s.Token != "" {
+			token = s.Token
+			break
+		}
+	}
+	if token == "" {
+		t.Fatal("no human seat token found")
+	}
+
+	if err := m.Delete(info.SessionID); err != nil {
+		t.Fatalf("Delete() error: %v", err)
+	}
+
+	_, _, err = m.LookupToken(token)
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("got error %v, want ErrNotFound", err)
+	}
+}
+
+// TestLookupTokenAfterUpdate verifies that old tokens become invalid
+// and new tokens are valid after updating seat configuration.
+func TestLookupTokenAfterUpdate(t *testing.T) {
+	m := NewManager(mockGameFactory())
+	cfg := Config{
+		Game: "hearts",
+		Seats: []SeatConfig{
+			{Type: SeatHuman},
+			{Type: SeatAI, AIType: "random"},
+		},
+	}
+
+	info, seats, err := m.Create(cfg)
+	if err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+
+	oldToken := seats[0].Token
+	if oldToken == "" {
+		t.Fatal("no human seat token found")
+	}
+
+	// Verify old token works.
+	_, _, err = m.LookupToken(oldToken)
+	if err != nil {
+		t.Fatalf("LookupToken(oldToken) error: %v", err)
+	}
+
+	newSeats := []SeatConfig{
+		{Type: SeatHuman},
+		{Type: SeatHuman},
+	}
+	_, newSeatInfos, err := m.Update(info.SessionID, PatchConfig{Seats: newSeats})
+	if err != nil {
+		t.Fatalf("Update() error: %v", err)
+	}
+
+	// Old token should be invalid.
+	_, _, err = m.LookupToken(oldToken)
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("LookupToken(oldToken) got error %v, want ErrNotFound", err)
+	}
+
+	// New tokens should be valid.
+	var newToken string
+	for _, s := range newSeatInfos {
+		if s.Type == SeatHuman && s.Token != "" {
+			newToken = s.Token
+			break
+		}
+	}
+	if newToken == "" {
+		t.Fatal("no new human seat token found")
+	}
+
+	_, _, err = m.LookupToken(newToken)
+	if err != nil {
+		t.Errorf("LookupToken(newToken) error: %v", err)
+	}
+}
