@@ -33,12 +33,21 @@ type entry struct {
 	sess *session
 }
 
+// tokenInfo holds the session and seat associated with a bearer token.
+type tokenInfo struct {
+	sessionID string
+	seat      int
+}
+
 // Manager is a thread-safe registry of game sessions.
 type Manager struct {
-	// mu protects sessions map.
+	// mu protects sessions and tokenIndex maps.
 	mu sync.RWMutex
 	// sessions maps session ID to entry.
 	sessions map[string]*entry
+	// tokenIndex maps bearer token to session and seat for WebSocket
+	// authentication. Populated on Create/Update, cleaned on Delete.
+	tokenIndex map[string]tokenInfo
 	// factory creates Game adapters from a Config.
 	factory func(Config) (Game, error)
 }
@@ -47,8 +56,9 @@ type Manager struct {
 // Game adapter from a Config.
 func NewManager(factory func(Config) (Game, error)) *Manager {
 	return &Manager{
-		sessions: make(map[string]*entry),
-		factory:  factory,
+		sessions:   make(map[string]*entry),
+		tokenIndex: make(map[string]tokenInfo),
+		factory:    factory,
 	}
 }
 
@@ -77,6 +87,11 @@ func (m *Manager) Create(cfg Config) (*SessionInfo, []SeatInfo, error) {
 		state:  Draft,
 		config: cfg,
 		seats:  seats,
+	}
+	for i, s := range seats {
+		if s.Token != "" {
+			m.tokenIndex[s.Token] = tokenInfo{sessionID: id, seat: i}
+		}
 	}
 	info := m.sessions[id].info(id)
 	m.mu.Unlock()
@@ -154,6 +169,11 @@ func (m *Manager) Update(
 		if err := validateConfig(cfg); err != nil {
 			return nil, nil, err
 		}
+		for _, s := range e.seats {
+			if s.Token != "" {
+				delete(m.tokenIndex, s.Token)
+			}
+		}
 		e.config.Seats = patch.Seats
 
 		seats, err := buildSeatInfo(patch.Seats)
@@ -161,6 +181,11 @@ func (m *Manager) Update(
 			return nil, nil, err
 		}
 		e.seats = seats
+		for i, s := range seats {
+			if s.Token != "" {
+				m.tokenIndex[s.Token] = tokenInfo{sessionID: id, seat: i}
+			}
+		}
 		return e.info(id), seats, nil
 	}
 
@@ -225,8 +250,26 @@ func (m *Manager) Delete(id string) error {
 	if e.state == Active {
 		close(e.sess.cancel)
 	}
+	for _, s := range e.seats {
+		if s.Token != "" {
+			delete(m.tokenIndex, s.Token)
+		}
+	}
 	e.state = Expired
 	return nil
+}
+
+// LookupToken resolves a bearer token to its session and seat index.
+// Returns ErrNotFound if the token is invalid or the session has expired.
+func (m *Manager) LookupToken(token string) (string, int, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	ti, ok := m.tokenIndex[token]
+	if !ok {
+		return "", 0, ErrNotFound
+	}
+	return ti.sessionID, ti.seat, nil
 }
 
 // SubscribePlayer opens a buffered channel that receives snapshot updates
