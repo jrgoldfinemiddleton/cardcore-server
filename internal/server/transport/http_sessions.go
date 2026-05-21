@@ -30,7 +30,7 @@ type patchResponse struct {
 	SeatTokens []session.SeatInfo `json:"seat_tokens,omitempty"`
 }
 
-// registerRoutes adds all session HTTP routes to s.mux.
+// registerRoutes adds all HTTP and WebSocket routes to s.mux.
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /sessions", s.handleCreateSession)
 	s.mux.HandleFunc("GET /sessions", s.handleListSessions)
@@ -38,6 +38,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("PATCH /sessions/{id}", s.handlePatchSession)
 	s.mux.HandleFunc("POST /sessions/{id}/start", s.handleStartSession)
 	s.mux.HandleFunc("DELETE /sessions/{id}", s.handleDeleteSession)
+	s.mux.HandleFunc("GET /sessions/{id}/ws", s.handlePlayerWS)
+	s.mux.HandleFunc("GET /sessions/{id}/ws/observe", s.handleObserverWS)
 }
 
 // handleCreateSession handles POST /sessions.

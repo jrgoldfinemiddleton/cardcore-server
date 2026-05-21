@@ -14,6 +14,10 @@ type mockGame struct{}
 // stepFinishedGame is a mock Game that always returns StepFinished.
 type stepFinishedGame struct{}
 
+// unmarshalableGame is a mock Game whose snapshots contain types that
+// json.Marshal cannot serialize (e.g., channels).
+type unmarshalableGame struct{}
+
 // HandleAction implements Game.HandleAction for mockGame.
 func (m *mockGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{}, nil
@@ -72,6 +76,36 @@ func (s *stepFinishedGame) PlayerSnapshot(int, int) any {
 // ObserverSnapshot implements Game.ObserverSnapshot for stepFinishedGame.
 func (s *stepFinishedGame) ObserverSnapshot(int) any {
 	return nil
+}
+
+// HandleAction implements Game.HandleAction for unmarshalableGame.
+func (u *unmarshalableGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
+	return StepResult{}, nil
+}
+
+// AIPlay implements Game.AIPlay for unmarshalableGame.
+func (u *unmarshalableGame) AIPlay(int) (StepResult, error) {
+	return StepResult{}, nil
+}
+
+// Resume implements Game.Resume for unmarshalableGame.
+func (u *unmarshalableGame) Resume() (StepResult, error) {
+	return StepResult{}, nil
+}
+
+// Turn implements Game.Turn for unmarshalableGame.
+func (u *unmarshalableGame) Turn() int {
+	return 0
+}
+
+// PlayerSnapshot implements Game.PlayerSnapshot for unmarshalableGame.
+func (u *unmarshalableGame) PlayerSnapshot(int, int) any {
+	return struct{ Ch chan int }{Ch: make(chan int)}
+}
+
+// ObserverSnapshot implements Game.ObserverSnapshot for unmarshalableGame.
+func (u *unmarshalableGame) ObserverSnapshot(int) any {
+	return struct{ Ch chan int }{Ch: make(chan int)}
 }
 
 // mockGameFactory returns a game factory for tests that don't need a

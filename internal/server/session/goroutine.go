@@ -2,6 +2,7 @@ package session
 
 import (
 	"encoding/json"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -99,11 +100,12 @@ func (s *session) handlePlay(c playCmd) {
 	defer close(c.resp)
 
 	// Client seq is behind the server. Return the latest snapshot so
-	// the client can resync, along with an error.
+	// the client can resync, along with an error. If the snapshot fails
+	// to marshal, send the error only so the client receives a valid
+	// response it can distinguish from a nil field.
 	if c.msg.Seq < s.seq {
 		snap := s.playerSnapshot(c.seat)
-		c.resp <- SubmitResult{
-			Snapshot: snap,
+		result := SubmitResult{
 			Err: &api.ErrorMessage{
 				Type:      errType,
 				ErrorCode: api.ErrStaleSeq,
@@ -111,13 +113,21 @@ func (s *session) handlePlay(c playCmd) {
 				ActionID:  c.msg.ActionID,
 			},
 		}
+		if snap != nil {
+			result.Snapshot = snap
+		}
+		c.resp <- result
 		return
 	}
 
 	// Duplicate action_id: client resent a command that already
 	// succeeded. Return the cached snapshot without mutating state.
 	if cached, ok := s.actionIDs[c.msg.ActionID]; ok {
-		c.resp <- SubmitResult{Snapshot: cached}
+		result := SubmitResult{}
+		if cached != nil {
+			result.Snapshot = cached
+		}
+		c.resp <- result
 		return
 	}
 
@@ -140,13 +150,21 @@ func (s *session) handlePlay(c playCmd) {
 	}
 
 	// Action accepted. Increment seq, broadcast the new state to all
-	// subscribers, and cache the snapshot for idempotent replay.
+	// subscribers, and cache the snapshot for idempotent replay. Skip
+	// caching if the snapshot fails to marshal so the cache never
+	// contains nil entries that would break duplicate action_id replay.
 	s.seq++
 	s.broadcastSnapshot()
-	s.actionIDs[c.msg.ActionID] = s.playerSnapshot(c.seat)
-	if len(s.actionIDs) > actionIDCacheSize {
-		s.evictArbitraryActionID()
+	snap := s.playerSnapshot(c.seat)
+	if snap != nil {
+		s.actionIDs[c.msg.ActionID] = snap
+		if len(s.actionIDs) > actionIDCacheSize {
+			s.evictArbitraryActionID()
+		}
 	}
+	// TODO: if snap is nil (marshal failed after successful action),
+	// the session is unplayable. Should terminate cleanly and notify
+	// all subscribers rather than continue silently.
 
 	// Return success to the caller and handle game pacing (AI turns,
 	// trick/round completion, or game finished).
@@ -203,35 +221,47 @@ func (s *session) scheduleAI() {
 }
 
 // playerSnapshot generates a marshaled player snapshot for the given seat.
+// It logs marshal errors and returns nil so the caller can skip the send.
 func (s *session) playerSnapshot(seat int) []byte {
 	snap := s.game.PlayerSnapshot(seat, s.seq)
 	b, err := json.Marshal(snap)
 	if err != nil {
+		slog.Error("marshal player snapshot", "seat", seat, "error", err)
 		return nil
 	}
 	return b
 }
 
 // observerSnapshot generates a marshaled observer snapshot.
+// It logs marshal errors and returns nil so the caller can skip the send.
 func (s *session) observerSnapshot() []byte {
 	snap := s.game.ObserverSnapshot(s.seq)
 	b, err := json.Marshal(snap)
 	if err != nil {
+		slog.Error("marshal observer snapshot", "error", err)
 		return nil
 	}
 	return b
 }
 
 // broadcastSnapshot generates and sends snapshots to all subscribers.
+// If a snapshot fails to marshal, the error is logged and the subscriber
+// is skipped for this broadcast. Subscribers resync via a subsequent action.
+// TODO: if all snapshots fail to marshal, the session is unplayable.
+// Should terminate cleanly rather than continue silently.
 func (s *session) broadcastSnapshot() {
 	obsSnap := s.observerSnapshot()
-	for _, ch := range s.observers {
-		s.sendNonBlocking(ch, obsSnap)
+	if obsSnap != nil {
+		for _, ch := range s.observers {
+			s.sendNonBlocking(ch, obsSnap)
+		}
 	}
 
 	for seat, ch := range s.players {
 		snap := s.playerSnapshot(seat)
-		s.sendNonBlocking(ch, snap)
+		if snap != nil {
+			s.sendNonBlocking(ch, snap)
+		}
 	}
 }
 
@@ -272,14 +302,18 @@ func (s *session) handleSubscribePlayer(c subscribePlayerCmd) {
 	}
 	s.players[c.seat] = c.ch
 	snap := s.playerSnapshot(c.seat)
-	s.sendNonBlocking(c.ch, snap)
+	if snap != nil {
+		s.sendNonBlocking(c.ch, snap)
+	}
 }
 
 // handleSubscribeObserver registers a new observer subscriber.
 func (s *session) handleSubscribeObserver(c subscribeObserverCmd) {
 	s.observers = append(s.observers, c.ch)
 	snap := s.observerSnapshot()
-	s.sendNonBlocking(c.ch, snap)
+	if snap != nil {
+		s.sendNonBlocking(c.ch, snap)
+	}
 }
 
 // handleUnsubscribe removes a subscriber.

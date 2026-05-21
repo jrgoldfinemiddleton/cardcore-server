@@ -30,6 +30,9 @@ type Server struct {
 	// mux is the HTTP request multiplexer (router) that maps URL patterns
 	// to handler functions.
 	mux *http.ServeMux
+	// wsReadLimit is the maximum size of a single WebSocket message in
+	// bytes. Default is 65536.
+	wsReadLimit int64
 }
 
 // responseWriter wraps http.ResponseWriter to capture the status code.
@@ -42,10 +45,16 @@ type responseWriter struct {
 func NewServer(cfg Config) *Server {
 	logger := slog.Default()
 
+	wsReadLimit := cfg.WSReadLimit
+	if wsReadLimit == 0 {
+		wsReadLimit = 65536
+	}
+
 	s := &Server{
-		mgr:    cfg.Manager,
-		logger: logger,
-		mux:    http.NewServeMux(),
+		mgr:         cfg.Manager,
+		logger:      logger,
+		mux:         http.NewServeMux(),
+		wsReadLimit: wsReadLimit,
 	}
 	s.registerRoutes()
 
