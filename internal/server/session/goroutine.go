@@ -2,6 +2,7 @@ package session
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -155,16 +156,25 @@ func (s *session) handlePlay(c playCmd) {
 	// contains nil entries that would break duplicate action_id replay.
 	s.seq++
 	s.broadcastSnapshot()
-	snap := s.playerSnapshot(c.seat)
-	if snap != nil {
-		s.actionIDs[c.msg.ActionID] = snap
-		if len(s.actionIDs) > actionIDCacheSize {
-			s.evictArbitraryActionID()
+	if s.finished {
+		c.resp <- SubmitResult{
+			Err: &api.ErrorMessage{
+				Type:      errType,
+				ErrorCode: api.ErrInternal,
+				Message:   "session terminated: snapshot generation failed",
+				ActionID:  c.msg.ActionID,
+			},
 		}
+		return
 	}
-	// TODO: if snap is nil (marshal failed after successful action),
-	// the session is unplayable. Should terminate cleanly and notify
-	// all subscribers rather than continue silently.
+	// broadcastSnapshot already generated a player snapshot for this
+	// seat and would have terminated the session if it failed to
+	// marshal, so snap == nil is unreachable here.
+	snap := s.playerSnapshot(c.seat)
+	s.actionIDs[c.msg.ActionID] = snap
+	if len(s.actionIDs) > actionIDCacheSize {
+		s.evictArbitraryActionID()
+	}
 
 	// Return success to the caller and handle game pacing (AI turns,
 	// trick/round completion, or game finished).
@@ -174,14 +184,23 @@ func (s *session) handlePlay(c playCmd) {
 
 // handleStepResult processes the outcome of a game mutation.
 func (s *session) handleStepResult(res StepResult) {
+	if s.finished {
+		return
+	}
 	switch res.Outcome {
 	case StepContinue:
 		s.scheduleAI()
 	case StepPause:
 		s.broadcastSnapshot()
+		if s.finished {
+			return
+		}
 		s.autoResume()
 	case StepFinished:
 		s.broadcastSnapshot()
+		if s.finished {
+			return
+		}
 		s.closeSubscribers()
 		if s.onDone != nil {
 			s.onDone(Finished)
@@ -199,6 +218,9 @@ func (s *session) autoResume() {
 		case <-s.cancel:
 			return
 		}
+	}
+	if s.finished {
+		return
 	}
 
 	res, err := s.game.Resume()
@@ -219,6 +241,12 @@ func (s *session) scheduleAI() {
 	seat := s.game.Turn()
 	_ = seat
 }
+
+// Snapshot failure design principle:
+// Isolated snapshot failures (single client, stale sequence) are logged
+// and the client is skipped so the session continues.
+// Global snapshot failures (broadcast to all subscribers after a state
+// mutation) terminate the session because the game becomes unplayable.
 
 // playerSnapshot generates a marshaled player snapshot for the given seat.
 // It logs marshal errors and returns nil so the caller can skip the send.
@@ -245,23 +273,27 @@ func (s *session) observerSnapshot() []byte {
 }
 
 // broadcastSnapshot generates and sends snapshots to all subscribers.
-// If a snapshot fails to marshal, the error is logged and the subscriber
-// is skipped for this broadcast. Subscribers resync via a subsequent action.
-// TODO: if all snapshots fail to marshal, the session is unplayable.
-// Should terminate cleanly rather than continue silently.
+// If a snapshot fails to marshal, the session is terminated because the
+// game state is unplayable.
 func (s *session) broadcastSnapshot() {
 	obsSnap := s.observerSnapshot()
-	if obsSnap != nil {
-		for _, ch := range s.observers {
-			s.sendNonBlocking(ch, obsSnap)
-		}
+	if obsSnap == nil {
+		s.terminateOnMarshalFailure("observer snapshot marshal failed")
+		return
+	}
+	for _, ch := range s.observers {
+		s.sendNonBlocking(ch, obsSnap)
 	}
 
 	for seat, ch := range s.players {
 		snap := s.playerSnapshot(seat)
-		if snap != nil {
-			s.sendNonBlocking(ch, snap)
+		if snap == nil {
+			s.terminateOnMarshalFailure(
+				fmt.Sprintf("player snapshot marshal failed for seat %d", seat),
+			)
+			return
 		}
+		s.sendNonBlocking(ch, snap)
 	}
 }
 
@@ -379,6 +411,18 @@ func (s *session) drainCmds() {
 			return
 		}
 	}
+}
+
+// terminateOnMarshalFailure logs the error, closes all subscriber
+// channels, notifies the Manager that the session is finished, and
+// marks the session as finished so the goroutine exits.
+func (s *session) terminateOnMarshalFailure(msg string) {
+	slog.Error("session terminating due to marshal failure", "message", msg)
+	s.closeSubscribers()
+	if s.onDone != nil {
+		s.onDone(Finished)
+	}
+	s.finished = true
 }
 
 // evictArbitraryActionID removes an arbitrary entry from the action ID cache.

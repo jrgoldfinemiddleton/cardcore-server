@@ -10,6 +10,7 @@ const (
 	ErrWrongPhase       = "wrong_phase"
 	ErrGameOver         = "game_over"
 	ErrMalformedMessage = "malformed_message"
+	ErrInternal         = "internal_error"
 )
 
 // InboundMessage is the common envelope for all client-to-server messages.

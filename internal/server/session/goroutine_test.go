@@ -390,12 +390,14 @@ func TestSessionSeqMonotonicity(t *testing.T) {
 // stale_seq error so it knows to resync, but nil snapshots are never
 // sent on channels or in responses.
 func TestSessionStaleSeqNilSnapshot(t *testing.T) {
-	g := &unmarshalableGame{}
+	g := &playerSnapshotUnmarshalableGame{}
 	s := newSession("test", g, Config{}, nil)
 	defer close(s.cancel)
 
-	// First play to advance seq.
-	resp1 := make(chan SubmitResult, 1)
+	// Advance seq so the next command is stale.
+	s.seq = 1
+
+	resp := make(chan SubmitResult, 1)
 	s.cmds <- playCmd{
 		seat: 0,
 		msg: &api.InboundMessage{
@@ -403,41 +405,31 @@ func TestSessionStaleSeqNilSnapshot(t *testing.T) {
 			ActionID: "action1",
 			Seq:      0,
 		},
-		resp: resp1,
-	}
-	<-resp1
-
-	// Second play with stale seq.
-	resp2 := make(chan SubmitResult, 1)
-	s.cmds <- playCmd{
-		seat: 0,
-		msg: &api.InboundMessage{
-			Type:     "test",
-			ActionID: "action2",
-			Seq:      0,
-		},
-		resp: resp2,
+		resp: resp,
 	}
 
-	res := <-resp2
+	res := <-resp
 	if res.Err == nil {
 		t.Fatal("expected error for stale_seq, got nil")
+	}
+	if res.Err.ErrorCode != api.ErrStaleSeq {
+		t.Errorf("got error code %q, want %q", res.Err.ErrorCode, api.ErrStaleSeq)
 	}
 	if res.Snapshot != nil {
 		t.Error("got snapshot for stale_seq with marshal failure, want nil")
 	}
 }
 
-// TestSessionActionIDNotCachedWhenMarshalFails verifies that the
-// action_id cache is not poisoned when the post-action snapshot fails
-// to marshal. A subsequent duplicate action_id should not find a nil
-// entry in the cache.
-func TestSessionActionIDNotCachedWhenMarshalFails(t *testing.T) {
+// TestSessionMarshalFailureTerminates verifies that the session
+// terminates when a snapshot fails to marshal after a successful
+// action. The client receives an internal error and the session
+// goroutine exits.
+func TestSessionMarshalFailureTerminates(t *testing.T) {
 	g := &unmarshalableGame{}
 	s := newSession("test", g, Config{}, nil)
 	defer close(s.cancel)
 
-	resp1 := make(chan SubmitResult, 1)
+	resp := make(chan SubmitResult, 1)
 	s.cmds <- playCmd{
 		seat: 0,
 		msg: &api.InboundMessage{
@@ -445,31 +437,20 @@ func TestSessionActionIDNotCachedWhenMarshalFails(t *testing.T) {
 			ActionID: "action1",
 			Seq:      0,
 		},
-		resp: resp1,
+		resp: resp,
 	}
-	<-resp1
 
-	// Verify action_id was NOT cached.
+	res := <-resp
+	if res.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if res.Err.ErrorCode != api.ErrInternal {
+		t.Errorf("got error code %q, want %q", res.Err.ErrorCode, api.ErrInternal)
+	}
+	if !s.finished {
+		t.Error("expected session to be finished after marshal failure")
+	}
 	if _, ok := s.actionIDs["action1"]; ok {
 		t.Error("action_id should not be cached after marshal failure")
-	}
-
-	// Retry with same action_id and matching seq — should not hit
-	// cache (empty) so it is processed as a new play. Because the
-	// snapshot still fails to marshal, success returns an empty result.
-	resp2 := make(chan SubmitResult, 1)
-	s.cmds <- playCmd{
-		seat: 0,
-		msg: &api.InboundMessage{
-			Type:     "test",
-			ActionID: "action1",
-			Seq:      1,
-		},
-		resp: resp2,
-	}
-
-	res := <-resp2
-	if res.Err != nil {
-		t.Errorf("got error on retry after uncached action: %v", res.Err)
 	}
 }
