@@ -432,6 +432,7 @@ in unrecoverable situations:
 |-----------|-----------|
 | `1009 Message Too Big` | Inbound message exceeds 64 KB size limit. |
 | `1008 Policy Violation` | Session deleted while connected. |
+| `1011 Internal Error` | Snapshot generation failed after a successful action. Session is unplayable and terminates. *(Planned — not yet implemented.)* |
 
 These are terminal — the connection is gone. The client must
 reconnect or exit. No application-level error event precedes the close.

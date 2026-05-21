@@ -5,11 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/coder/websocket"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
@@ -17,6 +20,11 @@ import (
 
 // stubGame is a minimal Game implementation for transport tests.
 type stubGame struct{}
+
+// unmarshalableStubGame returns snapshots that json.Marshal cannot
+// serialize, forcing the session goroutine to drop them rather than
+// sending nil/empty frames to WebSocket subscribers.
+type unmarshalableStubGame struct{}
 
 // TestNewServerRegistersAllRoutes verifies that all 8 routes are registered
 // in the mux and return a non-404-not-found response (even if the handler
@@ -751,6 +759,396 @@ func TestHandleDeleteSession(t *testing.T) {
 	})
 }
 
+// TestPlayerWSUpgradeValid verifies that a player with a valid token
+// can upgrade to a WebSocket and receives an initial snapshot.
+func TestPlayerWSUpgradeValid(t *testing.T) {
+	srv, id, token := setupTestServerWithSession(t)
+
+	ts := httptest.NewServer(srv.mux)
+	defer ts.Close()
+
+	wsURL := fmt.Sprintf("ws%s/sessions/%s/ws", strings.TrimPrefix(ts.URL, "http"), id)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+token)
+	conn, resp, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: headers})
+	if err != nil {
+		t.Fatalf("dial failed: %v (status=%d)", err, resp.StatusCode)
+	}
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
+
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		t.Errorf("got status %d, want %d", resp.StatusCode, http.StatusSwitchingProtocols)
+	}
+
+	// Read initial snapshot.
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel2()
+	typ, b, err := conn.Read(ctx2)
+	if err != nil {
+		t.Fatalf("read initial snapshot: %v", err)
+	}
+	if typ != websocket.MessageText {
+		t.Fatalf("got message type %d, want text", typ)
+	}
+
+	var snap map[string]any
+	if err := json.Unmarshal(b, &snap); err != nil {
+		t.Fatalf("unmarshal snapshot: %v", err)
+	}
+	if snap["type"] != "snapshot" {
+		t.Errorf("got type %q, want %q", snap["type"], "snapshot")
+	}
+}
+
+// TestPlayerWSUpgradeMissingToken verifies that a player WS upgrade
+// without an Authorization header returns 401.
+func TestPlayerWSUpgradeMissingToken(t *testing.T) {
+	srv, id, _ := setupTestServerWithSession(t)
+
+	ts := httptest.NewServer(srv.mux)
+	defer ts.Close()
+
+	wsURL := fmt.Sprintf("ws%s/sessions/%s/ws", strings.TrimPrefix(ts.URL, "http"), id)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, resp, err := websocket.Dial(ctx, wsURL, nil)
+	if err == nil {
+		_ = conn.Close(websocket.StatusNormalClosure, "")
+	}
+	if resp == nil {
+		t.Fatal("expected HTTP response, got nil")
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("got status %d, want %d", resp.StatusCode, http.StatusUnauthorized)
+	}
+
+	var body errorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if body.Error == "" {
+		t.Error("expected non-empty error message")
+	}
+}
+
+// TestPlayerWSUpgradeInvalidToken verifies that a player WS upgrade
+// with a malformed or non-existent token returns 401.
+func TestPlayerWSUpgradeInvalidToken(t *testing.T) {
+	srv, id, _ := setupTestServerWithSession(t)
+
+	ts := httptest.NewServer(srv.mux)
+	defer ts.Close()
+
+	wsURL := fmt.Sprintf("ws%s/sessions/%s/ws", strings.TrimPrefix(ts.URL, "http"), id)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer invalid-token")
+	conn, resp, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: headers})
+	if err == nil {
+		_ = conn.Close(websocket.StatusNormalClosure, "")
+	}
+	if resp == nil {
+		t.Fatal("expected HTTP response, got nil")
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("got status %d, want %d", resp.StatusCode, http.StatusUnauthorized)
+	}
+}
+
+// TestPlayerWSUpgradeSessionNotActive verifies that a player WS
+// upgrade for a session in draft state returns 409.
+func TestPlayerWSUpgradeSessionNotActive(t *testing.T) {
+	mgr := mockManager()
+	srv := NewServer(Config{Manager: mgr, Addr: ":0"})
+
+	cfg := session.Config{
+		Game: "hearts",
+		Seats: []session.SeatConfig{
+			{Type: session.SeatHuman},
+		},
+	}
+	info, seats, err := mgr.Create(cfg)
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	var token string
+	for _, s := range seats {
+		if s.Type == session.SeatHuman {
+			token = s.Token
+			break
+		}
+	}
+	if token == "" {
+		t.Fatal("no human seat token generated")
+	}
+
+	ts := httptest.NewServer(srv.mux)
+	defer ts.Close()
+
+	wsURL := fmt.Sprintf("ws%s/sessions/%s/ws", strings.TrimPrefix(ts.URL, "http"), info.SessionID)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+token)
+	conn, resp, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: headers})
+	if err == nil {
+		_ = conn.Close(websocket.StatusNormalClosure, "")
+	}
+	if resp == nil {
+		t.Fatal("expected HTTP response, got nil")
+	}
+	if resp.StatusCode != http.StatusConflict {
+		t.Errorf("got status %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+}
+
+// TestPlayerWSUpgradeWrongSession verifies that a token belonging to
+// a different session returns 401.
+func TestPlayerWSUpgradeWrongSession(t *testing.T) {
+	mgr := mockManager()
+	srv := NewServer(Config{Manager: mgr, Addr: ":0"})
+
+	// Create session A with a human seat.
+	cfgA := session.Config{
+		Game: "hearts",
+		Seats: []session.SeatConfig{
+			{Type: session.SeatHuman},
+			{Type: session.SeatAI, AIType: "random"},
+		},
+	}
+	infoA, seatsA, err := mgr.Create(cfgA)
+	if err != nil {
+		t.Fatalf("create session A: %v", err)
+	}
+	if err := mgr.Start(infoA.SessionID); err != nil {
+		t.Fatalf("start session A: %v", err)
+	}
+
+	// Create session B (also started).
+	cfgB := session.Config{
+		Game: "hearts",
+		Seats: []session.SeatConfig{
+			{Type: session.SeatHuman},
+			{Type: session.SeatAI, AIType: "random"},
+		},
+	}
+	infoB, _, err := mgr.Create(cfgB)
+	if err != nil {
+		t.Fatalf("create session B: %v", err)
+	}
+	if err := mgr.Start(infoB.SessionID); err != nil {
+		t.Fatalf("start session B: %v", err)
+	}
+
+	var tokenA string
+	for _, s := range seatsA {
+		if s.Type == session.SeatHuman {
+			tokenA = s.Token
+			break
+		}
+	}
+	if tokenA == "" {
+		t.Fatal("no human seat token for session A")
+	}
+
+	ts := httptest.NewServer(srv.mux)
+	defer ts.Close()
+
+	// Try to use session A's token with session B's ID.
+	wsURL := fmt.Sprintf("ws%s/sessions/%s/ws", strings.TrimPrefix(ts.URL, "http"), infoB.SessionID)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+tokenA)
+	conn, resp, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: headers})
+	if err == nil {
+		_ = conn.Close(websocket.StatusNormalClosure, "")
+	}
+	if resp == nil {
+		t.Fatal("expected HTTP response, got nil")
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("got status %d, want %d", resp.StatusCode, http.StatusUnauthorized)
+	}
+}
+
+// TestObserverWSUpgradeValid verifies that an observer can upgrade to
+// a WebSocket for an active session and receives an initial snapshot.
+func TestObserverWSUpgradeValid(t *testing.T) {
+	srv, id, _ := setupTestServerWithSession(t)
+
+	ts := httptest.NewServer(srv.mux)
+	defer ts.Close()
+
+	wsURL := fmt.Sprintf("ws%s/sessions/%s/ws/observe", strings.TrimPrefix(ts.URL, "http"), id)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, resp, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial failed: %v (status=%d)", err, resp.StatusCode)
+	}
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
+
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		t.Errorf("got status %d, want %d", resp.StatusCode, http.StatusSwitchingProtocols)
+	}
+
+	// Read initial snapshot.
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel2()
+	typ, b, err := conn.Read(ctx2)
+	if err != nil {
+		t.Fatalf("read initial snapshot: %v", err)
+	}
+	if typ != websocket.MessageText {
+		t.Fatalf("got message type %d, want text", typ)
+	}
+
+	var snap map[string]any
+	if err := json.Unmarshal(b, &snap); err != nil {
+		t.Fatalf("unmarshal snapshot: %v", err)
+	}
+	if snap["type"] != "snapshot" {
+		t.Errorf("got type %q, want %q", snap["type"], "snapshot")
+	}
+}
+
+// TestObserverWSUpgradeSessionNotFound verifies that an observer WS
+// upgrade for a non-existent session returns 404.
+func TestObserverWSUpgradeSessionNotFound(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	ts := httptest.NewServer(srv.mux)
+	defer ts.Close()
+
+	wsURL := fmt.Sprintf(
+		"ws%s/sessions/nonexistent-id/ws/observe",
+		strings.TrimPrefix(ts.URL, "http"),
+	)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, resp, err := websocket.Dial(ctx, wsURL, nil)
+	if err == nil {
+		_ = conn.Close(websocket.StatusNormalClosure, "")
+	}
+	if resp == nil {
+		t.Fatal("expected HTTP response, got nil")
+	}
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("got status %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+// TestObserverWSUpgradeSessionNotActive verifies that an observer WS
+// upgrade for a session in draft state returns 409.
+func TestObserverWSUpgradeSessionNotActive(t *testing.T) {
+	mgr := mockManager()
+	srv := NewServer(Config{Manager: mgr, Addr: ":0"})
+
+	cfg := session.Config{
+		Game: "hearts",
+		Seats: []session.SeatConfig{
+			{Type: session.SeatAI, AIType: "random"},
+		},
+	}
+	info, _, err := mgr.Create(cfg)
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	ts := httptest.NewServer(srv.mux)
+	defer ts.Close()
+
+	wsURL := fmt.Sprintf(
+		"ws%s/sessions/%s/ws/observe",
+		strings.TrimPrefix(ts.URL, "http"),
+		info.SessionID,
+	)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, resp, err := websocket.Dial(ctx, wsURL, nil)
+	if err == nil {
+		_ = conn.Close(websocket.StatusNormalClosure, "")
+	}
+	if resp == nil {
+		t.Fatal("expected HTTP response, got nil")
+	}
+	if resp.StatusCode != http.StatusConflict {
+		t.Errorf("got status %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+}
+
+// TestPlayerWSNoEmptyFrameOnMarshalFailure verifies that when the
+// session goroutine produces an unmarshalable snapshot, the player
+// WebSocket connection does not receive an empty or nil text frame.
+func TestPlayerWSNoEmptyFrameOnMarshalFailure(t *testing.T) {
+	srv, id, token := setupTestServerWithUnmarshalableSession(t)
+
+	ts := httptest.NewServer(srv.mux)
+	defer ts.Close()
+
+	wsURL := fmt.Sprintf("ws%s/sessions/%s/ws", strings.TrimPrefix(ts.URL, "http"), id)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+token)
+	conn, resp, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: headers})
+	if err != nil {
+		t.Fatalf("dial failed: %v (status=%d)", err, resp.StatusCode)
+	}
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
+
+	// Try to read a message — should time out because the session
+	// goroutine drops unmarshalable snapshots and sends nothing.
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel2()
+	_, _, err = conn.Read(ctx2)
+	if err == nil {
+		t.Fatal("expected timeout (no message), but got a message — empty/nil frame was sent")
+	}
+}
+
+// TestObserverWSNoEmptyFrameOnMarshalFailure verifies that when the
+// session goroutine produces an unmarshalable snapshot, the observer
+// WebSocket connection does not receive an empty or nil text frame.
+func TestObserverWSNoEmptyFrameOnMarshalFailure(t *testing.T) {
+	srv, id, _ := setupTestServerWithUnmarshalableSession(t)
+
+	ts := httptest.NewServer(srv.mux)
+	defer ts.Close()
+
+	wsURL := fmt.Sprintf("ws%s/sessions/%s/ws/observe", strings.TrimPrefix(ts.URL, "http"), id)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, resp, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial failed: %v (status=%d)", err, resp.StatusCode)
+	}
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
+
+	// Try to read a message — should time out because the session
+	// goroutine drops unmarshalable snapshots and sends nothing.
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel2()
+	_, _, err = conn.Read(ctx2)
+	if err == nil {
+		t.Fatal("expected timeout (no message), but got a message — empty/nil frame was sent")
+	}
+}
+
 // mockManager returns a session manager with a stubGame factory.
 func mockManager() *session.Manager {
 	return session.NewManager(func(_ session.Config) (session.Game, error) {
@@ -793,7 +1191,126 @@ func (stubGame) Resume() (session.StepResult, error) {
 func (stubGame) Turn() int { return 0 }
 
 // PlayerSnapshot implements session.Game.
-func (stubGame) PlayerSnapshot(int, int) any { return nil }
+func (stubGame) PlayerSnapshot(int, int) any {
+	return map[string]any{"type": "snapshot", "seq": 0}
+}
 
 // ObserverSnapshot implements session.Game.
-func (stubGame) ObserverSnapshot(int) any { return nil }
+func (stubGame) ObserverSnapshot(int) any {
+	return map[string]any{"type": "snapshot", "seq": 0}
+}
+
+// HandleAction implements session.Game for unmarshalableStubGame.
+func (unmarshalableStubGame) HandleAction(
+	int, *api.InboundMessage,
+) (session.StepResult, *session.CommandError) {
+	return session.StepResult{}, nil
+}
+
+// AIPlay implements session.Game for unmarshalableStubGame.
+func (unmarshalableStubGame) AIPlay(int) (session.StepResult, error) {
+	return session.StepResult{}, nil
+}
+
+// Resume implements session.Game for unmarshalableStubGame.
+func (unmarshalableStubGame) Resume() (session.StepResult, error) {
+	return session.StepResult{}, nil
+}
+
+// Turn implements session.Game for unmarshalableStubGame.
+func (unmarshalableStubGame) Turn() int { return 0 }
+
+// PlayerSnapshot implements session.Game for unmarshalableStubGame.
+func (unmarshalableStubGame) PlayerSnapshot(int, int) any {
+	return struct{ Ch chan int }{Ch: make(chan int)}
+}
+
+// ObserverSnapshot implements session.Game for unmarshalableStubGame.
+func (unmarshalableStubGame) ObserverSnapshot(int) any {
+	return struct{ Ch chan int }{Ch: make(chan int)}
+}
+
+// setupTestServerWithSession creates a server and an active session with
+// 1 human + 3 AI seats. It returns the server, session ID, and the
+// human seat's bearer token.
+func setupTestServerWithSession(t *testing.T) (*Server, string, string) {
+	t.Helper()
+	mgr := mockManager()
+	srv := NewServer(Config{Manager: mgr, Addr: ":0"})
+
+	cfg := session.Config{
+		Game: "hearts",
+		Seats: []session.SeatConfig{
+			{Type: session.SeatHuman},
+			{Type: session.SeatAI, AIType: "random"},
+			{Type: session.SeatAI, AIType: "random"},
+			{Type: session.SeatAI, AIType: "random"},
+		},
+	}
+
+	info, seats, err := mgr.Create(cfg)
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	if err := mgr.Start(info.SessionID); err != nil {
+		t.Fatalf("start session: %v", err)
+	}
+
+	var token string
+	for _, s := range seats {
+		if s.Type == session.SeatHuman {
+			token = s.Token
+			break
+		}
+	}
+	if token == "" {
+		t.Fatal("no human seat token generated")
+	}
+
+	return srv, info.SessionID, token
+}
+
+// setupTestServerWithUnmarshalableSession creates a server and an active
+// session whose snapshots cannot be marshaled to JSON. It returns the
+// server, session ID, and human seat token.
+func setupTestServerWithUnmarshalableSession(t *testing.T) (
+	*Server, string, string,
+) {
+	t.Helper()
+	mgr := session.NewManager(func(_ session.Config) (session.Game, error) {
+		return unmarshalableStubGame{}, nil
+	})
+	srv := NewServer(Config{Manager: mgr, Addr: ":0"})
+
+	cfg := session.Config{
+		Game: "hearts",
+		Seats: []session.SeatConfig{
+			{Type: session.SeatHuman},
+			{Type: session.SeatAI, AIType: "random"},
+			{Type: session.SeatAI, AIType: "random"},
+			{Type: session.SeatAI, AIType: "random"},
+		},
+	}
+
+	info, seats, err := mgr.Create(cfg)
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if err := mgr.Start(info.SessionID); err != nil {
+		t.Fatalf("start session: %v", err)
+	}
+
+	var token string
+	for _, s := range seats {
+		if s.Type == session.SeatHuman {
+			token = s.Token
+			break
+		}
+	}
+	if token == "" {
+		t.Fatal("no human seat token generated")
+	}
+
+	return srv, info.SessionID, token
+}

@@ -22,4 +22,8 @@ type Config struct {
 	// MaxHeaderBytes controls the maximum number of bytes the server will
 	// read parsing the request header.
 	MaxHeaderBytes int
+	// WSReadLimit is the maximum size of a single WebSocket message in
+	// bytes. Messages exceeding this limit cause the connection to close
+	// with code 1009 (Message Too Big). Default: 65536.
+	WSReadLimit int64
 }
