@@ -18,6 +18,10 @@ type stepFinishedGame struct{}
 // json.Marshal cannot serialize (e.g., channels).
 type unmarshalableGame struct{}
 
+// playerSnapshotUnmarshalableGame is a mock Game whose player snapshots
+// fail to marshal but observer snapshots succeed.
+type playerSnapshotUnmarshalableGame struct{}
+
 // HandleAction implements Game.HandleAction for mockGame.
 func (m *mockGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{}, nil
@@ -108,6 +112,38 @@ func (u *unmarshalableGame) ObserverSnapshot(int) any {
 	return struct{ Ch chan int }{Ch: make(chan int)}
 }
 
+// HandleAction implements Game.HandleAction for playerSnapshotUnmarshalableGame.
+func (p *playerSnapshotUnmarshalableGame) HandleAction(
+	int, *api.InboundMessage,
+) (StepResult, *CommandError) {
+	return StepResult{}, nil
+}
+
+// AIPlay implements Game.AIPlay for playerSnapshotUnmarshalableGame.
+func (p *playerSnapshotUnmarshalableGame) AIPlay(int) (StepResult, error) {
+	return StepResult{}, nil
+}
+
+// Resume implements Game.Resume for playerSnapshotUnmarshalableGame.
+func (p *playerSnapshotUnmarshalableGame) Resume() (StepResult, error) {
+	return StepResult{}, nil
+}
+
+// Turn implements Game.Turn for playerSnapshotUnmarshalableGame.
+func (p *playerSnapshotUnmarshalableGame) Turn() int {
+	return 0
+}
+
+// PlayerSnapshot implements Game.PlayerSnapshot for playerSnapshotUnmarshalableGame.
+func (p *playerSnapshotUnmarshalableGame) PlayerSnapshot(int, int) any {
+	return struct{ Ch chan int }{Ch: make(chan int)}
+}
+
+// ObserverSnapshot implements Game.ObserverSnapshot for playerSnapshotUnmarshalableGame.
+func (p *playerSnapshotUnmarshalableGame) ObserverSnapshot(int) any {
+	return map[string]any{"type": "snapshot"}
+}
+
 // mockGameFactory returns a game factory for tests that don't need a
 // real game engine.
 func mockGameFactory() func(Config) (Game, error) {
@@ -151,6 +187,14 @@ func validHeartsCfg() Config {
 func stepFinishedGameFactory() func(Config) (Game, error) {
 	return func(Config) (Game, error) {
 		return &stepFinishedGame{}, nil
+	}
+}
+
+// unmarshalableGameFactory returns a game factory that creates games whose
+// snapshots cannot be marshaled to JSON.
+func unmarshalableGameFactory() func(Config) (Game, error) {
+	return func(Config) (Game, error) {
+		return &unmarshalableGame{}, nil
 	}
 }
 

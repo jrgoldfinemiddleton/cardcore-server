@@ -221,13 +221,17 @@ func (m *Manager) Start(id string) error {
 
 	sessionID := id
 	onDone := func(finalState State) {
-		m.mu.Lock()
-		// Only transition from Active. Delete may have already set
-		// Expired by the time the goroutine's exit callback fires.
-		if entry, ok := m.sessions[sessionID]; ok && entry.state == Active {
-			entry.state = finalState
-		}
-		m.mu.Unlock()
+		// Run asynchronously to avoid deadlocking with Manager methods
+		// that hold RLock while blocking on session goroutine responses.
+		go func() {
+			m.mu.Lock()
+			// Only transition from Active. Delete may have already set
+			// Expired by the time the goroutine's exit callback fires.
+			if entry, ok := m.sessions[sessionID]; ok && entry.state == Active {
+				entry.state = finalState
+			}
+			m.mu.Unlock()
+		}()
 	}
 
 	e.sess = newSession(id, game, e.config, onDone)

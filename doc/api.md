@@ -434,8 +434,10 @@ in unrecoverable situations:
 | `1008 Policy Violation` | Session deleted while connected. |
 | `1011 Internal Error` | Snapshot generation failed after a successful action. Session is unplayable and terminates. *(Planned — not yet implemented.)* |
 
-These are terminal — the connection is gone. The client must
-reconnect or exit. No application-level error event precedes the close.
+**Design principle:** Isolated snapshot failures (single client, stale sequence) are logged and the client is skipped; global snapshot failures (broadcast to all subscribers after a state mutation) terminate the session because the game becomes unplayable.
+
+All close frames are terminal — the connection is gone. The client
+must reconnect or exit. No application-level error event precedes the close.
 
 ---
 

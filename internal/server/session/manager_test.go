@@ -864,3 +864,32 @@ func TestLookupTokenAfterUpdate(t *testing.T) {
 		t.Errorf("LookupToken(newToken) error: %v", err)
 	}
 }
+
+// TestManagerMarshalFailureTransitionsToFinished verifies that when a
+// session terminates due to snapshot marshal failure, the Manager
+// state transitions to Finished so that subsequent commands are
+// rejected with ErrNotActive.
+func TestManagerMarshalFailureTransitionsToFinished(t *testing.T) {
+	m := NewManager(unmarshalableGameFactory())
+	id := mustCreateAndStart(t, m, validHeartsCfg())
+
+	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
+		Type:     "test",
+		ActionID: "action1",
+		Seq:      0,
+	})
+	if err != nil {
+		t.Fatalf("SubmitAction() error: %v", err)
+	}
+
+	waitForFinished(t, m, id)
+
+	_, err = m.SubmitAction(id, 0, &api.InboundMessage{
+		Type:     "test",
+		ActionID: "action2",
+		Seq:      1,
+	})
+	if !errors.Is(err, ErrNotActive) {
+		t.Errorf("got error %v, want ErrNotActive", err)
+	}
+}
