@@ -108,10 +108,11 @@ func (s *session) handlePlay(c playCmd) {
 		snap := s.playerSnapshot(c.seat)
 		result := SubmitResult{
 			Err: &api.ErrorMessage{
-				Type:      errType,
-				ErrorCode: api.ErrStaleSeq,
-				Message:   "client seq is behind server",
-				ActionID:  c.msg.ActionID,
+				Type:       errType,
+				ErrorCode:  api.ErrStaleSeq,
+				Message:    "client seq is behind server",
+				ActionID:   c.msg.ActionID,
+				CurrentSeq: s.seq,
 			},
 		}
 		if snap != nil {
@@ -141,10 +142,11 @@ func (s *session) handlePlay(c playCmd) {
 		s.sendError(c.seat, cmdErr.Code, cmdErr.Message, c.msg.ActionID)
 		c.resp <- SubmitResult{
 			Err: &api.ErrorMessage{
-				Type:      errType,
-				ErrorCode: cmdErr.Code,
-				Message:   cmdErr.Message,
-				ActionID:  c.msg.ActionID,
+				Type:       errType,
+				ErrorCode:  cmdErr.Code,
+				Message:    cmdErr.Message,
+				ActionID:   c.msg.ActionID,
+				CurrentSeq: s.seq,
 			},
 		}
 		return
@@ -159,10 +161,11 @@ func (s *session) handlePlay(c playCmd) {
 	if s.finished {
 		c.resp <- SubmitResult{
 			Err: &api.ErrorMessage{
-				Type:      errType,
-				ErrorCode: api.ErrInternal,
-				Message:   "session terminated: snapshot generation failed",
-				ActionID:  c.msg.ActionID,
+				Type:       errType,
+				ErrorCode:  api.ErrInternal,
+				Message:    "session terminated: snapshot generation failed",
+				ActionID:   c.msg.ActionID,
+				CurrentSeq: s.seq,
 			},
 		}
 		return
@@ -314,10 +317,11 @@ func (s *session) sendError(seat int, code, message, actionID string) {
 	}
 
 	em := api.ErrorMessage{
-		Type:      errType,
-		ErrorCode: code,
-		Message:   message,
-		ActionID:  actionID,
+		Type:       errType,
+		ErrorCode:  code,
+		Message:    message,
+		ActionID:   actionID,
+		CurrentSeq: s.seq,
 	}
 	b, err := json.Marshal(em)
 	if err != nil {
@@ -396,9 +400,10 @@ func (s *session) drainCmds() {
 			case playCmd:
 				select {
 				case c.resp <- SubmitResult{Err: &api.ErrorMessage{
-					Type:      errType,
-					ErrorCode: api.ErrGameOver,
-					Message:   "session finished",
+					Type:       errType,
+					ErrorCode:  api.ErrGameOver,
+					Message:    "session finished",
+					CurrentSeq: s.seq,
 				}}:
 				default:
 				}

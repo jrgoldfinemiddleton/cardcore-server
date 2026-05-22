@@ -132,3 +132,72 @@ func TestErrorMessageActionIDPresent(t *testing.T) {
 		t.Errorf("got action_id %q, want %q", gotID, "abc-123")
 	}
 }
+
+// TestValidateInboundMessage verifies envelope field validation.
+func TestValidateInboundMessage(t *testing.T) {
+	tests := []struct {
+		name    string
+		msg     *InboundMessage
+		wantErr bool
+	}{
+		{
+			name: "valid",
+			msg: &InboundMessage{
+				Type:     "play_card",
+				ActionID: "abc",
+				Seq:      0,
+				Payload:  json.RawMessage(`{}`),
+			},
+			wantErr: false,
+		},
+		{
+			name:    "nil message",
+			msg:     nil,
+			wantErr: true,
+		},
+		{
+			name: "missing type",
+			msg: &InboundMessage{
+				ActionID: "abc",
+				Seq:      0,
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing action_id",
+			msg: &InboundMessage{
+				Type: "play_card",
+				Seq:  0,
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative seq",
+			msg: &InboundMessage{
+				Type:     "play_card",
+				ActionID: "abc",
+				Seq:      -1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing payload",
+			msg: &InboundMessage{
+				Type:     "play_card",
+				ActionID: "abc",
+				Seq:      0,
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateInboundMessage(tt.msg)
+			gotErr := err != nil
+			if gotErr != tt.wantErr {
+				t.Errorf("got error %v, want error %v", gotErr, tt.wantErr)
+			}
+		})
+	}
+}
