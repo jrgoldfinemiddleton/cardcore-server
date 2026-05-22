@@ -14,18 +14,24 @@ import (
 // observerConn represents a single observer's WebSocket connection.
 // Observers receive broadcast snapshots but do not send commands.
 type observerConn struct {
-	ws        *websocket.Conn
-	mgr       *session.Manager
+	// ws is the underlying WebSocket connection.
+	ws *websocket.Conn
+	// mgr is the session manager used for subscriptions.
+	mgr *session.Manager
+	// sessionID identifies the game session being observed.
 	sessionID string
-	subCh     chan []byte
-	logger    *slog.Logger
+	// subCh receives marshaled observer snapshots from the
+	// session goroutine.
+	subCh chan []byte
+	// logger is the structured logger.
+	logger *slog.Logger
 }
 
 // run is the goroutine that manages the observer's WebSocket
 // connection. It defers cleanup (unsubscribe + close), writes snapshots
 // to the WebSocket, and drains the channel until the session goroutine
 // closes it. TODO: extract writer goroutine for snapshot delivery.
-func (oc *observerConn) run() {
+func (oc *observerConn) run(_ context.Context) {
 	defer func() {
 		if err := oc.mgr.UnsubscribeObserver(oc.sessionID, oc.subCh); err != nil {
 			oc.logger.Error("unsubscribe observer", "error", err)
@@ -39,6 +45,8 @@ func (oc *observerConn) run() {
 			oc.logger.Error("dropped empty snapshot", "session_id", oc.sessionID)
 			continue
 		}
+		// TODO: Replace inline write with writeWSBytes once a dedicated
+		// observer writer goroutine is extracted.
 		func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
@@ -84,5 +92,5 @@ func (s *Server) handleObserverWS(w http.ResponseWriter, r *http.Request) {
 		subCh:     subCh,
 		logger:    s.logger,
 	}
-	go oc.run()
+	go oc.run(context.Background())
 }

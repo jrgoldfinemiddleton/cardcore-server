@@ -62,6 +62,7 @@ cardcore-server/
 - Match test layer to the package: transport tests use `httptest`, session tests use test channels, view tests assert snapshot correctness, integration tests use real server + WebSocket
 - Integration tests must spin up a real server on `:0` and connect via WebSocket — no mocking the transport boundary
 - Protocol conformance tests are table-driven: one row per message type × expected response
+- **PR Details section format**: Use functional/component breakdown (e.g., "Reader goroutine", "Writer goroutine", "Deferred bug fixes") rather than per-file bullet points. Only mention files when the change is specifically about that file's structure or when the file name itself conveys important information
 
 ## 4. Never Do
 - Never add dependencies not listed in `doc/dependencies.md` without explicit approval

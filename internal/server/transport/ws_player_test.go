@@ -1,0 +1,309 @@
+package transport
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/coder/websocket"
+
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
+)
+
+// errorGame is a stub Game implementation that rejects every action.
+type errorGame struct{}
+
+// TestPlayerWSSendsCommand verifies that a player can send a command via
+// WebSocket and receive a snapshot response.
+func TestPlayerWSSendsCommand(t *testing.T) {
+	srv, id, token := setupTestServerWithSession(t)
+	httpSrv := mustStartTestServer(t, srv)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn := mustDialPlayerWS(t, httpSrv.URL, id, token)
+	_ = mustReadWSMessage(t, conn, ctx) // consume initial snapshot
+
+	cmd := api.InboundMessage{
+		Type:     "play_card",
+		ActionID: "test-action-1",
+		Seq:      0,
+		Payload:  json.RawMessage(`{"card":"2c"}`),
+	}
+	if err := writeWSJSON(ctx, conn, cmd); err != nil {
+		t.Fatalf("write command: %v", err)
+	}
+
+	snap := mustReadSnapshot(t, conn, ctx)
+	if snap["type"] != "snapshot" {
+		t.Errorf("got type %q, want %q", snap["type"], "snapshot")
+	}
+}
+
+// TestPlayerWSMalformedMessage verifies that a message missing required
+// fields produces a malformed_message error.
+func TestPlayerWSMalformedMessage(t *testing.T) {
+	srv, id, token := setupTestServerWithSession(t)
+	httpSrv := mustStartTestServer(t, srv)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn := mustDialPlayerWS(t, httpSrv.URL, id, token)
+	_ = mustReadWSMessage(t, conn, ctx) // consume initial snapshot
+
+	cmd := api.InboundMessage{
+		ActionID: "test-action-2",
+		Seq:      0,
+	}
+	if err := writeWSJSON(ctx, conn, cmd); err != nil {
+		t.Fatalf("write command: %v", err)
+	}
+
+	em := mustReadError(t, conn, ctx)
+	if em.Type != "error" {
+		t.Errorf("got type %q, want %q", em.Type, "error")
+	}
+	if em.ErrorCode != api.ErrMalformedMessage {
+		t.Errorf("got error_code %q, want %q", em.ErrorCode, api.ErrMalformedMessage)
+	}
+}
+
+// TestPlayerWSKickedOnSecondConnection verifies that a second connection
+// with the same seat token causes the first connection to stop receiving
+// snapshots.
+func TestPlayerWSKickedOnSecondConnection(t *testing.T) {
+	srv, id, token := setupTestServerWithSession(t)
+	httpSrv := mustStartTestServer(t, srv)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn1 := mustDialPlayerWS(t, httpSrv.URL, id, token)
+	_ = mustReadWSMessage(t, conn1, ctx) // consume conn1 initial snapshot
+
+	conn2 := mustDialPlayerWS(t, httpSrv.URL, id, token)
+	_ = mustReadWSMessage(t, conn2, ctx) // consume conn2 initial snapshot
+
+	// conn1 should now be closed (or stop receiving messages).
+	shortCtx, shortCancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer shortCancel()
+	_, _, err := conn1.Read(shortCtx)
+	if err == nil {
+		t.Fatal("conn1 still receiving after kick")
+	}
+}
+
+// TestPlayerWSReceivesGameError verifies that a game error is returned
+// as an error message on the WebSocket.
+func TestPlayerWSReceivesGameError(t *testing.T) {
+	mgr := session.NewManager(func(_ session.Config) (session.Game, error) {
+		return errorGame{}, nil
+	})
+	srv := NewServer(Config{Manager: mgr, Addr: ":0"})
+
+	cfg := session.Config{
+		Game: "hearts",
+		Seats: []session.SeatConfig{
+			{Type: session.SeatHuman},
+			{Type: session.SeatAI, AIType: "random"},
+			{Type: session.SeatAI, AIType: "random"},
+			{Type: session.SeatAI, AIType: "random"},
+		},
+	}
+	info, seats, err := mgr.Create(cfg)
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if err := mgr.Start(info.SessionID); err != nil {
+		t.Fatalf("start session: %v", err)
+	}
+
+	var token string
+	for _, s := range seats {
+		if s.Type == session.SeatHuman {
+			token = s.Token
+			break
+		}
+	}
+
+	httpSrv := mustStartTestServer(t, srv)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn := mustDialPlayerWS(t, httpSrv.URL, info.SessionID, token)
+	_ = mustReadWSMessage(t, conn, ctx) // consume initial snapshot
+
+	cmd := api.InboundMessage{
+		Type:     "play_card",
+		ActionID: "test-action-3",
+		Seq:      0,
+		Payload:  json.RawMessage(`{"card":"2c"}`),
+	}
+	if err := writeWSJSON(ctx, conn, cmd); err != nil {
+		t.Fatalf("write command: %v", err)
+	}
+
+	em := mustReadError(t, conn, ctx)
+	if em.Type != "error" {
+		t.Errorf("got type %q, want %q", em.Type, "error")
+	}
+	if em.ErrorCode != api.ErrIllegalMove {
+		t.Errorf("got error_code %q, want %q", em.ErrorCode, api.ErrIllegalMove)
+	}
+}
+
+// TestPlayerWSCleanupOnDisconnect verifies that the player's subscription
+// is removed when the WebSocket connection is closed by the client.
+func TestPlayerWSCleanupOnDisconnect(t *testing.T) {
+	srv, id, token := setupTestServerWithSession(t)
+	httpSrv := mustStartTestServer(t, srv)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn := mustDialPlayerWS(t, httpSrv.URL, id, token)
+	_ = mustReadWSMessage(t, conn, ctx) // consume initial snapshot
+
+	// Close from client side.
+	if err := conn.Close(websocket.StatusNormalClosure, ""); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	// Allow goroutines to exit.
+	time.Sleep(100 * time.Millisecond)
+
+	// A new subscription to the same seat should succeed,
+	// confirming the old one was cleaned up.
+	ch, err := srv.mgr.SubscribePlayer(id, 0)
+	if err != nil {
+		t.Fatalf("resubscribe after disconnect: %v", err)
+	}
+	if ch == nil {
+		t.Fatal("resubscribe returned nil channel")
+	}
+	if err := srv.mgr.UnsubscribePlayer(id, 0); err != nil {
+		t.Fatalf("cleanup test subscription: %v", err)
+	}
+}
+
+// mustStartTestServer starts an httptest.Server for the given Server and
+// registers cleanup.
+func mustStartTestServer(t *testing.T, srv *Server) *httptest.Server {
+	t.Helper()
+	httpSrv := httptest.NewServer(srv.mux)
+	t.Cleanup(httpSrv.Close)
+	return httpSrv
+}
+
+// mustDialPlayerWS dials the player WebSocket endpoint and verifies a 101
+// Switching Protocols response. It registers connection cleanup.
+func mustDialPlayerWS(t *testing.T, httpSrvURL, id, token string) *websocket.Conn {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	wsURL := "ws" + strings.TrimPrefix(httpSrvURL, "http") +
+		"/sessions/" + id + "/ws"
+	conn, resp, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
+		HTTPHeader: http.Header{"Authorization": []string{"Bearer " + token}},
+	})
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Close(websocket.StatusNormalClosure, "") })
+
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		t.Fatalf("got status %d, want %d", resp.StatusCode, http.StatusSwitchingProtocols)
+	}
+	return conn
+}
+
+// mustReadWSMessage reads a text message from the WebSocket connection.
+func mustReadWSMessage(t *testing.T, conn *websocket.Conn, ctx context.Context) []byte {
+	t.Helper()
+	typ, b, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if typ != websocket.MessageText {
+		t.Fatalf("got message type %d, want text", typ)
+	}
+	return b
+}
+
+// mustReadSnapshot reads a WebSocket message and unmarshals it as a snapshot.
+func mustReadSnapshot(t *testing.T, conn *websocket.Conn, ctx context.Context) map[string]any {
+	t.Helper()
+	b := mustReadWSMessage(t, conn, ctx)
+	var snap map[string]any
+	if err := json.Unmarshal(b, &snap); err != nil {
+		t.Fatalf("unmarshal snapshot: %v", err)
+	}
+	return snap
+}
+
+// mustReadError reads a WebSocket message and unmarshals it as an ErrorMessage.
+func mustReadError(t *testing.T, conn *websocket.Conn, ctx context.Context) *api.ErrorMessage {
+	t.Helper()
+	b := mustReadWSMessage(t, conn, ctx)
+	var em api.ErrorMessage
+	if err := json.Unmarshal(b, &em); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	return &em
+}
+
+// writeWSJSON marshals v as JSON and writes it as a text message on ws.
+// It uses a 30-second timeout context.
+func writeWSJSON(ctx context.Context, ws *websocket.Conn, v any) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Errorf("marshal: %w", err)
+	}
+	return ws.Write(ctx, websocket.MessageText, b)
+}
+
+// HandleAction implements session.Game for errorGame.
+func (errorGame) HandleAction(
+	int, *api.InboundMessage,
+) (session.StepResult, *session.CommandError) {
+	return session.StepResult{}, &session.CommandError{
+		Code: api.ErrIllegalMove, Message: "test error",
+	}
+}
+
+// AIPlay implements session.Game for errorGame.
+func (errorGame) AIPlay(int) (session.StepResult, error) {
+	return session.StepResult{}, nil
+}
+
+// Resume implements session.Game for errorGame.
+func (errorGame) Resume() (session.StepResult, error) {
+	return session.StepResult{}, nil
+}
+
+// Turn implements session.Game for errorGame.
+func (errorGame) Turn() int { return 0 }
+
+// PlayerSnapshot implements session.Game for errorGame.
+func (errorGame) PlayerSnapshot(int, int) any {
+	return map[string]any{"type": "snapshot", "seq": 0}
+}
+
+// ObserverSnapshot implements session.Game for errorGame.
+func (errorGame) ObserverSnapshot(int) any {
+	return map[string]any{"type": "snapshot", "seq": 0}
+}

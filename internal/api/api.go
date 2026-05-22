@@ -1,6 +1,9 @@
 package api
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+)
 
 // Error code constants for client command rejection.
 const (
@@ -28,4 +31,26 @@ type ErrorMessage struct {
 	Message    string `json:"message"`
 	ActionID   string `json:"action_id,omitempty"`
 	CurrentSeq int    `json:"current_seq"`
+}
+
+// ValidateInboundMessage checks that the required envelope fields are
+// present. It returns a descriptive error for the first validation failure
+// encountered.
+func ValidateInboundMessage(msg *InboundMessage) error {
+	if msg == nil {
+		return errors.New("nil message")
+	}
+	if msg.Type == "" {
+		return errors.New("missing message type")
+	}
+	if msg.ActionID == "" {
+		return errors.New("missing action_id")
+	}
+	if msg.Seq < 0 {
+		return errors.New("negative seq")
+	}
+	if len(msg.Payload) == 0 {
+		return errors.New("missing payload")
+	}
+	return nil
 }

@@ -378,6 +378,14 @@ Every snapshot contains at minimum:
 All remaining snapshot fields are game-specific and defined in the
 game's protocol file. See [Supported Games](#supported-games).
 
+**Snapshot ordering:** The server multiplexes snapshots from two
+independent sources: the broadcast channel (subCh, from the session
+goroutine) and the synchronous response channel (outCh, from the
+reader goroutine). Due to Go channel scheduling, a client may receive
+snapshots out of monotonic order. The client must track the highest
+`seq` it has seen (`maxSeenSeq`) and ignore any snapshot with
+`seq <= maxSeenSeq`.
+
 ### `error`
 
 Sent when a client command is rejected. The WebSocket connection
@@ -534,6 +542,9 @@ spades").
   sent as `error` messages over the open connection.
 - Second connection per seat: the existing connection is closed
   (kicked). The new connection receives an initial snapshot.
+- Snapshot multiplexing: the server may send snapshots from the
+  broadcast path and the synchronous response path in arbitrary order.
+  Clients must track `maxSeenSeq` and ignore older snapshots.
 
 ---
 

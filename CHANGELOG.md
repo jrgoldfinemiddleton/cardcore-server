@@ -10,6 +10,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- Player WebSocket reader/writer goroutines: full bidirectional message handling with context-based coordination, envelope validation, and game error propagation
 - Session termination on snapshot marshal failure: when a game adapter produces unmarshalable state after a successful action, the session terminates cleanly with `internal_error` rather than continuing in an unplayable state
 - WebSocket upgrade endpoints for player (`/sessions/{id}/ws`) and observer (`/sessions/{id}/ws/observe`) connections
 - HTTP session handlers: `POST /sessions`, `GET /sessions`, `GET /sessions/{id}`, `PATCH /sessions/{id}`, `POST /sessions/{id}/start`, `DELETE /sessions/{id}`
