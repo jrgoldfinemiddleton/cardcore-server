@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -193,74 +190,6 @@ func TestPlayerWSCleanupOnDisconnect(t *testing.T) {
 	if err := srv.mgr.UnsubscribePlayer(id, 0); err != nil {
 		t.Fatalf("cleanup test subscription: %v", err)
 	}
-}
-
-// mustStartTestServer starts an httptest.Server for the given Server and
-// registers cleanup.
-func mustStartTestServer(t *testing.T, srv *Server) *httptest.Server {
-	t.Helper()
-	httpSrv := httptest.NewServer(srv.mux)
-	t.Cleanup(httpSrv.Close)
-	return httpSrv
-}
-
-// mustDialPlayerWS dials the player WebSocket endpoint and verifies a 101
-// Switching Protocols response. It registers connection cleanup.
-func mustDialPlayerWS(t *testing.T, httpSrvURL, id, token string) *websocket.Conn {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	wsURL := "ws" + strings.TrimPrefix(httpSrvURL, "http") +
-		"/sessions/" + id + "/ws"
-	conn, resp, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
-		HTTPHeader: http.Header{"Authorization": []string{"Bearer " + token}},
-	})
-	if err != nil {
-		t.Fatalf("dial: %v", err)
-	}
-	t.Cleanup(func() { _ = conn.Close(websocket.StatusNormalClosure, "") })
-
-	if resp.StatusCode != http.StatusSwitchingProtocols {
-		t.Fatalf("got status %d, want %d", resp.StatusCode, http.StatusSwitchingProtocols)
-	}
-	return conn
-}
-
-// mustReadWSMessage reads a text message from the WebSocket connection.
-func mustReadWSMessage(t *testing.T, conn *websocket.Conn, ctx context.Context) []byte {
-	t.Helper()
-	typ, b, err := conn.Read(ctx)
-	if err != nil {
-		t.Fatalf("read: %v", err)
-	}
-	if typ != websocket.MessageText {
-		t.Fatalf("got message type %d, want text", typ)
-	}
-	return b
-}
-
-// mustReadSnapshot reads a WebSocket message and unmarshals it as a snapshot.
-func mustReadSnapshot(t *testing.T, conn *websocket.Conn, ctx context.Context) map[string]any {
-	t.Helper()
-	b := mustReadWSMessage(t, conn, ctx)
-	var snap map[string]any
-	if err := json.Unmarshal(b, &snap); err != nil {
-		t.Fatalf("unmarshal snapshot: %v", err)
-	}
-	return snap
-}
-
-// mustReadError reads a WebSocket message and unmarshals it as an ErrorMessage.
-func mustReadError(t *testing.T, conn *websocket.Conn, ctx context.Context) *api.ErrorMessage {
-	t.Helper()
-	b := mustReadWSMessage(t, conn, ctx)
-	var em api.ErrorMessage
-	if err := json.Unmarshal(b, &em); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
-	}
-	return &em
 }
 
 // writeWSJSON marshals v as JSON and writes it as a text message on ws.
