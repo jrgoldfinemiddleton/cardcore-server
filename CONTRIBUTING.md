@@ -63,6 +63,10 @@ An optional `!` after the type/scope indicates a breaking change: `feat(session)
 | TUI model | `cmd/tui/` | Bubble Tea model tests: send messages, assert on model state without rendering. Visual testing is manual. |
 | Stress | `internal/server/` or root | Full games with all-AI sessions across many iterations. Surfaces protocol issues, state machine edge cases, and resource leaks at volume. |
 
+### Test helpers convention
+
+Shared test fixtures (mock implementations, setup helpers) live in `*_helpers_test.go` files within the package. Examples: `internal/server/session/helpers_test.go` contains `mockGame`, `mockGameFactory`, `mustCreateAndStart`, `validHeartsCfg`. This mirrors the `cardcore` engine's `helpers_test.go` / `bench_helpers_test.go` pattern.
+
 ### Benchmarks
 
 Benchmark targets:
