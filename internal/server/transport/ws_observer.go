@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"time"
+	"sync"
 
 	"github.com/coder/websocket"
 
@@ -27,34 +27,63 @@ type observerConn struct {
 	logger *slog.Logger
 }
 
-// run is the goroutine that manages the observer's WebSocket
-// connection. It defers cleanup (unsubscribe + close), writes snapshots
-// to the WebSocket, and drains the channel until the session goroutine
-// closes it. TODO: extract writer goroutine for snapshot delivery.
-func (oc *observerConn) run(_ context.Context) {
-	defer func() {
-		if err := oc.mgr.UnsubscribeObserver(oc.sessionID, oc.subCh); err != nil {
-			oc.logger.Error("unsubscribe observer", "error", err)
-		}
-		if err := oc.ws.Close(websocket.StatusNormalClosure, ""); err != nil {
-			oc.logger.Error("ws close", "error", err)
-		}
-	}()
-	for snap := range oc.subCh {
-		if len(snap) == 0 {
-			oc.logger.Error("dropped empty snapshot", "session_id", oc.sessionID)
-			continue
-		}
-		// TODO: Replace inline write with writeWSBytes once a dedicated
-		// observer writer goroutine is extracted.
-		func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			if err := oc.ws.Write(ctx, websocket.MessageText, snap); err != nil {
-				oc.logger.Error("ws write", "error", err)
+// run is the goroutine that manages the observer's WebSocket connection.
+// It spawns a writer goroutine for snapshot delivery and a CloseRead
+// goroutine for ping/pong/close frame handling. When either exits, it
+// cancels the context, both goroutines return, then it unsubscribes
+// and closes the WebSocket cleanly.
+func (oc *observerConn) run(ctx context.Context) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var wg sync.WaitGroup
+
+	// CloseRead handles ping/pong and close frames automatically.
+	wg.Go(func() {
+		oc.ws.CloseRead(ctx)
+	})
+
+	wg.Go(func() {
+		oc.writer(ctx, cancel)
+	})
+
+	wg.Wait()
+
+	// Both goroutines exited. Unsubscribe and close WS.
+	if err := oc.mgr.UnsubscribeObserver(oc.sessionID, oc.subCh); err != nil {
+		oc.logger.Error("unsubscribe observer", "error", err)
+	}
+	if err := oc.ws.Close(websocket.StatusNormalClosure, ""); err != nil {
+		oc.logger.Error("ws close", "error", err)
+	}
+}
+
+// writer is the exclusive owner of all outbound WebSocket traffic for
+// the observer. It reads snapshots from the session goroutine (subCh)
+// and writes them to the WebSocket.
+func (oc *observerConn) writer(ctx context.Context, cancel context.CancelFunc) {
+	defer cancel() // signal CloseRead goroutine to exit on any return path
+
+	for {
+		select {
+		case snap, ok := <-oc.subCh:
+			if !ok {
+				// Session goroutine closed subCh (game over or kicked).
 				return
 			}
-		}()
+			if len(snap) == 0 {
+				oc.logger.Error("dropped empty snapshot",
+					"session_id", oc.sessionID)
+				continue
+			}
+			if err := writeWSBytes(ctx, oc.ws, snap); err != nil {
+				oc.logger.Error("ws write snapshot", "error", err)
+				return
+			}
+
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
