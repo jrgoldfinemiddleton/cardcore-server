@@ -19,3 +19,13 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 - WebSocket message size limit (64 KB default, configurable via `WSReadLimit`)
 - Nil-safe snapshot handling throughout the session layer
 - Marshal-failure defense: sessions skip empty snapshots rather than sending nil frames to WebSocket clients
+- HTTP server bootstrap with panic recovery middleware, request logging middleware, and `Start`/`Stop`/`Addr()` lifecycle
+- Session goroutine event loop with command dispatch, snapshot broadcast to subscribers, `action_id` idempotency, `stale_seq` detection, and interruptible `autoResume` pacing
+- Game interface (`session.Game`) and Hearts adapter: turn validation, phase checking, AI delegation, trick-completion pausing, and wire-compatible `CommandError` codes
+- Session Manager with CRUD operations: `Create`, `Get`, `List`, `Update`, `Delete` with race-safe `sync.RWMutex` and `ErrInvalidConfig` sentinel for validation failures
+- Seat-filtered snapshot generation for Hearts: player view masks opponent hands, observer view is omniscient, phase priority (`TrickComplete` > `RoundComplete` > engine phase) with tested correctness across game states
+- Wire-format DTOs and runtime dependencies: game-agnostic envelopes (`InboundMessage`, `ErrorMessage`), Hearts-specific wire types (`Card`, `TrickEntry`, `PlayerSnapshot`, `ObserverSnapshot`, `PlayCardPayload`, `PassCardsPayload`), and runtime dependency declarations
+
+### Fixed
+
+- Session lifecycle bugs: goroutine leak on natural game completion, double-close panic when `Delete` races with `StepFinished`, callers blocking forever on dead sessions, and `Delete` idempotency
