@@ -107,6 +107,7 @@ Creates a new session in `draft` state.
 | `game` | string | yes | Game identifier (e.g., `"hearts"`). |
 | `seats` | array of seat config | yes | One entry per seat. |
 | `pacing_delay_ms` | integer | no | Delay in milliseconds between state transitions requiring UX pacing (trick completion, round completion, AI turns). Default: `500`. Use `0` for tests. |
+| `turn_timeout_ms` | integer | no | Maximum time in milliseconds to wait for a human player to act before auto-playing an AI move. Default: `30000` (30s). Use `0` to disable. |
 
 Each seat config:
 
@@ -179,6 +180,7 @@ WebSocket snapshot for that).
 | `seats[].type` | string | `"human"` or `"ai"`. |
 | `seats[].ai_type` | string | AI implementation name. Present only for AI seats. |
 | `pacing_delay_ms` | integer | Configured pacing delay in milliseconds. |
+| `turn_timeout_ms` | integer | Configured human turn timeout in milliseconds. `0` means disabled. |
 
 **Errors:**
 
@@ -202,6 +204,7 @@ Updates session configuration. Only valid in `draft` state.
 |-------|------|-------------|
 | `seats` | array of seat config | Replace seat configuration. |
 | `pacing_delay_ms` | integer | Update pacing delay in milliseconds. |
+| `turn_timeout_ms` | integer | Update human turn timeout in milliseconds. `0` disables the timeout. |
 
 **Response:** `200 OK` — returns the full session details (same shape
 as `GET /sessions/{id}`), plus an optional `seat_tokens` field when the
@@ -440,12 +443,15 @@ in unrecoverable situations:
 |-----------|-----------|
 | `1009 Message Too Big` | Inbound message exceeds 64 KB size limit. |
 | `1008 Policy Violation` | Session deleted while connected. |
-| `1011 Internal Error` | Snapshot generation failed after a successful action. Session is unplayable and terminates. *(Planned — not yet implemented.)* |
+| `1011 Internal Error` | Unrecoverable server-side bug (snapshot generation failure, etc.). Session is unplayable and terminates. May be preceded by a broadcast `error` message so clients can log the reason before reconnecting. |
 
 **Design principle:** Isolated snapshot failures (single client, stale sequence) are logged and the client is skipped; global snapshot failures (broadcast to all subscribers after a state mutation) terminate the session because the game becomes unplayable.
 
 All close frames are terminal — the connection is gone. The client
-must reconnect or exit. No application-level error event precedes the close.
+must reconnect or exit. By default, no application-level error event precedes
+the close. The exception is `1011 Internal Error`, where the server may broadcast
+an `error` message first so clients can log the reason before the connection
+dies.
 
 ---
 

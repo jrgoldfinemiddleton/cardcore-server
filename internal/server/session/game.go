@@ -61,6 +61,12 @@ type Game interface {
 	// AIPlay executes the AI player's move for the given seat. The
 	// implementation selects and applies the appropriate action based
 	// on the current game phase.
+	//
+	// Outcome may be StepContinue, StepPause, or StepFinished.
+	// StepPause occurs when the AI's play completes a pausable game
+	// state (e.g., a finished trick in Hearts). After StepPause, the
+	// session waits for UX pacing and then calls Resume(), so the
+	// game advances just as it does for human plays.
 	AIPlay(seat int) (StepResult, error)
 
 	// Resume advances the game past a pausable state. Only valid

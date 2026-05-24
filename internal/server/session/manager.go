@@ -10,7 +10,11 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
 )
 
-const defaultPacingDelayMS = 500
+// Default timing values for session configuration.
+const (
+	defaultPacingDelayMS = 500
+	defaultTurnTimeoutMS = 30000
+)
 
 // Sentinel errors returned by Manager methods.
 var (
@@ -166,6 +170,7 @@ func (m *Manager) Update(
 			Game:          e.config.Game,
 			Seats:         patch.Seats,
 			PacingDelayMS: e.config.PacingDelayMS,
+			TurnTimeoutMS: e.config.TurnTimeoutMS,
 		}
 		if err := validateConfig(cfg); err != nil {
 			return nil, nil, err
@@ -192,6 +197,9 @@ func (m *Manager) Update(
 
 	if patch.PacingDelayMS != nil {
 		e.config.PacingDelayMS = patch.PacingDelayMS
+	}
+	if patch.TurnTimeoutMS != nil {
+		e.config.TurnTimeoutMS = patch.TurnTimeoutMS
 	}
 
 	return e.info(id), nil, nil
@@ -463,6 +471,7 @@ func (e *entry) info(id string) *SessionInfo {
 		State:         e.state,
 		Seats:         details,
 		PacingDelayMS: e.delay(),
+		TurnTimeoutMS: e.turnTimeout(),
 	}
 }
 
@@ -473,6 +482,15 @@ func (e *entry) delay() int {
 		return *e.config.PacingDelayMS
 	}
 	return defaultPacingDelayMS
+}
+
+// turnTimeout returns the resolved turn timeout in milliseconds,
+// applying the default when the config value is nil.
+func (e *entry) turnTimeout() int {
+	if e.config.TurnTimeoutMS != nil {
+		return *e.config.TurnTimeoutMS
+	}
+	return defaultTurnTimeoutMS
 }
 
 // generateSessionID returns a 32-character hex string from 16 random
