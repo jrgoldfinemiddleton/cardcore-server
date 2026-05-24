@@ -22,6 +22,63 @@ type unmarshalableGame struct{}
 // fail to marshal but observer snapshots succeed.
 type playerSnapshotUnmarshalableGame struct{}
 
+// timeoutGame is a mock Game that stays on a specific seat's turn for
+// testing turn timeout behavior. After AIPlay, the turn advances to the
+// next seat (modulo seatCount) to prevent infinite timeout loops.
+type timeoutGame struct {
+	turnSeat  int
+	seatCount int
+}
+
+// aiPlayFinishedGame is a mock Game where AIPlay returns StepFinished.
+type aiPlayFinishedGame struct{}
+
+// invalidTurnGame is a mock Game where Turn returns an invalid seat.
+type invalidTurnGame struct{}
+
+// aiPlayPauseGame is a mock Game where the first turn is seat 0 (human),
+// AIPlay returns StepPause on the first call then StepFinished, and
+// Resume advances the turn to seat 1 so autoResume chains through.
+type aiPlayPauseGame struct {
+	callCount int
+	turnSeat  int
+}
+
+// HandleAction implements Game.HandleAction for aiPlayPauseGame.
+func (a *aiPlayPauseGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
+	a.turnSeat = 1
+	return StepResult{Outcome: StepContinue}, nil
+}
+
+// AIPlay implements Game.AIPlay for aiPlayPauseGame.
+func (a *aiPlayPauseGame) AIPlay(int) (StepResult, error) {
+	a.callCount++
+	if a.callCount == 1 {
+		return StepResult{Outcome: StepPause}, nil
+	}
+	return StepResult{Outcome: StepFinished}, nil
+}
+
+// Resume implements Game.Resume for aiPlayPauseGame.
+func (a *aiPlayPauseGame) Resume() (StepResult, error) {
+	return StepResult{Outcome: StepContinue}, nil
+}
+
+// Turn implements Game.Turn for aiPlayPauseGame.
+func (a *aiPlayPauseGame) Turn() int {
+	return a.turnSeat
+}
+
+// PlayerSnapshot implements Game.PlayerSnapshot for aiPlayPauseGame.
+func (a *aiPlayPauseGame) PlayerSnapshot(int, int) any {
+	return nil
+}
+
+// ObserverSnapshot implements Game.ObserverSnapshot for aiPlayPauseGame.
+func (a *aiPlayPauseGame) ObserverSnapshot(int) any {
+	return nil
+}
+
 // HandleAction implements Game.HandleAction for mockGame.
 func (m *mockGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{}, nil
@@ -142,6 +199,97 @@ func (p *playerSnapshotUnmarshalableGame) PlayerSnapshot(int, int) any {
 // ObserverSnapshot implements Game.ObserverSnapshot for playerSnapshotUnmarshalableGame.
 func (p *playerSnapshotUnmarshalableGame) ObserverSnapshot(int) any {
 	return map[string]any{"type": "snapshot"}
+}
+
+// HandleAction implements Game.HandleAction for timeoutGame.
+func (g *timeoutGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
+	return StepResult{Outcome: StepContinue}, nil
+}
+
+// AIPlay implements Game.AIPlay for timeoutGame.
+func (g *timeoutGame) AIPlay(int) (StepResult, error) {
+	g.turnSeat = (g.turnSeat + 1) % g.seatCount
+	return StepResult{Outcome: StepContinue}, nil
+}
+
+// Resume implements Game.Resume for timeoutGame.
+func (g *timeoutGame) Resume() (StepResult, error) {
+	return StepResult{Outcome: StepContinue}, nil
+}
+
+// Turn implements Game.Turn for timeoutGame.
+func (g *timeoutGame) Turn() int {
+	return g.turnSeat
+}
+
+// PlayerSnapshot implements Game.PlayerSnapshot for timeoutGame.
+func (g *timeoutGame) PlayerSnapshot(int, int) any {
+	return nil
+}
+
+// ObserverSnapshot implements Game.ObserverSnapshot for timeoutGame.
+func (g *timeoutGame) ObserverSnapshot(int) any {
+	return nil
+}
+
+// HandleAction implements Game.HandleAction for aiPlayFinishedGame.
+func (a *aiPlayFinishedGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
+	return StepResult{Outcome: StepContinue}, nil
+}
+
+// AIPlay implements Game.AIPlay for aiPlayFinishedGame.
+func (a *aiPlayFinishedGame) AIPlay(int) (StepResult, error) {
+	return StepResult{Outcome: StepFinished}, nil
+}
+
+// Resume implements Game.Resume for aiPlayFinishedGame.
+func (a *aiPlayFinishedGame) Resume() (StepResult, error) {
+	return StepResult{}, nil
+}
+
+// Turn implements Game.Turn for aiPlayFinishedGame.
+func (a *aiPlayFinishedGame) Turn() int {
+	return 1
+}
+
+// PlayerSnapshot implements Game.PlayerSnapshot for aiPlayFinishedGame.
+func (a *aiPlayFinishedGame) PlayerSnapshot(int, int) any {
+	return nil
+}
+
+// ObserverSnapshot implements Game.ObserverSnapshot for aiPlayFinishedGame.
+func (a *aiPlayFinishedGame) ObserverSnapshot(int) any {
+	return nil
+}
+
+// HandleAction implements Game.HandleAction for invalidTurnGame.
+func (i *invalidTurnGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
+	return StepResult{Outcome: StepContinue}, nil
+}
+
+// AIPlay implements Game.AIPlay for invalidTurnGame.
+func (i *invalidTurnGame) AIPlay(int) (StepResult, error) {
+	return StepResult{}, nil
+}
+
+// Resume implements Game.Resume for invalidTurnGame.
+func (i *invalidTurnGame) Resume() (StepResult, error) {
+	return StepResult{}, nil
+}
+
+// Turn implements Game.Turn for invalidTurnGame.
+func (i *invalidTurnGame) Turn() int {
+	return -1
+}
+
+// PlayerSnapshot implements Game.PlayerSnapshot for invalidTurnGame.
+func (i *invalidTurnGame) PlayerSnapshot(int, int) any {
+	return nil
+}
+
+// ObserverSnapshot implements Game.ObserverSnapshot for invalidTurnGame.
+func (i *invalidTurnGame) ObserverSnapshot(int) any {
+	return nil
 }
 
 // mockGameFactory returns a game factory for tests that don't need a

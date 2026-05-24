@@ -58,6 +58,12 @@ type session struct {
 	// finished is set when the game reaches a terminal state,
 	// signaling run() to exit after the current command completes.
 	finished bool
+
+	// waitingForHuman is true when the goroutine is waiting for a
+	// human player to act and a turn timeout is active.
+	waitingForHuman bool
+	// turnDeadline is the time at which the turn timeout fires.
+	turnDeadline time.Time
 }
 
 // run is the session goroutine event loop.
@@ -66,9 +72,38 @@ func (s *session) run() {
 	// channels have been closed. Manager methods use <-done to detect
 	// shutdown and avoid blocking on a dead session.
 	defer close(s.done)
+
+	s.scheduleAI()
+	if s.finished {
+		s.drainCmds()
+		return
+	}
+
 	for {
+		var timeoutCh <-chan time.Time
+		if s.waitingForHuman && s.config.turnTimeout() > 0 {
+			remaining := time.Until(s.turnDeadline)
+			if remaining > 0 {
+				// Deadline is in the future; set the timeout channel to fire when it expires.
+				timeoutCh = time.After(remaining)
+			} else {
+				// Deadline has already passed; handle the timeout immediately without waiting.
+				s.waitingForHuman = false
+				s.handleTurnTimeout()
+				if s.finished {
+					s.drainCmds()
+					return
+				}
+				continue
+			}
+		}
+
 		select {
 		case cmd := <-s.cmds:
+			if pc, ok := cmd.(playCmd); ok && s.waitingForHuman &&
+				pc.seat == s.game.Turn() && s.isHumanSeat(pc.seat) {
+				s.waitingForHuman = false
+			}
 			s.handleCommand(cmd)
 			if s.finished {
 				s.drainCmds()
@@ -78,6 +113,13 @@ func (s *session) run() {
 			s.closeSubscribers()
 			s.drainCmds()
 			return
+		case <-timeoutCh:
+			s.waitingForHuman = false
+			s.handleTurnTimeout()
+			if s.finished {
+				s.drainCmds()
+				return
+			}
 		}
 	}
 }
@@ -182,6 +224,8 @@ func (s *session) handlePlay(c playCmd) {
 	// Return success to the caller and handle game pacing (AI turns,
 	// trick/round completion, or game finished).
 	c.resp <- SubmitResult{}
+	// TODO: inline the outcome switch here instead of calling
+	// handleStepResult to eliminate the duplicate broadcast bug.
 	s.handleStepResult(res)
 }
 
@@ -212,37 +256,168 @@ func (s *session) handleStepResult(res StepResult) {
 	}
 }
 
-// autoResume pauses briefly then calls Resume.
+// autoResume pauses briefly then calls Resume in a loop to handle
+// chained StepPause outcomes without growing the stack.
 func (s *session) autoResume() {
-	delay := s.config.delay()
-	if delay > 0 {
-		select {
-		case <-time.After(time.Duration(delay) * time.Millisecond):
-		case <-s.cancel:
+	for {
+		delay := s.config.delay()
+		if delay > 0 {
+			select {
+			case <-time.After(time.Duration(delay) * time.Millisecond):
+			case <-s.cancel:
+				return
+			}
+		}
+		if s.finished {
+			return
+		}
+
+		res, err := s.game.Resume()
+		if err != nil {
+			return
+		}
+		// Outcomes are handled inline instead of delegating to
+		// handleStepResult to prevent unbounded mutual recursion and
+		// to avoid duplicate snapshot broadcasts. See the same pattern
+		// and TODO in scheduleAI.
+		switch res.Outcome {
+		case StepContinue:
+			s.scheduleAI()
+			return
+		case StepPause:
+			s.broadcastSnapshot()
+			if s.finished {
+				return
+			}
+			// Continue loop to resume again after UX pacing.
+		case StepFinished:
+			s.broadcastSnapshot()
+			if s.finished {
+				return
+			}
+			s.closeSubscribers()
+			if s.onDone != nil {
+				s.onDone(Finished)
+			}
+			s.finished = true
 			return
 		}
 	}
+}
+
+// scheduleAI checks if the next turn is AI and auto-plays it, or if
+// human, sets the turn timeout and returns so run() handles it.
+// AI turns are paced by PacingDelayMS. Outcomes (Continue, Pause,
+// Finished) are handled inline; StepFinished terminates the session
+// directly from this method. This runs synchronously within the
+// session goroutine; no additional goroutines are spawned.
+func (s *session) scheduleAI() {
+	for {
+		seat := s.game.Turn()
+		// Guard: if seat is out of range (e.g., empty config), stop.
+		if seat < 0 || seat >= len(s.config.Seats) {
+			return
+		}
+		// If human, set turn timeout and return so run() can handle it.
+		if s.isHumanSeat(seat) {
+			if s.config.turnTimeout() > 0 {
+				s.waitingForHuman = true
+				s.turnDeadline = time.Now().Add(s.config.turnTimeout())
+			}
+			return
+		}
+
+		// Pace AI turns for UX readability.
+		delay := s.config.delay()
+		if delay > 0 {
+			select {
+			case <-time.After(time.Duration(delay) * time.Millisecond):
+			case <-s.cancel:
+				return
+			}
+		}
+		if s.finished {
+			return
+		}
+
+		res, err := s.game.AIPlay(seat)
+		if err != nil {
+			slog.Error("AIPlay failed", "seat", seat, "error", err)
+			return
+		}
+		s.seq++
+		s.broadcastSnapshot()
+		if s.finished {
+			return
+		}
+
+		// Outcomes are handled inline instead of delegating to
+		// handleStepResult. This prevents unbounded mutual recursion
+		// (scheduleAI -> handleStepResult -> autoResume ->
+		// handleStepResult -> ...) and avoids duplicate snapshot
+		// broadcasts: both the caller and handleStepResult would
+		// broadcast the same snapshot. TODO: eliminate
+		// handleStepResult once all callers handle their own broadcast
+		// and outcome dispatch.
+		switch res.Outcome {
+		case StepContinue:
+			if s.game.Turn() == seat {
+				// Turn did not advance; adapter is stuck.
+				return
+			}
+		case StepPause:
+			// AI completed a trick or round. Resume after UX pacing so
+			// observers see the completed state before continuing.
+			s.autoResume()
+			return
+		case StepFinished:
+			// Previous code returned here without cleanup, leaving
+			// the session alive with finished=false. The goroutine
+			// would accept new commands on a completed game.
+			// Must perform full termination inline.
+			s.closeSubscribers()
+			if s.onDone != nil {
+				s.onDone(Finished)
+			}
+			s.finished = true
+			return
+		}
+	}
+}
+
+// isHumanSeat reports whether the given seat is configured as human.
+func (s *session) isHumanSeat(seat int) bool {
+	if seat < 0 || seat >= len(s.config.Seats) {
+		slog.Error("game adapter returned invalid seat", "seat", seat, "session", s.id)
+		return false
+	}
+	return s.config.Seats[seat].Type == SeatHuman
+}
+
+// handleTurnTimeout handles a turn timeout by playing an AI move for
+// the current human seat.
+func (s *session) handleTurnTimeout() {
+	seat := s.game.Turn()
+	// Guard that the seat is still human (e.g., client disconnected human
+	// player since timeout was set).
+	if !s.isHumanSeat(seat) {
+		return
+	}
+
+	slog.Info("turn timeout, playing AI move", "seat", seat, "session", s.id)
+	res, err := s.game.AIPlay(seat)
+	if err != nil {
+		slog.Error("AIPlay on timeout failed", "seat", seat, "error", err)
+		return
+	}
+	s.seq++
+	s.broadcastSnapshot()
 	if s.finished {
 		return
 	}
-
-	res, err := s.game.Resume()
-	if err != nil {
-		return
-	}
+	// TODO: inline the outcome switch here instead of calling
+	// handleStepResult to eliminate the duplicate broadcast bug.
 	s.handleStepResult(res)
-}
-
-// scheduleAI checks if the next turn is AI and schedules it.
-// TODO: Implement AI turn scheduling — if the next seat is AI, sleep for
-// PacingDelayMS then call s.game.AIPlay(seat) and pass the returned
-// StepResult to s.handleStepResult. This runs synchronously within the
-// session goroutine; no additional goroutines are spawned.
-// If the next seat is human, this function returns immediately and the
-// session goroutine waits for the next human playCmd.
-func (s *session) scheduleAI() {
-	seat := s.game.Turn()
-	_ = seat
 }
 
 // Snapshot failure design principle:
@@ -418,11 +593,37 @@ func (s *session) drainCmds() {
 	}
 }
 
-// terminateOnMarshalFailure logs the error, closes all subscriber
-// channels, notifies the Manager that the session is finished, and
-// marks the session as finished so the goroutine exits.
+// broadcastError marshals an error message and sends it to all
+// subscribers (players and observers). Used when the session must
+// terminate due to an unrecoverable server-side bug.
+func (s *session) broadcastError(code, message, actionID string) {
+	em := api.ErrorMessage{
+		Type:       errType,
+		ErrorCode:  code,
+		Message:    message,
+		ActionID:   actionID,
+		CurrentSeq: s.seq,
+	}
+	b, err := json.Marshal(em)
+	if err != nil {
+		slog.Error("marshal broadcast error", "error", err)
+		return
+	}
+	for _, ch := range s.players {
+		s.sendNonBlocking(ch, b)
+	}
+	for _, ch := range s.observers {
+		s.sendNonBlocking(ch, b)
+	}
+}
+
+// terminateOnMarshalFailure logs the error, broadcasts it to all
+// subscribers, closes all subscriber channels, notifies the Manager
+// that the session is finished, and marks the session as finished so
+// the goroutine exits.
 func (s *session) terminateOnMarshalFailure(msg string) {
 	slog.Error("session terminating due to marshal failure", "message", msg)
+	s.broadcastError(api.ErrInternal, msg, "")
 	s.closeSubscribers()
 	if s.onDone != nil {
 		s.onDone(Finished)

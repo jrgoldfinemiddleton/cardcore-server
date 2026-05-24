@@ -2,6 +2,7 @@ package session
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -452,5 +453,279 @@ func TestSessionMarshalFailureTerminates(t *testing.T) {
 	}
 	if _, ok := s.actionIDs["action1"]; ok {
 		t.Error("action_id should not be cached after marshal failure")
+	}
+}
+
+// TestSessionMarshalFailureBroadcastsError verifies that when a
+// snapshot fails to marshal, all subscribers receive an internal_error
+// broadcast before their channels are closed.
+func TestSessionMarshalFailureBroadcastsError(t *testing.T) {
+	g := &unmarshalableGame{}
+	s := newSession("test", g, Config{}, nil)
+
+	ch := make(chan []byte, subChanSize)
+	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch}
+
+	obsCh := make(chan []byte, subChanSize)
+	s.cmds <- subscribeObserverCmd{ch: obsCh}
+
+	resp := make(chan SubmitResult, 1)
+	s.cmds <- playCmd{
+		seat: 0,
+		msg: &api.InboundMessage{
+			Type:     "test",
+			ActionID: "action1",
+			Seq:      0,
+		},
+		resp: resp,
+	}
+	<-resp
+
+	// Wait for goroutine to exit after terminateOnMarshalFailure.
+	select {
+	case <-s.done:
+		// Goroutine exited as expected.
+	case <-time.After(time.Second):
+		t.Fatal("goroutine did not exit within 1 second after marshal failure")
+	}
+
+	// Verify subscribers received the error broadcast.
+	var errMsg *api.ErrorMessage
+	for len(ch) > 0 {
+		b := <-ch
+		var em api.ErrorMessage
+		if json.Unmarshal(b, &em) == nil && em.ErrorCode == api.ErrInternal {
+			errMsg = &em
+		}
+	}
+	if errMsg == nil {
+		t.Error("expected player subscriber to receive internal_error broadcast")
+	}
+
+	for len(obsCh) > 0 {
+		<-obsCh
+	}
+
+	// Verify channels are closed.
+	_, ok := <-ch
+	if ok {
+		t.Error("expected player channel to be closed after marshal failure")
+	}
+	_, ok = <-obsCh
+	if ok {
+		t.Error("expected observer channel to be closed after marshal failure")
+	}
+}
+
+// TestSessionTurnTimeoutFires verifies that when a human seat's turn
+// arrives and no command is received within the timeout, the session
+// auto-plays an AI move and broadcasts the resulting snapshot.
+func TestSessionTurnTimeoutFires(t *testing.T) {
+	timeout := 100
+	g := &timeoutGame{turnSeat: 0, seatCount: 2}
+	s := newSession("test", g, Config{
+		Seats: []SeatConfig{
+			{Type: SeatHuman},
+			{Type: SeatAI, AIType: "random"},
+		},
+		TurnTimeoutMS: &timeout,
+	}, nil)
+
+	// scheduleAI() is called at goroutine startup, so the first turn
+	// timeout is already set for seat 0 (human). No command needed.
+
+	// Wait for the timeout to fire and AI to play.
+	time.Sleep(200 * time.Millisecond)
+
+	// Stop the goroutine and wait for it to exit before reading seq
+	// to avoid data race.
+	close(s.cancel)
+	<-s.done
+
+	if got, want := s.seq, 1; got < want {
+		t.Errorf("seq: got %d, want at least %d after timeout AI play", got, want)
+	}
+}
+
+// TestSessionScheduleAITerminatesOnFinished verifies that when AIPlay
+// returns StepFinished from within scheduleAI, the session terminates
+// and the goroutine exits.
+func TestSessionScheduleAITerminatesOnFinished(t *testing.T) {
+	g := &aiPlayFinishedGame{}
+	s := newSession("test", g, Config{
+		Seats: []SeatConfig{
+			{Type: SeatHuman},
+			{Type: SeatAI, AIType: "random"},
+		},
+	}, nil)
+
+	ch := make(chan []byte, subChanSize)
+	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch}
+
+	obsCh := make(chan []byte, subChanSize)
+	s.cmds <- subscribeObserverCmd{ch: obsCh}
+
+	time.Sleep(100 * time.Millisecond)
+
+	resp := make(chan SubmitResult, 1)
+	s.cmds <- playCmd{
+		seat: 0,
+		msg: &api.InboundMessage{
+			Type:     "test",
+			ActionID: "action1",
+			Seq:      0,
+		},
+		resp: resp,
+	}
+	<-resp
+
+	select {
+	case <-s.done:
+		// Goroutine exited as expected.
+	case <-time.After(time.Second):
+		t.Fatal("goroutine did not exit within 1 second after AIPlay StepFinished")
+	}
+
+	if !s.finished {
+		t.Error("expected session to be finished after AIPlay StepFinished")
+	}
+
+	for len(ch) > 0 {
+		<-ch
+	}
+	for len(obsCh) > 0 {
+		<-obsCh
+	}
+
+	_, ok := <-ch
+	if ok {
+		t.Error("expected player channel to be closed after game over")
+	}
+	_, ok = <-obsCh
+	if ok {
+		t.Error("expected observer channel to be closed after game over")
+	}
+}
+
+// TestSessionScheduleAIHandlesPause verifies that when AIPlay
+// returns StepPause from within scheduleAI (e.g., completing a trick),
+// the session calls autoResume and continues the game.
+func TestSessionScheduleAIHandlesPause(t *testing.T) {
+	g := &aiPlayPauseGame{}
+	zeroDelay := 0
+	s := newSession("test", g, Config{
+		Seats: []SeatConfig{
+			{Type: SeatHuman},
+			{Type: SeatAI, AIType: "random"},
+		},
+		PacingDelayMS: &zeroDelay,
+	}, nil)
+
+	ch := make(chan []byte, subChanSize)
+	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch}
+
+	resp := make(chan SubmitResult, 1)
+	s.cmds <- playCmd{
+		seat: 0,
+		msg: &api.InboundMessage{
+			Type:     "test",
+			ActionID: "action1",
+			Seq:      0,
+		},
+		resp: resp,
+	}
+	<-resp
+
+	// Wait for autoResume to process the pause and the second AIPlay
+	// to finish the game.
+	select {
+	case <-s.done:
+		// Goroutine exited as expected.
+	case <-time.After(time.Second):
+		t.Fatal("goroutine did not exit within 1 second")
+	}
+
+	if !s.finished {
+		t.Error("expected session to be finished after AIPlay StepPause + Resume")
+	}
+	if got, want := s.seq, 3; got != want {
+		t.Errorf("seq: got %d, want %d", got, want)
+	}
+
+	// No internal_error should have been broadcast.
+	for len(ch) > 0 {
+		b := <-ch
+		var em api.ErrorMessage
+		if json.Unmarshal(b, &em) == nil && em.ErrorCode == api.ErrInternal {
+			t.Error("got unexpected internal_error broadcast for normal StepPause")
+		}
+	}
+}
+
+// TestSessionScheduleAIStopsOnInvalidTurn verifies that when game.Turn
+// returns an invalid seat, scheduleAI returns without terminating the
+// session.
+func TestSessionScheduleAIStopsOnInvalidTurn(t *testing.T) {
+	g := &invalidTurnGame{}
+	s := newSession("test", g, Config{
+		Seats: []SeatConfig{
+			{Type: SeatHuman},
+			{Type: SeatAI, AIType: "random"},
+		},
+	}, nil)
+
+	resp := make(chan SubmitResult, 1)
+	s.cmds <- playCmd{
+		seat: 0,
+		msg: &api.InboundMessage{
+			Type:     "test",
+			ActionID: "action1",
+			Seq:      0,
+		},
+		resp: resp,
+	}
+	<-resp
+
+	// Give scheduleAI time to check Turn() and return.
+	time.Sleep(100 * time.Millisecond)
+
+	if s.finished {
+		t.Error("expected session to not be finished after invalid Turn()")
+	}
+
+	close(s.cancel)
+	select {
+	case <-s.done:
+		// Goroutine exited after cancel.
+	case <-time.After(time.Second):
+		t.Fatal("goroutine did not exit after cancel")
+	}
+}
+
+// TestSessionInitialTurnTimeoutFires verifies that the turn timeout
+// fires on the very first turn even when no command has been received
+// yet.
+func TestSessionInitialTurnTimeoutFires(t *testing.T) {
+	timeout := 100
+	g := &timeoutGame{turnSeat: 0, seatCount: 2}
+	s := newSession("test", g, Config{
+		Seats: []SeatConfig{
+			{Type: SeatHuman},
+			{Type: SeatAI, AIType: "random"},
+		},
+		TurnTimeoutMS: &timeout,
+	}, nil)
+
+	// No command sent — the timeout should fire from the initial
+	// scheduleAI() call in run().
+	time.Sleep(200 * time.Millisecond)
+
+	// Stop the goroutine and wait for it to exit before reading seq
+	// to avoid data race.
+	close(s.cancel)
+	<-s.done
+
+	if got, want := s.seq, 1; got < want {
+		t.Errorf("seq: got %d, want at least %d after initial timeout AI play", got, want)
 	}
 }

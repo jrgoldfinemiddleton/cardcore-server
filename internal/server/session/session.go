@@ -1,5 +1,7 @@
 package session
 
+import "time"
+
 // State represents a session's position in its lifecycle.
 type State string
 
@@ -36,6 +38,10 @@ type Config struct {
 	// transitions that require UX pacing (e.g., trick completion,
 	// round completion, AI turns). Nil means use the default (500ms).
 	PacingDelayMS *int `json:"pacing_delay_ms,omitempty"`
+	// TurnTimeoutMS is the maximum time in milliseconds to wait for
+	// a human player to act before auto-playing an AI move. Nil means
+	// use the default (30000ms = 30s). *0 means disabled (no timeout).
+	TurnTimeoutMS *int `json:"turn_timeout_ms,omitempty"`
 }
 
 // PatchConfig holds optional fields for updating a session in draft state.
@@ -45,6 +51,8 @@ type PatchConfig struct {
 	Seats []SeatConfig `json:"seats,omitempty"`
 	// PacingDelayMS updates the pacing delay when non-nil.
 	PacingDelayMS *int `json:"pacing_delay_ms,omitempty"`
+	// TurnTimeoutMS updates the turn timeout when non-nil.
+	TurnTimeoutMS *int `json:"turn_timeout_ms,omitempty"`
 }
 
 // SeatInfo is returned from session creation and update with the seat's
@@ -97,4 +105,17 @@ type SessionInfo struct {
 	Seats []SeatDetail `json:"seats"`
 	// PacingDelayMS is the configured pacing delay in milliseconds.
 	PacingDelayMS int `json:"pacing_delay_ms"`
+	// TurnTimeoutMS is the configured turn timeout in milliseconds.
+	// 0 means disabled.
+	TurnTimeoutMS int `json:"turn_timeout_ms"`
+}
+
+// turnTimeout returns the turn timeout as a time.Duration. If
+// TurnTimeoutMS is nil, the default is returned. 0 or negative means
+// disabled.
+func (c Config) turnTimeout() time.Duration {
+	if c.TurnTimeoutMS != nil {
+		return time.Duration(*c.TurnTimeoutMS) * time.Millisecond
+	}
+	return defaultTurnTimeoutMS * time.Millisecond
 }
