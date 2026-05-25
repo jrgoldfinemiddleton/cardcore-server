@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
@@ -75,13 +74,6 @@ type session struct {
 	// terminal state, either because the game finished or an
 	// unrecoverable error forced termination.
 	onDone func(State)
-
-	// closeOnce ensures closeSubscribers is idempotent.
-	// When Delete races with natural game completion, the goroutine
-	// may call closeSubscribers from a StepFinished inline switch case
-	// and then again from the <-cancel branch in a subsequent select
-	// iteration. sync.Once prevents a double-close panic.
-	closeOnce sync.Once
 
 	// finished is set when the game reaches a terminal state,
 	// signaling [session.run] to exit after the current command completes.
@@ -576,20 +568,20 @@ func (s *session) handleUnsubscribe(c unsubscribeCmd) {
 	}
 }
 
-// closeSubscribers closes all subscriber channels exactly once and
-// clears the subscriber maps so that any later unsubscribe does not
-// attempt to close an already-closed channel.
+// closeSubscribers closes all subscriber channels and clears the
+// subscriber maps so that any later unsubscribe does not attempt to
+// close an already-closed channel. The caller must ensure this is only
+// called once per session — all exit paths in [session.run] return
+// immediately after calling it.
 func (s *session) closeSubscribers() {
-	s.closeOnce.Do(func() {
-		for _, ch := range s.players {
-			close(ch)
-		}
-		for _, ch := range s.observers {
-			close(ch)
-		}
-		s.players = make(map[int]chan []byte)
-		s.observers = nil
-	})
+	for _, ch := range s.players {
+		close(ch)
+	}
+	for _, ch := range s.observers {
+		close(ch)
+	}
+	s.players = make(map[int]chan []byte)
+	s.observers = nil
 }
 
 // drainCmds processes commands left in the buffer after the event loop
