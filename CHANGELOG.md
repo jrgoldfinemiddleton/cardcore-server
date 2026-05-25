@@ -29,4 +29,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- `StepPause` routing bug: after a human play or timeout AI move returned `StepPause`, the event loop could call `AIPlay()` before `Resume()` had advanced the game past the pause phase, producing an illegal extra AI move. Fixed by routing pause outcomes through the resume cycle before further turn processing
+- Stuck-session bug: invalid game adapter state (out-of-range seat, stuck turn, or `Resume` failure) left the session alive but unplayable. Now treated as fatal errors that terminate the session cleanly with subscriber cleanup and Manager notification
+- Action ID cache eviction: replaced arbitrary map-key eviction with LRU so that recently-used duplicate action IDs are protected from eviction during long games
+- Duplicate snapshot broadcast in session event loop: `handlePlay()` and `handleTurnTimeout()` each broadcasted once, then called `handleStepResult()` which broadcasted again for `StepPause` and `StepFinished` outcomes. Eliminated `handleStepResult()` entirely and inlined outcome dispatch so each state mutation produces exactly one broadcast
 - Session lifecycle bugs: goroutine leak on natural game completion, double-close panic when `Delete` races with `StepFinished`, callers blocking forever on dead sessions, and `Delete` idempotency

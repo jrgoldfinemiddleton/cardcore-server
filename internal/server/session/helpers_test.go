@@ -38,7 +38,7 @@ type invalidTurnGame struct{}
 
 // aiPlayPauseGame is a mock Game where the first turn is seat 0 (human),
 // AIPlay returns StepPause on the first call then StepFinished, and
-// Resume advances the turn to seat 1 so autoResume chains through.
+// Resume advances the turn to seat 1 so resumePauses chains through.
 type aiPlayPauseGame struct {
 	callCount int
 	turnSeat  int

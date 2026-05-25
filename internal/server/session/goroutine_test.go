@@ -13,7 +13,7 @@ import (
 // increments the sequence number.
 func TestSessionHandlePlayIncrementsSeq(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
 
 	resp := make(chan SubmitResult, 1)
@@ -38,7 +38,7 @@ func TestSessionHandlePlayIncrementsSeq(t *testing.T) {
 // seq returns a snapshot synchronously.
 func TestSessionStaleSeqReturnsSnapshot(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
 
 	resp := make(chan SubmitResult, 1)
@@ -78,7 +78,7 @@ func TestSessionStaleSeqReturnsSnapshot(t *testing.T) {
 // broadcast on the first play.
 func TestSessionDuplicateActionIDReturnsCachedSnapshot(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
 
 	ch := make(chan []byte, subChanSize)
@@ -130,7 +130,7 @@ func TestSessionDuplicateActionIDReturnsCachedSnapshot(t *testing.T) {
 // player kicks the previous subscriber for that seat.
 func TestSessionSubscribePlayerKicksPrevious(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
 
 	ch1 := make(chan []byte, subChanSize)
@@ -157,7 +157,7 @@ func TestSessionSubscribePlayerKicksPrevious(t *testing.T) {
 // all subscriber channels.
 func TestSessionGameOverClosesSubscribers(t *testing.T) {
 	g := &stepFinishedGame{}
-	s := newSession("test", g, Config{}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
 
 	ch := make(chan []byte, subChanSize)
@@ -201,7 +201,7 @@ func TestSessionGameOverClosesSubscribers(t *testing.T) {
 // goroutine exits after StepFinished without requiring cancel.
 func TestSessionGoroutineExitsOnStepFinished(t *testing.T) {
 	g := &stepFinishedGame{}
-	s := newSession("test", g, Config{}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 
 	resp := make(chan SubmitResult, 1)
 	s.cmds <- playCmd{
@@ -229,7 +229,7 @@ func TestSessionGoroutineExitsOnStepFinished(t *testing.T) {
 // forever.
 func TestSessionDrainCmdsClosesPendingSubscribers(t *testing.T) {
 	g := &stepFinishedGame{}
-	s := newSession("test", g, Config{}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 
 	resp := make(chan SubmitResult, 1)
 	s.cmds <- playCmd{
@@ -269,7 +269,7 @@ func TestSessionDrainCmdsClosesPendingSubscribers(t *testing.T) {
 // channel causes the goroutine to exit.
 func TestSessionGoroutineExitsOnCancel(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 
 	close(s.cancel)
 
@@ -285,7 +285,7 @@ func TestSessionGoroutineExitsOnCancel(t *testing.T) {
 // player closes their channel.
 func TestSessionUnsubscribePlayerClosesChannel(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
 
 	ch := make(chan []byte, subChanSize)
@@ -309,7 +309,7 @@ func TestSessionUnsubscribePlayerClosesChannel(t *testing.T) {
 // an observer closes their channel.
 func TestSessionUnsubscribeObserverClosesChannel(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
 
 	ch := make(chan []byte, subChanSize)
@@ -333,7 +333,7 @@ func TestSessionUnsubscribeObserverClosesChannel(t *testing.T) {
 // result on a buffered playCmd's response channel.
 func TestDrainCmdsHandlesPlayCmd(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
 
 	resp := make(chan SubmitResult, 1)
@@ -364,7 +364,7 @@ func TestDrainCmdsHandlesPlayCmd(t *testing.T) {
 // across multiple plays.
 func TestSessionSeqMonotonicity(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
 
 	for i := range 5 {
@@ -392,7 +392,7 @@ func TestSessionSeqMonotonicity(t *testing.T) {
 // sent on channels or in responses.
 func TestSessionStaleSeqNilSnapshot(t *testing.T) {
 	g := &playerSnapshotUnmarshalableGame{}
-	s := newSession("test", g, Config{}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
 
 	// Advance seq so the next command is stale.
@@ -427,7 +427,7 @@ func TestSessionStaleSeqNilSnapshot(t *testing.T) {
 // goroutine exits.
 func TestSessionMarshalFailureTerminates(t *testing.T) {
 	g := &unmarshalableGame{}
-	s := newSession("test", g, Config{}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
 
 	resp := make(chan SubmitResult, 1)
@@ -461,7 +461,7 @@ func TestSessionMarshalFailureTerminates(t *testing.T) {
 // broadcast before their channels are closed.
 func TestSessionMarshalFailureBroadcastsError(t *testing.T) {
 	g := &unmarshalableGame{}
-	s := newSession("test", g, Config{}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 
 	ch := make(chan []byte, subChanSize)
 	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch}
@@ -531,7 +531,7 @@ func TestSessionTurnTimeoutFires(t *testing.T) {
 		TurnTimeoutMS: &timeout,
 	}, nil)
 
-	// scheduleAI() is called at goroutine startup, so the first turn
+	// driveTurns() is called at goroutine startup, so the first turn
 	// timeout is already set for seat 0 (human). No command needed.
 
 	// Wait for the timeout to fire and AI to play.
@@ -547,10 +547,10 @@ func TestSessionTurnTimeoutFires(t *testing.T) {
 	}
 }
 
-// TestSessionScheduleAITerminatesOnFinished verifies that when AIPlay
-// returns StepFinished from within scheduleAI, the session terminates
+// TestSessionDriveTurnsTerminatesOnFinished verifies that when AIPlay
+// returns StepFinished from within driveTurns, the session terminates
 // and the goroutine exits.
-func TestSessionScheduleAITerminatesOnFinished(t *testing.T) {
+func TestSessionDriveTurnsTerminatesOnFinished(t *testing.T) {
 	g := &aiPlayFinishedGame{}
 	s := newSession("test", g, Config{
 		Seats: []SeatConfig{
@@ -607,10 +607,10 @@ func TestSessionScheduleAITerminatesOnFinished(t *testing.T) {
 	}
 }
 
-// TestSessionScheduleAIHandlesPause verifies that when AIPlay
-// returns StepPause from within scheduleAI (e.g., completing a trick),
-// the session calls autoResume and continues the game.
-func TestSessionScheduleAIHandlesPause(t *testing.T) {
+// TestSessionDriveTurnsHandlesPause verifies that when AIPlay
+// returns StepPause from within driveTurns (e.g., completing a trick),
+// the session calls resumePauses and continues the game.
+func TestSessionDriveTurnsHandlesPause(t *testing.T) {
 	g := &aiPlayPauseGame{}
 	zeroDelay := 0
 	s := newSession("test", g, Config{
@@ -636,7 +636,7 @@ func TestSessionScheduleAIHandlesPause(t *testing.T) {
 	}
 	<-resp
 
-	// Wait for autoResume to process the pause and the second AIPlay
+	// Wait for resumePauses to process the pause and the second AIPlay
 	// to finish the game.
 	select {
 	case <-s.done:
@@ -662,10 +662,10 @@ func TestSessionScheduleAIHandlesPause(t *testing.T) {
 	}
 }
 
-// TestSessionScheduleAIStopsOnInvalidTurn verifies that when game.Turn
-// returns an invalid seat, scheduleAI returns without terminating the
-// session.
-func TestSessionScheduleAIStopsOnInvalidTurn(t *testing.T) {
+// TestSessionDriveTurnsTerminatesOnInvalidTurn verifies that when
+// game.Turn returns an invalid seat, driveTurns treats it as a fatal
+// error and terminates the session.
+func TestSessionDriveTurnsTerminatesOnInvalidTurn(t *testing.T) {
 	g := &invalidTurnGame{}
 	s := newSession("test", g, Config{
 		Seats: []SeatConfig{
@@ -674,31 +674,15 @@ func TestSessionScheduleAIStopsOnInvalidTurn(t *testing.T) {
 		},
 	}, nil)
 
-	resp := make(chan SubmitResult, 1)
-	s.cmds <- playCmd{
-		seat: 0,
-		msg: &api.InboundMessage{
-			Type:     "test",
-			ActionID: "action1",
-			Seq:      0,
-		},
-		resp: resp,
-	}
-	<-resp
-
-	// Give scheduleAI time to check Turn() and return.
-	time.Sleep(100 * time.Millisecond)
-
-	if s.finished {
-		t.Error("expected session to not be finished after invalid Turn()")
-	}
-
-	close(s.cancel)
 	select {
 	case <-s.done:
-		// Goroutine exited after cancel.
+		// Goroutine exited after fatal error on invalid Turn().
 	case <-time.After(time.Second):
-		t.Fatal("goroutine did not exit after cancel")
+		t.Fatal("goroutine did not exit after invalid Turn()")
+	}
+
+	if !s.finished {
+		t.Error("expected session to be finished after invalid Turn()")
 	}
 }
 
@@ -717,7 +701,7 @@ func TestSessionInitialTurnTimeoutFires(t *testing.T) {
 	}, nil)
 
 	// No command sent — the timeout should fire from the initial
-	// scheduleAI() call in run().
+	// driveTurns() call in run().
 	time.Sleep(200 * time.Millisecond)
 
 	// Stop the goroutine and wait for it to exit before reading seq

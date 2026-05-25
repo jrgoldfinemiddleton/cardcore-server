@@ -1,6 +1,7 @@
 package session
 
 import (
+	"container/list"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -18,6 +19,25 @@ const (
 	errType = "error"
 )
 
+// driveResult tells driveTurns what happened inside processTurns or
+// resumePauses so it can decide whether to loop, return to run(), or
+// terminate the session.
+//
+// driveFatal triggers session cleanup inside
+// driveTurns. driveShutdown means the cancel channel fired during a
+// pacing delay and the caller should return to run()'s select loop
+// immediately without further processing so the goroutine can exit
+// without mutating state.
+type driveResult int
+
+const (
+	driveHuman driveResult = iota
+	drivePaused
+	driveFinished
+	driveFatal
+	driveShutdown
+)
+
 // session owns a single game instance and serializes all access to it.
 type session struct {
 	// id is the session identifier.
@@ -32,6 +52,12 @@ type session struct {
 	// actionIDs caches marshaled snapshots keyed by action_id for
 	// idempotent replay.
 	actionIDs map[string][]byte
+	// actionIDList holds action IDs in LRU order (front = most recent)
+	// for bounded eviction of the idempotent replay cache.
+	actionIDList *list.List
+	// actionIDIndex maps action_id to its position in actionIDList so
+	// that duplicate hits can be promoted in O(1).
+	actionIDIndex map[string]*list.Element
 
 	// players maps seat index to subscriber channel.
 	players map[int]chan []byte
@@ -45,18 +71,20 @@ type session struct {
 	// done is closed when the goroutine exits.
 	done chan struct{}
 
-	// onDone is called by the goroutine when the game finishes.
+	// onDone is called by the goroutine when the session reaches a
+	// terminal state, either because the game finished or an
+	// unrecoverable error forced termination.
 	onDone func(State)
 
 	// closeOnce ensures closeSubscribers is idempotent.
 	// When Delete races with natural game completion, the goroutine
-	// may call closeSubscribers from handleStepResult(StepFinished)
+	// may call closeSubscribers from a StepFinished inline switch case
 	// and then again from the <-cancel branch in a subsequent select
 	// iteration. sync.Once prevents a double-close panic.
 	closeOnce sync.Once
 
 	// finished is set when the game reaches a terminal state,
-	// signaling run() to exit after the current command completes.
+	// signaling [session.run] to exit after the current command completes.
 	finished bool
 
 	// waitingForHuman is true when the goroutine is waiting for a
@@ -73,28 +101,33 @@ func (s *session) run() {
 	// shutdown and avoid blocking on a dead session.
 	defer close(s.done)
 
-	s.scheduleAI()
-	if s.finished {
+	driveTurnsResult := s.driveTurns(false)
+	if driveTurnsResult == driveFinished || s.finished {
 		s.drainCmds()
 		return
 	}
 
+	// This select loop runs only when the game is waiting on a human
+	// player. When a play command arrives, handleCommand → handlePlay
+	// processes it and then calls driveTurns to handle any subsequent
+	// AI turns or Resume chains before returning. When a timeout fires,
+	// handleTurnTimeout does the same. In both cases, by the time the
+	// handler returns, the game is back in a human-waiting state or
+	// finished, so the loop can block again safely.
 	for {
 		var timeoutCh <-chan time.Time
+		// If waiting for a human turn and a turn timeout is configured,
+		// set the timeout channel to fire when the deadline is reached.
+		// If the deadline has already passed, handle the timeout
+		// immediately without waiting.
 		if s.waitingForHuman && s.config.turnTimeout() > 0 {
 			remaining := time.Until(s.turnDeadline)
 			if remaining > 0 {
 				// Deadline is in the future; set the timeout channel to fire when it expires.
 				timeoutCh = time.After(remaining)
 			} else {
-				// Deadline has already passed; handle the timeout immediately without waiting.
-				s.waitingForHuman = false
-				s.handleTurnTimeout()
-				if s.finished {
-					s.drainCmds()
-					return
-				}
-				continue
+				// Deadline has already passed; let the select fire immediately.
+				timeoutCh = time.After(0)
 			}
 		}
 
@@ -216,38 +249,17 @@ func (s *session) handlePlay(c playCmd) {
 	// seat and would have terminated the session if it failed to
 	// marshal, so snap == nil is unreachable here.
 	snap := s.playerSnapshot(c.seat)
-	s.actionIDs[c.msg.ActionID] = snap
-	if len(s.actionIDs) > actionIDCacheSize {
-		s.evictArbitraryActionID()
-	}
+	s.cacheActionID(c.msg.ActionID, snap)
 
 	// Return success to the caller and handle game pacing (AI turns,
 	// trick/round completion, or game finished).
 	c.resp <- SubmitResult{}
-	// TODO: inline the outcome switch here instead of calling
-	// handleStepResult to eliminate the duplicate broadcast bug.
-	s.handleStepResult(res)
-}
-
-// handleStepResult processes the outcome of a game mutation.
-func (s *session) handleStepResult(res StepResult) {
-	if s.finished {
-		return
-	}
 	switch res.Outcome {
 	case StepContinue:
-		s.scheduleAI()
+		s.driveTurns(false)
 	case StepPause:
-		s.broadcastSnapshot()
-		if s.finished {
-			return
-		}
-		s.autoResume()
+		s.driveTurns(true)
 	case StepFinished:
-		s.broadcastSnapshot()
-		if s.finished {
-			return
-		}
 		s.closeSubscribers()
 		if s.onDone != nil {
 			s.onDone(Finished)
@@ -256,67 +268,89 @@ func (s *session) handleStepResult(res StepResult) {
 	}
 }
 
-// autoResume pauses briefly then calls Resume in a loop to handle
-// chained StepPause outcomes without growing the stack.
-func (s *session) autoResume() {
-	for {
-		delay := s.config.delay()
-		if delay > 0 {
-			select {
-			case <-time.After(time.Duration(delay) * time.Millisecond):
-			case <-s.cancel:
-				return
-			}
-		}
-		if s.finished {
-			return
-		}
-
-		res, err := s.game.Resume()
-		if err != nil {
-			return
-		}
-		// Outcomes are handled inline instead of delegating to
-		// handleStepResult to prevent unbounded mutual recursion and
-		// to avoid duplicate snapshot broadcasts. See the same pattern
-		// and TODO in scheduleAI.
-		switch res.Outcome {
-		case StepContinue:
-			s.scheduleAI()
-			return
-		case StepPause:
-			s.broadcastSnapshot()
-			if s.finished {
-				return
-			}
-			// Continue loop to resume again after UX pacing.
-		case StepFinished:
-			s.broadcastSnapshot()
-			if s.finished {
-				return
-			}
-			s.closeSubscribers()
-			if s.onDone != nil {
-				s.onDone(Finished)
-			}
-			s.finished = true
-			return
-		}
+// driveTurns is the central orchestrator for the game event loop.
+// If fromPause is false it first calls processTurns to check the
+// current seat; if true it enters the resume cycle immediately because
+// the game is in a paused state. The status enums prevent unbounded
+// mutual recursion and keep all state transitions synchronous on the
+// session goroutine.
+func (s *session) driveTurns(fromPause bool) driveResult {
+	var status driveResult
+	if fromPause {
+		status = s.resumePauses()
+	} else {
+		status = s.processTurns()
 	}
+	for status == drivePaused {
+		status = s.resumePauses()
+	}
+	if status == driveFatal {
+		s.closeSubscribers()
+		if s.onDone != nil {
+			s.onDone(Finished)
+		}
+		s.finished = true
+	}
+	return status
 }
 
-// scheduleAI checks if the next turn is AI and auto-plays it, or if
-// human, sets the turn timeout and returns so run() handles it.
-// AI turns are paced by PacingDelayMS. Outcomes (Continue, Pause,
-// Finished) are handled inline; StepFinished terminates the session
-// directly from this method. This runs synchronously within the
-// session goroutine; no additional goroutines are spawned.
-func (s *session) scheduleAI() {
+// resumePauses waits for the pacing delay then calls Resume. It returns
+// a driveResult so driveTurns can loop again if the game is still in a
+// paused state.
+func (s *session) resumePauses() driveResult {
+	delay := s.config.delay()
+	if delay > 0 {
+		select {
+		case <-time.After(time.Duration(delay) * time.Millisecond):
+		case <-s.cancel:
+			return driveShutdown
+		}
+	}
+	if s.finished {
+		return driveFinished
+	}
+
+	res, err := s.game.Resume()
+	if err != nil {
+		slog.Error("Resume failed", "error", err)
+		return driveFatal
+	}
+
+	switch res.Outcome {
+	case StepContinue:
+		return s.processTurns()
+	case StepPause:
+		s.broadcastSnapshot()
+		if s.finished {
+			return driveFinished
+		}
+		return drivePaused
+	case StepFinished:
+		s.broadcastSnapshot()
+		if s.finished {
+			return driveFinished
+		}
+		s.closeSubscribers()
+		if s.onDone != nil {
+			s.onDone(Finished)
+		}
+		s.finished = true
+		return driveFinished
+	}
+	return driveFatal
+}
+
+// processTurns advances the game state by checking the current seat
+// and playing AI turns if necessary. It sets the turn timeout when a
+// human seat is reached and returns a driveResult to indicate the
+// session should wait for a human action, a pause occurred, an error
+// happened, or the game finished.
+func (s *session) processTurns() driveResult {
 	for {
 		seat := s.game.Turn()
 		// Guard: if seat is out of range (e.g., empty config), stop.
 		if seat < 0 || seat >= len(s.config.Seats) {
-			return
+			return driveFatal
 		}
 		// If human, set turn timeout and return so run() can handle it.
 		if s.isHumanSeat(seat) {
@@ -324,7 +358,7 @@ func (s *session) scheduleAI() {
 				s.waitingForHuman = true
 				s.turnDeadline = time.Now().Add(s.config.turnTimeout())
 			}
-			return
+			return driveHuman
 		}
 
 		// Pace AI turns for UX readability.
@@ -333,54 +367,39 @@ func (s *session) scheduleAI() {
 			select {
 			case <-time.After(time.Duration(delay) * time.Millisecond):
 			case <-s.cancel:
-				return
+				return driveShutdown
 			}
 		}
 		if s.finished {
-			return
+			return driveFinished
 		}
 
 		res, err := s.game.AIPlay(seat)
 		if err != nil {
 			slog.Error("AIPlay failed", "seat", seat, "error", err)
-			return
+			return driveFatal
 		}
 		s.seq++
 		s.broadcastSnapshot()
 		if s.finished {
-			return
+			return driveFinished
 		}
 
-		// Outcomes are handled inline instead of delegating to
-		// handleStepResult. This prevents unbounded mutual recursion
-		// (scheduleAI -> handleStepResult -> autoResume ->
-		// handleStepResult -> ...) and avoids duplicate snapshot
-		// broadcasts: both the caller and handleStepResult would
-		// broadcast the same snapshot. TODO: eliminate
-		// handleStepResult once all callers handle their own broadcast
-		// and outcome dispatch.
 		switch res.Outcome {
 		case StepContinue:
 			if s.game.Turn() == seat {
 				// Turn did not advance; adapter is stuck.
-				return
+				return driveFatal
 			}
 		case StepPause:
-			// AI completed a trick or round. Resume after UX pacing so
-			// observers see the completed state before continuing.
-			s.autoResume()
-			return
+			return drivePaused
 		case StepFinished:
-			// Previous code returned here without cleanup, leaving
-			// the session alive with finished=false. The goroutine
-			// would accept new commands on a completed game.
-			// Must perform full termination inline.
 			s.closeSubscribers()
 			if s.onDone != nil {
 				s.onDone(Finished)
 			}
 			s.finished = true
-			return
+			return driveFinished
 		}
 	}
 }
@@ -415,9 +434,18 @@ func (s *session) handleTurnTimeout() {
 	if s.finished {
 		return
 	}
-	// TODO: inline the outcome switch here instead of calling
-	// handleStepResult to eliminate the duplicate broadcast bug.
-	s.handleStepResult(res)
+	switch res.Outcome {
+	case StepContinue:
+		s.driveTurns(false)
+	case StepPause:
+		s.driveTurns(true)
+	case StepFinished:
+		s.closeSubscribers()
+		if s.onDone != nil {
+			s.onDone(Finished)
+		}
+		s.finished = true
+	}
 }
 
 // Snapshot failure design principle:
@@ -631,12 +659,34 @@ func (s *session) terminateOnMarshalFailure(msg string) {
 	s.finished = true
 }
 
-// evictArbitraryActionID removes an arbitrary entry from the action ID cache.
-func (s *session) evictArbitraryActionID() {
-	for k := range s.actionIDs {
-		delete(s.actionIDs, k)
+// cacheActionID stores a snapshot for the given action ID, promoting it
+// to the front of the LRU list. If the cache exceeds the size limit, the
+// least-recently-used entry is evicted.
+func (s *session) cacheActionID(id string, snap []byte) {
+	if el, ok := s.actionIDIndex[id]; ok {
+		// Already cached — promote to front.
+		s.actionIDList.MoveToFront(el)
 		return
 	}
+	// New entry.
+	s.actionIDs[id] = snap
+	el := s.actionIDList.PushFront(id)
+	s.actionIDIndex[id] = el
+	if s.actionIDList.Len() > actionIDCacheSize {
+		s.evictLRUActionID()
+	}
+}
+
+// evictLRUActionID removes the least-recently-used entry from the cache.
+func (s *session) evictLRUActionID() {
+	back := s.actionIDList.Back()
+	if back == nil {
+		return
+	}
+	id := back.Value.(string)
+	s.actionIDList.Remove(back)
+	delete(s.actionIDIndex, id)
+	delete(s.actionIDs, id)
 }
 
 // delay returns the configured delay in milliseconds.
@@ -652,15 +702,17 @@ func newSession(
 	id string, g Game, cfg Config, onDone func(State),
 ) *session {
 	s := &session{
-		id:        id,
-		game:      g,
-		config:    cfg,
-		actionIDs: make(map[string][]byte),
-		players:   make(map[int]chan []byte),
-		cmds:      make(chan command, cmdChanSize),
-		cancel:    make(chan struct{}),
-		done:      make(chan struct{}),
-		onDone:    onDone,
+		id:            id,
+		game:          g,
+		config:        cfg,
+		actionIDs:     make(map[string][]byte),
+		actionIDList:  list.New(),
+		actionIDIndex: make(map[string]*list.Element),
+		players:       make(map[int]chan []byte),
+		cmds:          make(chan command, cmdChanSize),
+		cancel:        make(chan struct{}),
+		done:          make(chan struct{}),
+		onDone:        onDone,
 	}
 	go s.run()
 	return s

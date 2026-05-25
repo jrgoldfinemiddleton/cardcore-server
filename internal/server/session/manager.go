@@ -228,9 +228,11 @@ func (m *Manager) Start(id string) error {
 	}
 
 	sessionID := id
+	// onDone transitions the session from Active to Finished when the
+	// goroutine exits. It runs asynchronously to avoid deadlocking with
+	// Manager methods that hold RLock while blocking on session
+	// goroutine responses.
 	onDone := func(finalState State) {
-		// Run asynchronously to avoid deadlocking with Manager methods
-		// that hold RLock while blocking on session goroutine responses.
 		go func() {
 			m.mu.Lock()
 			// Only transition from Active. Delete may have already set
