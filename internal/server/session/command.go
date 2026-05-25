@@ -8,9 +8,12 @@ import "github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
 // non-nil when the command is rejected due to a stale seq, allowing the
 // client to resync from the snapshot.
 type SubmitResult struct {
-	// Snapshot is a marshaled JSON snapshot. Non-nil on success,
-	// on stale_seq (the latest snapshot is returned), and on
-	// duplicate action_id (the cached snapshot is returned).
+	// Snapshot is a marshaled JSON snapshot. Set when the command is
+	// rejected with stale_seq (the latest snapshot is returned) or
+	// when the action_id is a duplicate (the cached snapshot from the
+	// original action is returned). Nil on success — the client
+	// should use the subscription channel to receive the live broadcast
+	// snapshot instead.
 	Snapshot []byte
 	// Err is a marshaled error message. Non-nil when the command is
 	// rejected for any reason (e.g., stale seq, invalid turn, illegal

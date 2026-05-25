@@ -109,6 +109,8 @@ Creates a new session in `draft` state.
 | `pacing_delay_ms` | integer | no | Delay in milliseconds between state transitions requiring UX pacing (trick completion, round completion, AI turns). Default: `500`. Use `0` for tests. |
 | `turn_timeout_ms` | integer | no | Maximum time in milliseconds to wait for a human player to act before auto-playing an AI move. Default: `30000` (30s). Use `0` to disable. |
 
+> **UX hint:** If a human sends an action at the exact moment the timeout fires, the server may process the timeout first and reject the human action with `wrong_turn`. To minimize this race, clients should disable the play UI at least 500 ms before the configured timeout (e.g., a 30 s timeout should show a 29.5 s countdown and grey out controls at 0 s remaining).
+
 Each seat config:
 
 | Field | Type | Required | Description |
