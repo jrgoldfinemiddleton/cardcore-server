@@ -441,11 +441,10 @@ WebSocket error messages.
 
 | Close code | Condition |
 |-----------|-----------|
-| `1000 Normal Closure` | All normal session ends: player disconnect, game over, session deleted, or marshal failure after `internal_error` message. |
+| `1000 Normal Closure` | All normal session ends: player disconnect, game over, session deleted. |
 | `1001 Going Away` | Server is shutting down. |
 | `1009 Message Too Big` | Inbound message exceeds 64 KB size limit. Enforced by the WebSocket library. |
-
-**Note on marshal failures:** When a snapshot cannot be marshaled, the session broadcasts an `internal_error` message and then terminates. The WebSocket is closed with `1000 Normal Closure`. A future refactor will change this to `1011 Internal Error` by threading close codes through the transport/session boundary.
+| `1011 Internal Error` | Unrecoverable server error: snapshot marshal failure after a state mutation. |
 
 **Design principle:** Isolated snapshot failures (single client, stale sequence) are logged and the client is skipped; global snapshot failures (broadcast to all subscribers after a state mutation) terminate the session because the game becomes unplayable.
 

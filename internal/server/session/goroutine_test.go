@@ -2,7 +2,6 @@ package session
 
 import (
 	"bytes"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -81,7 +80,7 @@ func TestSessionDuplicateActionIDReturnsCachedSnapshot(t *testing.T) {
 	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
 
-	ch := make(chan []byte, subChanSize)
+	ch := make(chan SubscriberMessage, subChanSize)
 	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch}
 
 	resp1 := make(chan SubmitResult, 1)
@@ -98,7 +97,8 @@ func TestSessionDuplicateActionIDReturnsCachedSnapshot(t *testing.T) {
 
 	var broadcast []byte
 	select {
-	case broadcast = <-ch:
+	case msg := <-ch:
+		broadcast = msg.Data
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for broadcast snapshot")
 	}
@@ -133,7 +133,7 @@ func TestSessionSubscribePlayerKicksPrevious(t *testing.T) {
 	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
 
-	ch1 := make(chan []byte, subChanSize)
+	ch1 := make(chan SubscriberMessage, subChanSize)
 	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch1}
 
 	time.Sleep(100 * time.Millisecond)
@@ -142,7 +142,7 @@ func TestSessionSubscribePlayerKicksPrevious(t *testing.T) {
 		<-ch1
 	}
 
-	ch2 := make(chan []byte, subChanSize)
+	ch2 := make(chan SubscriberMessage, subChanSize)
 	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch2}
 
 	time.Sleep(100 * time.Millisecond)
@@ -160,10 +160,10 @@ func TestSessionGameOverClosesSubscribers(t *testing.T) {
 	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
 
-	ch := make(chan []byte, subChanSize)
+	ch := make(chan SubscriberMessage, subChanSize)
 	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch}
 
-	obsCh := make(chan []byte, subChanSize)
+	obsCh := make(chan SubscriberMessage, subChanSize)
 	s.cmds <- subscribeObserverCmd{ch: obsCh}
 
 	resp := make(chan SubmitResult, 1)
@@ -242,7 +242,7 @@ func TestSessionDrainCmdsClosesPendingSubscribers(t *testing.T) {
 		resp: resp,
 	}
 
-	ch := make(chan []byte, subChanSize)
+	ch := make(chan SubscriberMessage, subChanSize)
 	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch}
 
 	<-resp
@@ -288,7 +288,7 @@ func TestSessionUnsubscribePlayerClosesChannel(t *testing.T) {
 	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
 
-	ch := make(chan []byte, subChanSize)
+	ch := make(chan SubscriberMessage, subChanSize)
 	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch}
 
 	s.cmds <- unsubscribeCmd{seat: 0, ch: ch}
@@ -312,7 +312,7 @@ func TestSessionUnsubscribeObserverClosesChannel(t *testing.T) {
 	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
 
-	ch := make(chan []byte, subChanSize)
+	ch := make(chan SubscriberMessage, subChanSize)
 	s.cmds <- subscribeObserverCmd{ch: ch}
 
 	s.cmds <- unsubscribeCmd{seat: -1, ch: ch}
@@ -463,10 +463,10 @@ func TestSessionMarshalFailureBroadcastsError(t *testing.T) {
 	g := &unmarshalableGame{}
 	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 
-	ch := make(chan []byte, subChanSize)
+	ch := make(chan SubscriberMessage, subChanSize)
 	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch}
 
-	obsCh := make(chan []byte, subChanSize)
+	obsCh := make(chan SubscriberMessage, subChanSize)
 	s.cmds <- subscribeObserverCmd{ch: obsCh}
 
 	resp := make(chan SubmitResult, 1)
@@ -489,17 +489,16 @@ func TestSessionMarshalFailureBroadcastsError(t *testing.T) {
 		t.Fatal("goroutine did not exit within 1 second after marshal failure")
 	}
 
-	// Verify subscribers received the error broadcast.
-	var errMsg *api.ErrorMessage
+	// Verify subscribers received the 1011 close code broadcast.
+	var gotCloseCode bool
 	for len(ch) > 0 {
-		b := <-ch
-		var em api.ErrorMessage
-		if json.Unmarshal(b, &em) == nil && em.ErrorCode == api.ErrInternal {
-			errMsg = &em
+		msg := <-ch
+		if msg.CloseCode == 1011 {
+			gotCloseCode = true
 		}
 	}
-	if errMsg == nil {
-		t.Error("expected player subscriber to receive internal_error broadcast")
+	if !gotCloseCode {
+		t.Error("expected player subscriber to receive 1011 close code broadcast")
 	}
 
 	for len(obsCh) > 0 {
@@ -559,10 +558,10 @@ func TestSessionDriveTurnsTerminatesOnFinished(t *testing.T) {
 		},
 	}, nil)
 
-	ch := make(chan []byte, subChanSize)
+	ch := make(chan SubscriberMessage, subChanSize)
 	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch}
 
-	obsCh := make(chan []byte, subChanSize)
+	obsCh := make(chan SubscriberMessage, subChanSize)
 	s.cmds <- subscribeObserverCmd{ch: obsCh}
 
 	time.Sleep(100 * time.Millisecond)
@@ -621,7 +620,7 @@ func TestSessionDriveTurnsHandlesPause(t *testing.T) {
 		PacingDelayMS: &zeroDelay,
 	}, nil)
 
-	ch := make(chan []byte, subChanSize)
+	ch := make(chan SubscriberMessage, subChanSize)
 	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch}
 
 	resp := make(chan SubmitResult, 1)
@@ -652,12 +651,11 @@ func TestSessionDriveTurnsHandlesPause(t *testing.T) {
 		t.Errorf("seq: got %d, want %d", got, want)
 	}
 
-	// No internal_error should have been broadcast.
+	// No close code should have been broadcast.
 	for len(ch) > 0 {
-		b := <-ch
-		var em api.ErrorMessage
-		if json.Unmarshal(b, &em) == nil && em.ErrorCode == api.ErrInternal {
-			t.Error("got unexpected internal_error broadcast for normal StepPause")
+		msg := <-ch
+		if msg.CloseCode != 0 {
+			t.Error("got unexpected close code broadcast for normal StepPause")
 		}
 	}
 }

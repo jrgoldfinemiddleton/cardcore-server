@@ -37,6 +37,13 @@ const (
 	driveShutdown
 )
 
+// SubscriberMessage carries either a data payload or a close code
+// for the transport layer to use when closing the WebSocket.
+type SubscriberMessage struct {
+	Data      []byte
+	CloseCode int
+}
+
 // session owns a single game instance and serializes all access to it.
 type session struct {
 	// id is the session identifier.
@@ -59,9 +66,9 @@ type session struct {
 	actionIDIndex map[string]*list.Element
 
 	// players maps seat index to subscriber channel.
-	players map[int]chan []byte
+	players map[int]chan SubscriberMessage
 	// observers holds all observer subscriber channels.
-	observers []chan []byte
+	observers []chan SubscriberMessage
 
 	// cmds receives commands from the Manager.
 	cmds chan command
@@ -497,9 +504,9 @@ func (s *session) broadcastSnapshot() {
 
 // sendNonBlocking sends data to a channel without blocking.
 // If the channel is full, the data is dropped.
-func (s *session) sendNonBlocking(ch chan []byte, data []byte) {
+func (s *session) sendNonBlocking(ch chan SubscriberMessage, data []byte) {
 	select {
-	case ch <- data:
+	case ch <- SubscriberMessage{Data: data}:
 	default:
 	}
 }
@@ -580,7 +587,7 @@ func (s *session) closeSubscribers() {
 	for _, ch := range s.observers {
 		close(ch)
 	}
-	s.players = make(map[int]chan []byte)
+	s.players = make(map[int]chan SubscriberMessage)
 	s.observers = nil
 }
 
@@ -613,37 +620,25 @@ func (s *session) drainCmds() {
 	}
 }
 
-// broadcastError marshals an error message and sends it to all
-// subscribers (players and observers). Used when the session must
-// terminate due to an unrecoverable server-side bug.
-func (s *session) broadcastError(code, message, actionID string) {
-	em := api.ErrorMessage{
-		Type:       errType,
-		ErrorCode:  code,
-		Message:    message,
-		ActionID:   actionID,
-		CurrentSeq: s.seq,
-	}
-	b, err := json.Marshal(em)
-	if err != nil {
-		slog.Error("marshal broadcast error", "error", err)
-		return
-	}
-	for _, ch := range s.players {
-		s.sendNonBlocking(ch, b)
-	}
-	for _, ch := range s.observers {
-		s.sendNonBlocking(ch, b)
-	}
-}
-
-// terminateOnMarshalFailure logs the error, broadcasts it to all
-// subscribers, closes all subscriber channels, notifies the Manager
-// that the session is finished, and marks the session as finished so
-// the goroutine exits.
+// terminateOnMarshalFailure logs the error, sends a close code to
+// all subscribers so the transport layer closes the WebSocket with
+// 1011 Internal Error, closes all subscriber channels, notifies the
+// Manager that the session is finished, and marks the session as
+// finished so the goroutine exits.
 func (s *session) terminateOnMarshalFailure(msg string) {
 	slog.Error("session terminating due to marshal failure", "message", msg)
-	s.broadcastError(api.ErrInternal, msg, "")
+	for _, ch := range s.players {
+		select {
+		case ch <- SubscriberMessage{CloseCode: 1011}:
+		default:
+		}
+	}
+	for _, ch := range s.observers {
+		select {
+		case ch <- SubscriberMessage{CloseCode: 1011}:
+		default:
+		}
+	}
 	s.closeSubscribers()
 	if s.onDone != nil {
 		s.onDone(Finished)
@@ -700,7 +695,7 @@ func newSession(
 		actionIDs:     make(map[string][]byte),
 		actionIDList:  list.New(),
 		actionIDIndex: make(map[string]*list.Element),
-		players:       make(map[int]chan []byte),
+		players:       make(map[int]chan SubscriberMessage),
 		cmds:          make(chan command, cmdChanSize),
 		cancel:        make(chan struct{}),
 		done:          make(chan struct{}),
