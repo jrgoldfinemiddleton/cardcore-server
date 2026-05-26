@@ -121,5 +121,9 @@ func (s *Server) handleObserverWS(w http.ResponseWriter, r *http.Request) {
 		subCh:     subCh,
 		logger:    s.logger,
 	}
-	go oc.run(context.Background())
+	s.RegisterWSConn(conn)
+	go func() {
+		oc.run(context.Background())
+		s.UnregisterWSConn(conn)
+	}()
 }
