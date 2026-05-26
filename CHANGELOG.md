@@ -10,6 +10,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- Graceful shutdown: `Server.Shutdown(ctx)` sends `websocket.StatusGoingAway` to all active WebSocket connections, deletes all active sessions, and shuts down the HTTP server. `cmd/server/main.go` binary handles SIGINT/SIGTERM with a configurable timeout via `CARDCORE_SHUTDOWN_TIMEOUT` (default 10s)
+- Server binary `cmd/server/main.go` with game adapter dispatch: currently supports `hearts`; new games can be added by extending the factory switch in `main.go`
 - Configurable human turn timeout with AI auto-play fallback: session config gains `turn_timeout_ms` (default 30s, `0` to disable); when a human player doesn't act in time, the session auto-plays an AI move and broadcasts the result while preserving the human seat configuration
 - Observer WebSocket connection: receive-only writer goroutine with `CloseRead` for ping/pong/close frame handling, context-based coordination, and automatic cleanup on disconnect
 - Player WebSocket reader/writer goroutines: full bidirectional message handling with context-based coordination, envelope validation, and game error propagation
@@ -29,6 +31,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- WebSocket close frame documentation updated to reflect actual behavior: `1000 Normal Closure` for all normal session ends, `1001 Going Away` for server shutdown, `1009 Message Too Big` for oversized messages
 - `StepPause` routing bug: after a human play or timeout AI move returned `StepPause`, the event loop could call `AIPlay()` before `Resume()` had advanced the game past the pause phase, producing an illegal extra AI move. Fixed by routing pause outcomes through the resume cycle before further turn processing
 - Stuck-session bug: invalid game adapter state (out-of-range seat, stuck turn, or `Resume` failure) left the session alive but unplayable. Now treated as fatal errors that terminate the session cleanly with subscriber cleanup and Manager notification
 - Action ID cache eviction: replaced arbitrary map-key eviction with LRU so that recently-used duplicate action IDs are protected from eviction during long games

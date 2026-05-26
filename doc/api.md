@@ -79,17 +79,17 @@ session. Sessions do not auto-expire (except on process exit).
 | `POST /sessions` | `Create(Config)` | `201 Created` | `400 Bad Request` |
 | `GET /sessions` | `List()` | `200 OK` | — |
 | `GET /sessions/{id}` | `Get(id)` | `200 OK` | `404 Not Found` |
-| `PATCH /sessions/{id}` | `Update(id, PatchConfig)` | `200 OK` | `404 Not Found`, `409 Conflict`, `400 Bad Request` |
-| `POST /sessions/{id}/start` | `Start(id)` | `200 OK` | `404 Not Found`, `409 Conflict` |
+| `PATCH /sessions/{id}` | `Update(id, PatchConfig)` | `200 OK` | `400 Bad Request`, `404 Not Found`, `409 Conflict` |
+| `POST /sessions/{id}/start` | `Start(id)` | `200 OK` | `400 Bad Request`, `404 Not Found`, `409 Conflict` |
 | `DELETE /sessions/{id}` | `Delete(id)` | `204 No Content` | `404 Not Found` |
 
 **Error status mapping:**
 
 | Internal Error | HTTP Status |
 |----------------|-------------|
+| `validateConfig` errors | `400 Bad Request` |
 | `ErrNotFound` | `404 Not Found` |
 | `ErrNotDraft` / `ErrNotActive` | `409 Conflict` |
-| `validateConfig` errors | `400 Bad Request` |
 | Generic/unexpected errors | `500 Internal Server Error` |
 
 ### Create session
@@ -221,9 +221,9 @@ seat configuration was changed.
 
 | Status | Condition |
 |--------|-----------|
+| `400 Bad Request` | Invalid configuration (including game-specific rules like seat count or unknown `ai_type`). |
 | `404 Not Found` | Session does not exist or has expired. |
 | `409 Conflict` | Session is not in `draft` state. |
-| `400 Bad Request` | Invalid configuration (including game-specific rules like seat count or unknown `ai_type`). |
 
 ---
 
@@ -249,6 +249,7 @@ If a request body is provided, it is silently ignored.
 
 | Status | Condition |
 |--------|-----------|
+| `400 Bad Request` | Invalid game identifier or game-specific configuration rejected by the engine adapter. |
 | `404 Not Found` | Session does not exist or has expired. |
 | `409 Conflict` | Session is not in `draft` state. |
 
@@ -438,22 +439,15 @@ WebSocket error messages.
 
 ### WebSocket close frames
 
-The server closes the WebSocket with a protocol-level close frame only
-in unrecoverable situations:
-
 | Close code | Condition |
 |-----------|-----------|
-| `1009 Message Too Big` | Inbound message exceeds 64 KB size limit. |
-| `1008 Policy Violation` | Session deleted while connected. |
-| `1011 Internal Error` | Unrecoverable server-side bug (snapshot generation failure, etc.). Session is unplayable and terminates. May be preceded by a broadcast `error` message so clients can log the reason before reconnecting. |
+| `1000 Normal Closure` | All normal session ends: player disconnect, game over, session deleted, or marshal failure after `internal_error` message. |
+| `1001 Going Away` | Server is shutting down. |
+| `1009 Message Too Big` | Inbound message exceeds 64 KB size limit. Enforced by the WebSocket library. |
+
+**Note on marshal failures:** When a snapshot cannot be marshaled, the session broadcasts an `internal_error` message and then terminates. The WebSocket is closed with `1000 Normal Closure`. A future refactor will change this to `1011 Internal Error` by threading close codes through the transport/session boundary.
 
 **Design principle:** Isolated snapshot failures (single client, stale sequence) are logged and the client is skipped; global snapshot failures (broadcast to all subscribers after a state mutation) terminate the session because the game becomes unplayable.
-
-All close frames are terminal — the connection is gone. The client
-must reconnect or exit. By default, no application-level error event precedes
-the close. The exception is `1011 Internal Error`, where the server may broadcast
-an `error` message first so clients can log the reason before the connection
-dies.
 
 ---
 

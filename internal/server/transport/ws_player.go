@@ -212,5 +212,9 @@ func (s *Server) handlePlayerWS(w http.ResponseWriter, r *http.Request) {
 		outCh:     make(chan []byte, 16),
 		logger:    s.logger,
 	}
-	go pc.run(context.Background())
+	s.RegisterWSConn(conn)
+	go func() {
+		pc.run(context.Background())
+		s.UnregisterWSConn(conn)
+	}()
 }
