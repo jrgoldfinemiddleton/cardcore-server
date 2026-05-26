@@ -20,9 +20,8 @@ type observerConn struct {
 	mgr *session.Manager
 	// sessionID identifies the game session being observed.
 	sessionID string
-	// subCh receives marshaled observer snapshots from the
-	// session goroutine.
-	subCh chan []byte
+	// subCh receives observer snapshots from the session goroutine.
+	subCh chan session.SubscriberMessage
 	// logger is the structured logger.
 	logger *slog.Logger
 }
@@ -66,17 +65,24 @@ func (oc *observerConn) writer(ctx context.Context, cancel context.CancelFunc) {
 
 	for {
 		select {
-		case snap, ok := <-oc.subCh:
+		case msg, ok := <-oc.subCh:
 			if !ok {
 				// Session goroutine closed subCh (game over or kicked).
 				return
 			}
-			if len(snap) == 0 {
+			if msg.CloseCode != 0 {
+				code := websocket.StatusCode(msg.CloseCode)
+				if err := oc.ws.Close(code, "snapshot marshal failure"); err != nil {
+					oc.logger.Error("ws close", "error", err)
+				}
+				return
+			}
+			if len(msg.Data) == 0 {
 				oc.logger.Error("dropped empty snapshot",
 					"session_id", oc.sessionID)
 				continue
 			}
-			if err := writeWSBytes(ctx, oc.ws, snap); err != nil {
+			if err := writeWSBytes(ctx, oc.ws, msg.Data); err != nil {
 				oc.logger.Error("ws write snapshot", "error", err)
 				return
 			}

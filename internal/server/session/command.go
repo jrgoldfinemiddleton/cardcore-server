@@ -45,13 +45,13 @@ type subscribePlayerCmd struct {
 	// seat is the player seat index.
 	seat int
 	// ch receives marshaled snapshot broadcasts.
-	ch chan []byte
+	ch chan SubscriberMessage
 }
 
 // subscribeObserverCmd registers an observer subscriber.
 type subscribeObserverCmd struct {
 	// ch receives marshaled observer snapshot broadcasts.
-	ch chan []byte
+	ch chan SubscriberMessage
 }
 
 // unsubscribeCmd removes a subscriber.
@@ -60,7 +60,7 @@ type unsubscribeCmd struct {
 	seat int
 	// ch is the subscriber channel to remove. Required for observer
 	// unsubscription; for players, the seat alone is sufficient.
-	ch chan []byte
+	ch chan SubscriberMessage
 }
 
 // isCommand marks playCmd as a command.

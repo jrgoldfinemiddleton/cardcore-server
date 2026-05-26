@@ -31,7 +31,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
-- WebSocket close frame documentation updated to reflect actual behavior: `1000 Normal Closure` for all normal session ends, `1001 Going Away` for server shutdown, `1009 Message Too Big` for oversized messages
+- WebSocket close code on marshal failure: session now sends `1011 Internal Error` directly through the subscriber channel instead of broadcasting an `internal_error` text message and closing with `1000 Normal Closure`. Transport goroutines call `conn.Close(1011, "snapshot marshal failure")` when they receive a `SubscriberMessage` with a non-zero `CloseCode`
+- WebSocket close frame documentation updated to reflect actual behavior: `1000 Normal Closure` for all normal session ends, `1001 Going Away` for server shutdown, `1009 Message Too Big` for oversized messages, `1011 Internal Error` for unrecoverable server errors
 - `StepPause` routing bug: after a human play or timeout AI move returned `StepPause`, the event loop could call `AIPlay()` before `Resume()` had advanced the game past the pause phase, producing an illegal extra AI move. Fixed by routing pause outcomes through the resume cycle before further turn processing
 - Stuck-session bug: invalid game adapter state (out-of-range seat, stuck turn, or `Resume` failure) left the session alive but unplayable. Now treated as fatal errors that terminate the session cleanly with subscriber cleanup and Manager notification
 - Action ID cache eviction: replaced arbitrary map-key eviction with LRU so that recently-used duplicate action IDs are protected from eviction during long games

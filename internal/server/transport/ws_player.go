@@ -24,9 +24,8 @@ type playerConn struct {
 	sessionID string
 	// seat is the player seat index.
 	seat int
-	// subCh receives marshaled game snapshots from the session
-	// goroutine.
-	subCh chan []byte
+	// subCh receives game snapshots from the session goroutine.
+	subCh chan session.SubscriberMessage
 	// outCh is an internal queue the reader uses to send error
 	// responses to the writer goroutine.
 	outCh chan []byte
@@ -124,17 +123,24 @@ func (pc *playerConn) writer(ctx context.Context, cancel context.CancelFunc) {
 
 	for {
 		select {
-		case snap, ok := <-pc.subCh:
+		case msg, ok := <-pc.subCh:
 			if !ok {
 				// Session goroutine closed subCh (game over or kicked).
 				return
 			}
-			if len(snap) == 0 {
+			if msg.CloseCode != 0 {
+				code := websocket.StatusCode(msg.CloseCode)
+				if err := pc.ws.Close(code, "snapshot marshal failure"); err != nil {
+					pc.logger.Error("ws close", "error", err)
+				}
+				return
+			}
+			if len(msg.Data) == 0 {
 				pc.logger.Error("dropped empty snapshot",
 					"session_id", pc.sessionID, "seat", pc.seat)
 				continue
 			}
-			if err := writeWSBytes(ctx, pc.ws, snap); err != nil {
+			if err := writeWSBytes(ctx, pc.ws, msg.Data); err != nil {
 				pc.logger.Error("ws write snapshot", "error", err)
 				return
 			}

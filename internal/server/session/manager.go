@@ -291,7 +291,7 @@ func (m *Manager) LookupToken(token string) (string, int, error) {
 // for seat. If seat already has an active subscriber, the previous
 // channel is closed and replaced. Returns ErrNotFound (missing/expired)
 // or ErrNotActive if the session is not active.
-func (m *Manager) SubscribePlayer(id string, seat int) (chan []byte, error) {
+func (m *Manager) SubscribePlayer(id string, seat int) (chan SubscriberMessage, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -303,7 +303,7 @@ func (m *Manager) SubscribePlayer(id string, seat int) (chan []byte, error) {
 		return nil, ErrNotActive
 	}
 
-	ch := make(chan []byte, subChanSize)
+	ch := make(chan SubscriberMessage, subChanSize)
 
 	// Delete may have closed the goroutine's cancel channel and still
 	// hold the write lock, so e.state still reads Active even though
@@ -324,7 +324,7 @@ func (m *Manager) SubscribePlayer(id string, seat int) (chan []byte, error) {
 // other; multiple observer channels may be active concurrently. Returns
 // ErrNotFound (missing/expired) or ErrNotActive if the session is not
 // active.
-func (m *Manager) SubscribeObserver(id string) (chan []byte, error) {
+func (m *Manager) SubscribeObserver(id string) (chan SubscriberMessage, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -336,7 +336,7 @@ func (m *Manager) SubscribeObserver(id string) (chan []byte, error) {
 		return nil, ErrNotActive
 	}
 
-	ch := make(chan []byte, subChanSize)
+	ch := make(chan SubscriberMessage, subChanSize)
 
 	// Delete may have closed the goroutine's cancel channel and still
 	// hold the write lock, so e.state still reads Active even though
@@ -386,7 +386,7 @@ func (m *Manager) UnsubscribePlayer(id string, seat int) error {
 // session goroutine, causing the goroutine to remove and close ch from
 // the observer list. Returns ErrNotFound (missing/expired) or
 // ErrNotActive if the session is not active.
-func (m *Manager) UnsubscribeObserver(id string, ch chan []byte) error {
+func (m *Manager) UnsubscribeObserver(id string, ch chan SubscriberMessage) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
