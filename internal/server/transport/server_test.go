@@ -789,9 +789,42 @@ func TestHandleDeleteSession(t *testing.T) {
 	})
 }
 
-// TestPlayerWSUpgradeValid verifies that a player with a valid token
+// TestParseBearerToken verifies authorization header parsing.
+func TestParseBearerToken(t *testing.T) {
+	tests := []struct {
+		name    string
+		header  string
+		want    string
+		wantErr bool
+	}{
+		{"missing header", "", "", true},
+		{"malformed no prefix", "token123", "", true},
+		{"malformed basic auth", "Basic token123", "", true},
+		{"valid token", "Bearer valid-token-123", "valid-token-123", false},
+		{"valid with spaces in token", "Bearer token with spaces", "token with spaces", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			if tc.header != "" {
+				req.Header.Set("Authorization", tc.header)
+			}
+
+			got, err := parseBearerToken(req)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("got error %v, wantErr %v", err, tc.wantErr)
+			}
+			if got != tc.want {
+				t.Errorf("got token %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestPlayerWSUpgradeValidIntegration verifies that a player with a valid token
 // can upgrade to a WebSocket and receives an initial snapshot.
-func TestPlayerWSUpgradeValid(t *testing.T) {
+func TestPlayerWSUpgradeValidIntegration(t *testing.T) {
 	srv, id, token := setupTestServerWithSession(t)
 
 	ts := httptest.NewServer(srv.mux)
@@ -833,9 +866,9 @@ func TestPlayerWSUpgradeValid(t *testing.T) {
 	}
 }
 
-// TestPlayerWSUpgradeMissingToken verifies that a player WS upgrade
+// TestPlayerWSUpgradeMissingTokenIntegration verifies that a player WS upgrade
 // without an Authorization header returns 401.
-func TestPlayerWSUpgradeMissingToken(t *testing.T) {
+func TestPlayerWSUpgradeMissingTokenIntegration(t *testing.T) {
 	srv, id, _ := setupTestServerWithSession(t)
 
 	ts := httptest.NewServer(srv.mux)
@@ -865,9 +898,9 @@ func TestPlayerWSUpgradeMissingToken(t *testing.T) {
 	}
 }
 
-// TestPlayerWSUpgradeInvalidToken verifies that a player WS upgrade
+// TestPlayerWSUpgradeInvalidTokenIntegration verifies that a player WS upgrade
 // with a malformed or non-existent token returns 401.
-func TestPlayerWSUpgradeInvalidToken(t *testing.T) {
+func TestPlayerWSUpgradeInvalidTokenIntegration(t *testing.T) {
 	srv, id, _ := setupTestServerWithSession(t)
 
 	ts := httptest.NewServer(srv.mux)
@@ -891,9 +924,9 @@ func TestPlayerWSUpgradeInvalidToken(t *testing.T) {
 	}
 }
 
-// TestPlayerWSUpgradeSessionNotActive verifies that a player WS
+// TestPlayerWSUpgradeSessionNotActiveIntegration verifies that a player WS
 // upgrade for a session in draft state returns 409.
-func TestPlayerWSUpgradeSessionNotActive(t *testing.T) {
+func TestPlayerWSUpgradeSessionNotActiveIntegration(t *testing.T) {
 	mgr := mockManager()
 	srv := NewServer(Config{Manager: mgr, Addr: ":0"})
 
@@ -940,9 +973,9 @@ func TestPlayerWSUpgradeSessionNotActive(t *testing.T) {
 	}
 }
 
-// TestPlayerWSUpgradeWrongSession verifies that a token belonging to
+// TestPlayerWSUpgradeWrongSessionIntegration verifies that a token belonging to
 // a different session returns 401.
-func TestPlayerWSUpgradeWrongSession(t *testing.T) {
+func TestPlayerWSUpgradeWrongSessionIntegration(t *testing.T) {
 	mgr := mockManager()
 	srv := NewServer(Config{Manager: mgr, Addr: ":0"})
 
@@ -1011,9 +1044,9 @@ func TestPlayerWSUpgradeWrongSession(t *testing.T) {
 	}
 }
 
-// TestObserverWSUpgradeValid verifies that an observer can upgrade to
+// TestObserverWSUpgradeValidIntegration verifies that an observer can upgrade to
 // a WebSocket for an active session and receives an initial snapshot.
-func TestObserverWSUpgradeValid(t *testing.T) {
+func TestObserverWSUpgradeValidIntegration(t *testing.T) {
 	srv, id, _ := setupTestServerWithSession(t)
 
 	ts := httptest.NewServer(srv.mux)
@@ -1053,9 +1086,9 @@ func TestObserverWSUpgradeValid(t *testing.T) {
 	}
 }
 
-// TestObserverWSUpgradeSessionNotFound verifies that an observer WS
+// TestObserverWSUpgradeSessionNotFoundIntegration verifies that an observer WS
 // upgrade for a non-existent session returns 404.
-func TestObserverWSUpgradeSessionNotFound(t *testing.T) {
+func TestObserverWSUpgradeSessionNotFoundIntegration(t *testing.T) {
 	srv, _ := setupTestServer(t)
 
 	ts := httptest.NewServer(srv.mux)
@@ -1080,9 +1113,9 @@ func TestObserverWSUpgradeSessionNotFound(t *testing.T) {
 	}
 }
 
-// TestObserverWSUpgradeSessionNotActive verifies that an observer WS
+// TestObserverWSUpgradeSessionNotActiveIntegration verifies that an observer WS
 // upgrade for a session in draft state returns 409.
-func TestObserverWSUpgradeSessionNotActive(t *testing.T) {
+func TestObserverWSUpgradeSessionNotActiveIntegration(t *testing.T) {
 	mgr := mockManager()
 	srv := NewServer(Config{Manager: mgr, Addr: ":0"})
 
@@ -1119,10 +1152,10 @@ func TestObserverWSUpgradeSessionNotActive(t *testing.T) {
 	}
 }
 
-// TestPlayerWSNoEmptyFrameOnMarshalFailure verifies that when the
+// TestPlayerWSNoEmptyFrameOnMarshalFailureIntegration verifies that when the
 // session goroutine produces an unmarshalable snapshot, the player
 // WebSocket connection does not receive an empty or nil text frame.
-func TestPlayerWSNoEmptyFrameOnMarshalFailure(t *testing.T) {
+func TestPlayerWSNoEmptyFrameOnMarshalFailureIntegration(t *testing.T) {
 	srv, id, token := setupTestServerWithUnmarshalableSession(t)
 
 	ts := httptest.NewServer(srv.mux)
@@ -1150,10 +1183,10 @@ func TestPlayerWSNoEmptyFrameOnMarshalFailure(t *testing.T) {
 	}
 }
 
-// TestObserverWSNoEmptyFrameOnMarshalFailure verifies that when the
+// TestObserverWSNoEmptyFrameOnMarshalFailureIntegration verifies that when the
 // session goroutine produces an unmarshalable snapshot, the observer
 // WebSocket connection does not receive an empty or nil text frame.
-func TestObserverWSNoEmptyFrameOnMarshalFailure(t *testing.T) {
+func TestObserverWSNoEmptyFrameOnMarshalFailureIntegration(t *testing.T) {
 	srv, id, _ := setupTestServerWithUnmarshalableSession(t)
 
 	ts := httptest.NewServer(srv.mux)
@@ -1179,10 +1212,10 @@ func TestObserverWSNoEmptyFrameOnMarshalFailure(t *testing.T) {
 	}
 }
 
-// TestServerShutdownPropagatesGoingAway verifies that Shutdown sends
+// TestServerShutdownPropagatesGoingAwayIntegration verifies that Shutdown sends
 // StatusGoingAway to active WebSocket connections and deletes active
 // sessions.
-func TestServerShutdownPropagatesGoingAway(t *testing.T) {
+func TestServerShutdownPropagatesGoingAwayIntegration(t *testing.T) {
 	srv, sessionID, token := setupTestServerWithSession(t)
 
 	done := make(chan error, 1)

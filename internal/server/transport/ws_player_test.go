@@ -16,9 +16,9 @@ import (
 // errorGame is a stub Game implementation that rejects every action.
 type errorGame struct{}
 
-// TestPlayerWSSendsCommand verifies that a player can send a command via
+// TestPlayerWSSendsCommandIntegration verifies that a player can send a command via
 // WebSocket and receive a snapshot response.
-func TestPlayerWSSendsCommand(t *testing.T) {
+func TestPlayerWSSendsCommandIntegration(t *testing.T) {
 	srv, id, token := setupTestServerWithSession(t)
 	httpSrv := mustStartTestServer(t, srv)
 
@@ -44,9 +44,9 @@ func TestPlayerWSSendsCommand(t *testing.T) {
 	}
 }
 
-// TestPlayerWSMalformedMessage verifies that a message missing required
+// TestPlayerWSMalformedMessageIntegration verifies that a message missing required
 // fields produces a malformed_message error.
-func TestPlayerWSMalformedMessage(t *testing.T) {
+func TestPlayerWSMalformedMessageIntegration(t *testing.T) {
 	srv, id, token := setupTestServerWithSession(t)
 	httpSrv := mustStartTestServer(t, srv)
 
@@ -73,10 +73,10 @@ func TestPlayerWSMalformedMessage(t *testing.T) {
 	}
 }
 
-// TestPlayerWSKickedOnSecondConnection verifies that a second connection
+// TestPlayerWSKickedOnSecondConnectionIntegration verifies that a second connection
 // with the same seat token causes the first connection to stop receiving
 // snapshots.
-func TestPlayerWSKickedOnSecondConnection(t *testing.T) {
+func TestPlayerWSKickedOnSecondConnectionIntegration(t *testing.T) {
 	srv, id, token := setupTestServerWithSession(t)
 	httpSrv := mustStartTestServer(t, srv)
 
@@ -98,9 +98,9 @@ func TestPlayerWSKickedOnSecondConnection(t *testing.T) {
 	}
 }
 
-// TestPlayerWSReceivesGameError verifies that a game error is returned
+// TestPlayerWSReceivesGameErrorIntegration verifies that a game error is returned
 // as an error message on the WebSocket.
-func TestPlayerWSReceivesGameError(t *testing.T) {
+func TestPlayerWSReceivesGameErrorIntegration(t *testing.T) {
 	mgr := session.NewManager(func(_ session.Config) (session.Game, error) {
 		return errorGame{}, nil
 	})
@@ -158,9 +158,9 @@ func TestPlayerWSReceivesGameError(t *testing.T) {
 	}
 }
 
-// TestPlayerWSCleanupOnDisconnect verifies that the player's subscription
+// TestPlayerWSCleanupOnDisconnectIntegration verifies that the player's subscription
 // is removed when the WebSocket connection is closed by the client.
-func TestPlayerWSCleanupOnDisconnect(t *testing.T) {
+func TestPlayerWSCleanupOnDisconnectIntegration(t *testing.T) {
 	srv, id, token := setupTestServerWithSession(t)
 	httpSrv := mustStartTestServer(t, srv)
 

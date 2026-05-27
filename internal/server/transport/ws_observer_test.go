@@ -9,9 +9,9 @@ import (
 	"github.com/coder/websocket"
 )
 
-// TestObserverWSReceivesInitialSnapshot verifies that an observer receives
+// TestObserverWSReceivesInitialSnapshotIntegration verifies that an observer receives
 // an initial snapshot immediately upon WebSocket connection.
-func TestObserverWSReceivesInitialSnapshot(t *testing.T) {
+func TestObserverWSReceivesInitialSnapshotIntegration(t *testing.T) {
 	srv, id, _ := setupTestServerWithSession(t)
 	httpSrv := mustStartTestServer(t, srv)
 
@@ -25,9 +25,9 @@ func TestObserverWSReceivesInitialSnapshot(t *testing.T) {
 	}
 }
 
-// TestObserverWSReceivesBroadcastSnapshots verifies that an observer
+// TestObserverWSReceivesBroadcastSnapshotsIntegration verifies that an observer
 // receives snapshots broadcast after state-changing events.
-func TestObserverWSReceivesBroadcastSnapshots(t *testing.T) {
+func TestObserverWSReceivesBroadcastSnapshotsIntegration(t *testing.T) {
 	srv, id, token := setupTestServerWithSession(t)
 	httpSrv := mustStartTestServer(t, srv)
 
@@ -68,11 +68,11 @@ func TestObserverWSReceivesBroadcastSnapshots(t *testing.T) {
 	}
 }
 
-// TestObserverWSIgnoresInboundMessages verifies that messages sent from
+// TestObserverWSIgnoresInboundMessagesIntegration verifies that messages sent from
 // the client to the observer WebSocket are ignored. The server responds
 // with a close frame (policy violation for unexpected data), but the
 // server process remains healthy and can accept new connections.
-func TestObserverWSIgnoresInboundMessages(t *testing.T) {
+func TestObserverWSIgnoresInboundMessagesIntegration(t *testing.T) {
 	srv, id, _ := setupTestServerWithSession(t)
 	httpSrv := mustStartTestServer(t, srv)
 
