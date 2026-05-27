@@ -83,7 +83,7 @@ type session struct {
 	onDone func(State)
 
 	// finished is set when the game reaches a terminal state,
-	// signaling [session.run] to exit after the current command completes.
+	// signaling run() to exit after the current command completes.
 	finished bool
 
 	// waitingForHuman is true when the goroutine is waiting for a
@@ -578,7 +578,7 @@ func (s *session) handleUnsubscribe(c unsubscribeCmd) {
 // closeSubscribers closes all subscriber channels and clears the
 // subscriber maps so that any later unsubscribe does not attempt to
 // close an already-closed channel. The caller must ensure this is only
-// called once per session — all exit paths in [session.run] return
+// called once per session — all exit paths in run() return
 // immediately after calling it.
 func (s *session) closeSubscribers() {
 	for _, ch := range s.players {

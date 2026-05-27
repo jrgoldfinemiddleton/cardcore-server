@@ -16,7 +16,7 @@ import (
 	heartsview "github.com/jrgoldfinemiddleton/cardcore-server/internal/server/view/hearts"
 )
 
-// Adapter implements session.Game for Hearts.
+// Adapter implements [session.Game] for Hearts.
 type Adapter struct {
 	game    *hearts.Game
 	players [hearts.NumPlayers]hearts.Player
