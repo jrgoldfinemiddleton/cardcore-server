@@ -2,6 +2,7 @@ package session
 
 import (
 	"bytes"
+	"container/list"
 	"testing"
 	"time"
 
@@ -709,5 +710,149 @@ func TestSessionInitialTurnTimeoutFires(t *testing.T) {
 
 	if got, want := s.seq, 1; got < want {
 		t.Errorf("seq: got %d, want at least %d after initial timeout AI play", got, want)
+	}
+}
+
+// TestEvictLRUActionID verifies that the LRU cache evicts the oldest entry
+// and cleans up both the list and index.
+func TestEvictLRUActionID(t *testing.T) {
+	s := &session{
+		id:            "test",
+		game:          &mockGame{},
+		config:        Config{Seats: []SeatConfig{{Type: SeatHuman}}},
+		actionIDs:     make(map[string][]byte),
+		actionIDList:  list.New(),
+		actionIDIndex: make(map[string]*list.Element),
+	}
+
+	// Manually populate the cache with 3 entries.
+	// PushFront matches cacheActionID: front = most recent.
+	for _, id := range []string{"first", "second", "third"} {
+		// Store dummy snapshot as map value.
+		s.actionIDs[id] = []byte(id)
+		el := s.actionIDList.PushFront(id)
+		s.actionIDIndex[id] = el
+	}
+
+	// Evict should remove "first" (oldest, now at back).
+	s.evictLRUActionID()
+
+	if _, ok := s.actionIDs["first"]; ok {
+		t.Error("expected 'first' to be evicted from actionIDs")
+	}
+	if _, ok := s.actionIDIndex["first"]; ok {
+		t.Error("expected 'first' to be evicted from actionIDIndex")
+	}
+	if s.actionIDList.Len() != 2 {
+		t.Errorf("got list length %d, want 2", s.actionIDList.Len())
+	}
+
+	// Verify remaining entries are intact.
+	for _, id := range []string{"second", "third"} {
+		if _, ok := s.actionIDs[id]; !ok {
+			t.Errorf("expected %q to remain in actionIDs", id)
+		}
+		if _, ok := s.actionIDIndex[id]; !ok {
+			t.Errorf("expected %q to remain in actionIDIndex", id)
+		}
+	}
+}
+
+// TestEvictLRUActionIDEmptyList verifies that evicting from an empty list
+// does not panic.
+func TestEvictLRUActionIDEmptyList(t *testing.T) {
+	s := &session{
+		id:            "test",
+		game:          &mockGame{},
+		config:        Config{Seats: []SeatConfig{{Type: SeatHuman}}},
+		actionIDs:     make(map[string][]byte),
+		actionIDList:  list.New(),
+		actionIDIndex: make(map[string]*list.Element),
+	}
+
+	// Should not panic on empty list.
+	s.evictLRUActionID()
+
+	if s.actionIDList.Len() != 0 {
+		t.Errorf("got list length %d, want 0", s.actionIDList.Len())
+	}
+}
+
+// TestIsHumanSeatBounds verifies out-of-range seat handling.
+func TestIsHumanSeatBounds(t *testing.T) {
+	s := &session{
+		config: Config{Seats: []SeatConfig{
+			{Type: SeatHuman},
+			{Type: SeatAI, AIType: "random"},
+		}},
+	}
+
+	if s.isHumanSeat(-1) {
+		t.Error("isHumanSeat(-1): got true, want false")
+	}
+	if s.isHumanSeat(2) {
+		t.Error("isHumanSeat(2): got true, want false")
+	}
+	if !s.isHumanSeat(0) {
+		t.Error("isHumanSeat(0): got false, want true")
+	}
+	if s.isHumanSeat(1) {
+		t.Error("isHumanSeat(1): got false, want false")
+	}
+}
+
+// TestPlayerSnapshotMarshal verifies success and failure paths for player
+// snapshot marshaling.
+func TestPlayerSnapshotMarshal(t *testing.T) {
+	s := &session{
+		id:     "test",
+		seq:    42,
+		config: Config{Seats: []SeatConfig{{Type: SeatHuman}}},
+	}
+
+	// Success path: mockGame returns nil which marshals to "null".
+	s.game = &mockGame{}
+	got := s.playerSnapshot(0)
+	if got == nil {
+		t.Fatal("playerSnapshot success: got nil, want non-nil bytes")
+	}
+	want := []byte("null")
+	if !bytes.Equal(got, want) {
+		t.Errorf("playerSnapshot success: got %q, want %q", got, want)
+	}
+
+	// Failure path: unmarshalable snapshot returns nil.
+	s.game = &playerSnapshotUnmarshalableGame{}
+	got = s.playerSnapshot(0)
+	if got != nil {
+		t.Errorf("playerSnapshot failure: got %v, want nil", got)
+	}
+}
+
+// TestObserverSnapshotMarshal verifies success and failure paths for observer
+// snapshot marshaling.
+func TestObserverSnapshotMarshal(t *testing.T) {
+	s := &session{
+		id:     "test",
+		seq:    7,
+		config: Config{Seats: []SeatConfig{{Type: SeatHuman}}},
+	}
+
+	// Success path: mockGame returns nil which marshals to "null".
+	s.game = &mockGame{}
+	got := s.observerSnapshot()
+	if got == nil {
+		t.Fatal("observerSnapshot success: got nil, want non-nil bytes")
+	}
+	want := []byte("null")
+	if !bytes.Equal(got, want) {
+		t.Errorf("observerSnapshot success: got %q, want %q", got, want)
+	}
+
+	// Failure path: unmarshalable snapshot returns nil.
+	s.game = &unmarshalableGame{}
+	got = s.observerSnapshot()
+	if got != nil {
+		t.Errorf("observerSnapshot failure: got %v, want nil", got)
 	}
 }

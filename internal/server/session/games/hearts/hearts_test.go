@@ -370,9 +370,9 @@ func TestTrickCompletePauseShowsCompletedTrick(t *testing.T) {
 	}
 }
 
-// TestFullGameThroughAdapter plays a complete game through the adapter
+// TestFullGameThroughAdapterIntegration plays a complete game through the adapter
 // using all-AI players, verifying that it terminates with StepFinished.
-func TestFullGameThroughAdapter(t *testing.T) {
+func TestFullGameThroughAdapterIntegration(t *testing.T) {
 	a := allAIAdapter(t)
 
 	const maxSteps = 10000

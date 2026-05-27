@@ -893,3 +893,74 @@ func TestManagerMarshalFailureTransitionsToFinished(t *testing.T) {
 		t.Errorf("got error %v, want ErrNotActive", err)
 	}
 }
+
+// TestBuildSeatInfoTokens verifies token generation for mixed human/AI
+// seat configurations.
+func TestBuildSeatInfoTokens(t *testing.T) {
+	tests := []struct {
+		name       string
+		configs    []SeatConfig
+		wantHumans int
+	}{
+		{
+			name: "all human",
+			configs: []SeatConfig{
+				{Type: SeatHuman},
+				{Type: SeatHuman},
+			},
+			wantHumans: 2,
+		},
+		{
+			name: "all AI",
+			configs: []SeatConfig{
+				{Type: SeatAI, AIType: "random"},
+				{Type: SeatAI, AIType: "random"},
+			},
+			wantHumans: 0,
+		},
+		{
+			name: "mixed",
+			configs: []SeatConfig{
+				{Type: SeatHuman},
+				{Type: SeatAI, AIType: "random"},
+				{Type: SeatHuman},
+			},
+			wantHumans: 2,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			seats, err := buildSeatInfo(tc.configs)
+			if err != nil {
+				t.Fatalf("buildSeatInfo error: %v", err)
+			}
+			if len(seats) != len(tc.configs) {
+				t.Fatalf("got %d seats, want %d", len(seats), len(tc.configs))
+			}
+
+			var humanCount int
+			for i, s := range seats {
+				if s.Index != i {
+					t.Errorf("seat %d: got index %d, want %d", i, s.Index, i)
+				}
+				if s.Type == SeatHuman {
+					humanCount++
+					if s.Token == "" {
+						t.Errorf("seat %d: human seat has no token", i)
+					}
+					// Token should be 64 hex chars (32 bytes).
+					if len(s.Token) != 64 {
+						t.Errorf("seat %d: got token length %d, want 64", i, len(s.Token))
+					}
+				}
+				if s.Type == SeatAI && s.Token != "" {
+					t.Errorf("seat %d: AI seat has token %q", i, s.Token)
+				}
+			}
+			if humanCount != tc.wantHumans {
+				t.Errorf("got %d human seats, want %d", humanCount, tc.wantHumans)
+			}
+		})
+	}
+}
