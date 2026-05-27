@@ -105,7 +105,7 @@ func (s *Server) Stop(ctx context.Context) error {
 
 // Shutdown gracefully shuts down the server. It sends a GoingAway close
 // frame to every tracked WebSocket connection, deletes all non-expired
-// sessions from the Manager, and then shuts down the HTTP server.
+// sessions from the [session.Manager], and then shuts down the HTTP server.
 func (s *Server) Shutdown(ctx context.Context) error {
 	// Close WebSocket connections before deleting sessions so that
 	// the GoingAway status reaches clients before playerConn.run()

@@ -52,7 +52,7 @@ func writeWSBytes(ctx context.Context, ws *websocket.Conn, b []byte) error {
 	return ws.Write(ctx, websocket.MessageText, b)
 }
 
-// writeErrorToOutCh marshals an ErrorMessage and sends it to outCh,
+// writeErrorToOutCh marshals an [api.ErrorMessage] and sends it to outCh,
 // respecting context cancellation to avoid blocking on a dead channel.
 func writeErrorToOutCh(ctx context.Context, outCh chan []byte, code, message, actionID string) {
 	em := api.ErrorMessage{

@@ -102,6 +102,8 @@ Every exported function, method, type, and constant must have a doc comment. The
 func HandleConnect(w http.ResponseWriter, r *http.Request) {
 ```
 
+When a doc comment references an exported identifier from a **different package** in this module, use a doc link: `[package.Type]` for same-module imports, `["import/path".Identifier]` for cross-module or stdlib when it clarifies. Do not link same-package identifiers or obvious stdlib types (`error`, `context.Context`). Doc links are optional for local/internal references when the surrounding code makes the relationship obvious.
+
 ### Function ordering
 
 #### Declarations before functions

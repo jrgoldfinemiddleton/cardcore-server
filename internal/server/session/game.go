@@ -28,7 +28,7 @@ type StepResult struct {
 }
 
 // CommandError is returned when a player action is rejected. Code is a
-// machine-readable error code (e.g., api.ErrIllegalMove) and Message is
+// machine-readable error code (e.g., [api.ErrIllegalMove]) and Message is
 // a human-readable explanation.
 type CommandError struct {
 	// Code is the machine-readable error code for the wire protocol.

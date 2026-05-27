@@ -6,9 +6,9 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
 )
 
-// Config holds the parameters for starting the HTTP/WebSocket server.
+// Config holds the parameters for starting the HTTP/WebSocket [Server].
 type Config struct {
-	// Manager is the session manager that handles game lifecycle.
+	// Manager is the [session.Manager] that handles game lifecycle.
 	Manager *session.Manager
 	// Addr is the TCP address to listen on. Use ":0" to let the OS
 	// assign a free port (useful in tests).
