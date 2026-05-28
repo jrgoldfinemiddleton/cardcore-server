@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"sync/atomic"
 
 	"github.com/coder/websocket"
 
@@ -24,6 +25,10 @@ type observerConn struct {
 	subCh chan session.SubscriberMessage
 	// logger is the structured logger.
 	logger *slog.Logger
+	// closing references the server's shutdown flag. When true, run()
+	// skips the final NormalClosure close frame because Shutdown()
+	// has already sent GoingAway.
+	closing *atomic.Bool
 }
 
 // run is the goroutine that manages the observer's WebSocket connection.
@@ -51,6 +56,9 @@ func (oc *observerConn) run(ctx context.Context) {
 	// Both goroutines exited. Unsubscribe and close WS.
 	if err := oc.mgr.UnsubscribeObserver(oc.sessionID, oc.subCh); err != nil {
 		oc.logger.Error("unsubscribe observer", "error", err)
+	}
+	if oc.closing != nil && oc.closing.Load() {
+		return
 	}
 	if err := oc.ws.Close(websocket.StatusNormalClosure, ""); err != nil {
 		oc.logger.Error("ws close", "error", err)
@@ -126,6 +134,7 @@ func (s *Server) handleObserverWS(w http.ResponseWriter, r *http.Request) {
 		sessionID: id,
 		subCh:     subCh,
 		logger:    s.logger,
+		closing:   &s.closing,
 	}
 	s.RegisterWSConn(conn)
 	go func() {
