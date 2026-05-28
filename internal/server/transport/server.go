@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -39,6 +40,10 @@ type Server struct {
 	// wsConns tracks active WebSocket connections for graceful shutdown.
 	// Keys are *websocket.Conn; values are struct{}.
 	wsConns sync.Map
+	// closing is set to true when Shutdown() begins to prevent transport
+	// goroutines from sending a redundant NormalClosure close frame after
+	// Shutdown() has already sent GoingAway.
+	closing atomic.Bool
 }
 
 // responseWriter wraps http.ResponseWriter to capture the status code.
@@ -107,6 +112,8 @@ func (s *Server) Stop(ctx context.Context) error {
 // frame to every tracked WebSocket connection, deletes all non-expired
 // sessions from the [session.Manager], and then shuts down the HTTP server.
 func (s *Server) Shutdown(ctx context.Context) error {
+	s.closing.Store(true)
+
 	// Close WebSocket connections before deleting sessions so that
 	// the GoingAway status reaches clients before playerConn.run()
 	// sends NormalClosure on goroutine exit.

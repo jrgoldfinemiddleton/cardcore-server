@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"sync/atomic"
 
 	"github.com/coder/websocket"
 
@@ -31,6 +32,10 @@ type playerConn struct {
 	outCh chan []byte
 	// logger is the structured logger.
 	logger *slog.Logger
+	// closing references the server's shutdown flag. When true, run()
+	// skips the final NormalClosure close frame because Shutdown()
+	// has already sent GoingAway.
+	closing *atomic.Bool
 }
 
 // run is the goroutine that manages the player's WebSocket connection.
@@ -55,6 +60,9 @@ func (pc *playerConn) run(ctx context.Context) {
 	// Both goroutines exited. Unsubscribe and close WS.
 	if err := pc.mgr.UnsubscribePlayer(pc.sessionID, pc.seat); err != nil {
 		pc.logger.Error("unsubscribe player", "error", err)
+	}
+	if pc.closing != nil && pc.closing.Load() {
+		return
 	}
 	if err := pc.ws.Close(websocket.StatusNormalClosure, ""); err != nil {
 		pc.logger.Error("ws close", "error", err)
@@ -217,6 +225,7 @@ func (s *Server) handlePlayerWS(w http.ResponseWriter, r *http.Request) {
 		subCh:     subCh,
 		outCh:     make(chan []byte, 16),
 		logger:    s.logger,
+		closing:   &s.closing,
 	}
 	s.RegisterWSConn(conn)
 	go func() {
