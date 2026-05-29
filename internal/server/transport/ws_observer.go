@@ -90,6 +90,8 @@ func (oc *observerConn) writer(ctx context.Context, cancel context.CancelFunc) {
 					"session_id", oc.sessionID)
 				continue
 			}
+			oc.logger.Info("observer writing snapshot",
+				"session_id", oc.sessionID, "len", len(msg.Data))
 			if err := writeWSBytes(ctx, oc.ws, msg.Data); err != nil {
 				oc.logger.Error("ws write snapshot", "error", err)
 				return
