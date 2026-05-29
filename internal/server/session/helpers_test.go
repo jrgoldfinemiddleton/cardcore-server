@@ -31,7 +31,9 @@ type timeoutGame struct {
 }
 
 // aiPlayFinishedGame is a mock Game where AIPlay returns StepFinished.
-type aiPlayFinishedGame struct{}
+type aiPlayFinishedGame struct {
+	turnSeat int
+}
 
 // invalidTurnGame is a mock Game where Turn returns an invalid seat.
 type invalidTurnGame struct{}
@@ -234,6 +236,7 @@ func (g *timeoutGame) ObserverSnapshot(int) any {
 
 // HandleAction implements Game.HandleAction for aiPlayFinishedGame.
 func (a *aiPlayFinishedGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
+	a.turnSeat = 1
 	return StepResult{Outcome: StepContinue}, nil
 }
 
@@ -249,7 +252,7 @@ func (a *aiPlayFinishedGame) Resume() (StepResult, error) {
 
 // Turn implements Game.Turn for aiPlayFinishedGame.
 func (a *aiPlayFinishedGame) Turn() int {
-	return 1
+	return a.turnSeat
 }
 
 // PlayerSnapshot implements Game.PlayerSnapshot for aiPlayFinishedGame.

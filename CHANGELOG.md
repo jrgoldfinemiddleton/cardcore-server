@@ -10,6 +10,9 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- Full game integration tests via WebSocket: `TestAllAIFullGameIntegration` (4-AI Hearts, observer verifies phase progression and seq monotonicity) and `TestHumanAIFullGameIntegration` (1 human + 3 AI, human sends pass/play commands, game completes)
+- Generic WebSocket test helpers: `testSnapshot` for fast phase/seq observation, `mustReadTestSnapshot`, `readTestSnapshot` (goroutine-safe), `writeWSJSON`, `readSnapshotsUntil`
+- Subscription logging: structured `slog.Info` calls for player/observer subscribe and unsubscribe events
 - Graceful shutdown: `Server.Shutdown(ctx)` sends `websocket.StatusGoingAway` to all active WebSocket connections, deletes all active sessions, and shuts down the HTTP server. `cmd/server/main.go` binary handles SIGINT/SIGTERM with a configurable timeout via `CARDCORE_SHUTDOWN_TIMEOUT` (default 10s)
 - Server binary `cmd/server/main.go` with game adapter dispatch: currently supports `hearts`; new games can be added by extending the factory switch in `main.go`
 - Configurable human turn timeout with AI auto-play fallback: session config gains `turn_timeout_ms` (default 30s, `0` to disable); when a human player doesn't act in time, the session auto-plays an AI move and broadcasts the result while preserving the human seat configuration
@@ -31,6 +34,11 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- Missing snapshot broadcast after `Resume()`: trick/round/game transitions following a `StepPause` were invisible to observers because `broadcastSnapshot()` was not called after `Resume()` advanced the game state
+- `finishWithGrace` grace period: reduced from 60s to 100ms since the final snapshot is already broadcast before entering the grace period
+- Turn advancement in Hearts passing phase: human `pass_cards` commands left `Turn` stale, causing the session to wait indefinitely on the wrong seat. Added `advanceTurn()` helper used by both human and AI pass paths
+- Marshal failure handling in subscription handlers: `handleSubscribePlayer` and `handleSubscribeObserver` silently skipped nil snapshots instead of terminating the session, leaving subscribers with no baseline state and no error
+- Stale seq marshal failure: when a stale seq command arrived but the snapshot failed to marshal, the session continued instead of terminating. Now consistently fatal like all other marshal failures
 - WebSocket close code on marshal failure: session now sends `1011 Internal Error` directly through the subscriber channel instead of broadcasting an `internal_error` text message and closing with `1000 Normal Closure`. Transport goroutines call `conn.Close(1011, "snapshot marshal failure")` when they receive a `SubscriberMessage` with a non-zero `CloseCode`
 - WebSocket close frame documentation updated to reflect actual behavior: `1000 Normal Closure` for all normal session ends, `1001 Going Away` for server shutdown, `1009 Message Too Big` for oversized messages, `1011 Internal Error` for unrecoverable server errors
 - `StepPause` routing bug: after a human play or timeout AI move returned `StepPause`, the event loop could call `AIPlay()` before `Resume()` had advanced the game past the pause phase, producing an illegal extra AI move. Fixed by routing pause outcomes through the resume cycle before further turn processing

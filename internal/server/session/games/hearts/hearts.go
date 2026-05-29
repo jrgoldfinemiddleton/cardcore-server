@@ -110,6 +110,12 @@ func (a *Adapter) AIPlay(seat int) (session.StepResult, error) {
 			return session.StepResult{},
 				fmt.Errorf("AI pass seat %d: %w", seat, err)
 		}
+		// SetPass transitions PhasePass→PhasePlay when the 4th player
+		// passes. When that happens, the engine sets Turn to the 2♣
+		// holder. Only advance Turn manually if passing is still ongoing.
+		if a.game.Phase == hearts.PhasePass {
+			a.advanceTurn()
+		}
 		return session.StepResult{Outcome: session.StepContinue}, nil
 	case hearts.PhasePlay:
 		return a.playCard(seat, p.ChoosePlay(a.game, s))
@@ -160,6 +166,13 @@ func (a *Adapter) Resume() (session.StepResult, error) {
 		if err := a.game.Deal(); err != nil {
 			return session.StepResult{},
 				fmt.Errorf("deal: %w", err)
+		}
+		// After Deal, Turn is not updated if PassDir != PassHold.
+		// Ensure Turn is set to a valid seat so processTurns can proceed.
+		// This applies to subsequent rounds after EndRound; the first
+		// round's Turn is implicitly 0 from hearts.New().
+		if a.game.Phase == hearts.PhasePass {
+			a.game.Turn = 0
 		}
 		return session.StepResult{
 			Outcome: session.StepContinue,
@@ -293,6 +306,13 @@ func (a *Adapter) handlePassCards(
 			}
 	}
 
+	// SetPass transitions PhasePass→PhasePlay when the 4th player
+	// passes. When that happens, the engine sets Turn to the 2♣
+	// holder. Only advance Turn manually if passing is still ongoing.
+	if a.game.Phase == hearts.PhasePass {
+		a.advanceTurn()
+	}
+
 	return session.StepResult{Outcome: session.StepContinue}, nil
 }
 
@@ -315,6 +335,11 @@ func (a *Adapter) playCard(
 	}
 
 	return session.StepResult{Outcome: session.StepContinue}, nil
+}
+
+// advanceTurn moves Turn to the next seat in cyclic order.
+func (a *Adapter) advanceTurn() {
+	a.game.Turn = (a.game.Turn + 1) % hearts.NumPlayers
 }
 
 // viewState builds the ViewState for snapshot generation, reflecting

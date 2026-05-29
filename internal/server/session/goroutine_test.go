@@ -387,11 +387,11 @@ func TestSessionSeqMonotonicity(t *testing.T) {
 	}
 }
 
-// TestSessionStaleSeqNilSnapshot returns error without snapshot when
-// playerSnapshot fails to marshal. The client must still receive the
-// stale_seq error so it knows to resync, but nil snapshots are never
-// sent on channels or in responses.
-func TestSessionStaleSeqNilSnapshot(t *testing.T) {
+// TestSessionStaleSeqMarshalFailure terminates the session when a
+// stale seq command arrives but the snapshot fails to marshal. A
+// marshal failure is always fatal; the client receives an internal
+// error and the session terminates.
+func TestSessionStaleSeqMarshalFailure(t *testing.T) {
 	g := &playerSnapshotUnmarshalableGame{}
 	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
@@ -412,13 +412,21 @@ func TestSessionStaleSeqNilSnapshot(t *testing.T) {
 
 	res := <-resp
 	if res.Err == nil {
-		t.Fatal("expected error for stale_seq, got nil")
+		t.Fatal("expected error, got nil")
 	}
-	if res.Err.ErrorCode != api.ErrStaleSeq {
-		t.Errorf("got error code %q, want %q", res.Err.ErrorCode, api.ErrStaleSeq)
+	if res.Err.ErrorCode != api.ErrInternal {
+		t.Errorf("got error code %q, want %q", res.Err.ErrorCode, api.ErrInternal)
 	}
 	if res.Snapshot != nil {
-		t.Error("got snapshot for stale_seq with marshal failure, want nil")
+		t.Error("got snapshot for marshal failure, want nil")
+	}
+
+	// Session should terminate after marshal failure.
+	select {
+	case <-s.done:
+		// Expected: goroutine exited.
+	case <-time.After(time.Second):
+		t.Fatal("goroutine did not exit after marshal failure")
 	}
 }
 
@@ -648,7 +656,7 @@ func TestSessionDriveTurnsHandlesPause(t *testing.T) {
 	if !s.finished {
 		t.Error("expected session to be finished after AIPlay StepPause + Resume")
 	}
-	if got, want := s.seq, 3; got != want {
+	if got, want := s.seq, 4; got != want {
 		t.Errorf("seq: got %d, want %d", got, want)
 	}
 

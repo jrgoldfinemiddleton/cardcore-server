@@ -3,7 +3,6 @@ package transport
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
@@ -190,19 +189,6 @@ func TestPlayerWSCleanupOnDisconnectIntegration(t *testing.T) {
 	if err := srv.mgr.UnsubscribePlayer(id, 0); err != nil {
 		t.Fatalf("cleanup test subscription: %v", err)
 	}
-}
-
-// writeWSJSON marshals v as JSON and writes it as a text message on ws.
-// It uses a 30-second timeout context.
-func writeWSJSON(ctx context.Context, ws *websocket.Conn, v any) error {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	b, err := json.Marshal(v)
-	if err != nil {
-		return fmt.Errorf("marshal: %w", err)
-	}
-	return ws.Write(ctx, websocket.MessageText, b)
 }
 
 // HandleAction implements session.Game for errorGame.

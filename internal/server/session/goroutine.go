@@ -3,7 +3,6 @@ package session
 import (
 	"container/list"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -24,7 +23,7 @@ const (
 //
 // driveFatal triggers session cleanup inside
 // driveTurns. driveShutdown means the cancel channel fired during a
-// pacing delay and the caller should return to run()'s select loop
+// pacing delay and the handler should return to run()'s select loop
 // immediately without further processing so the goroutine can exit
 // without mutating state.
 type driveResult int
@@ -174,13 +173,27 @@ func (s *session) handleCommand(cmd command) {
 func (s *session) handlePlay(c playCmd) {
 	defer close(c.resp)
 
-	// Client seq is behind the server. Return the latest snapshot so
-	// the client can resync, along with an error. If the snapshot fails
-	// to marshal, send the error only so the client receives a valid
-	// response it can distinguish from a nil field.
+	// Client seq is behind the server. Send the latest snapshot so
+	// the client can resync, along with an error.
 	if c.msg.Seq < s.seq {
 		snap := s.playerSnapshot(c.seat)
-		result := SubmitResult{
+		if snap == nil {
+			s.terminateOnMarshalFailure(
+				"stale seq player snapshot marshal failed",
+				"seat", c.seat,
+			)
+			c.resp <- SubmitResult{
+				Err: &api.ErrorMessage{
+					Type:       errType,
+					ErrorCode:  api.ErrInternal,
+					Message:    "session terminated: snapshot generation failed",
+					ActionID:   c.msg.ActionID,
+					CurrentSeq: s.seq,
+				},
+			}
+			return
+		}
+		c.resp <- SubmitResult{
 			Err: &api.ErrorMessage{
 				Type:       errType,
 				ErrorCode:  api.ErrStaleSeq,
@@ -188,16 +201,13 @@ func (s *session) handlePlay(c playCmd) {
 				ActionID:   c.msg.ActionID,
 				CurrentSeq: s.seq,
 			},
+			Snapshot: snap,
 		}
-		if snap != nil {
-			result.Snapshot = snap
-		}
-		c.resp <- result
 		return
 	}
 
 	// Duplicate action_id: client resent a command that already
-	// succeeded. Return the cached snapshot without mutating state.
+	// succeeded. Send the cached snapshot without mutating state.
 	if cached, ok := s.actionIDs[c.msg.ActionID]; ok {
 		result := SubmitResult{}
 		if cached != nil {
@@ -212,7 +222,8 @@ func (s *session) handlePlay(c playCmd) {
 	if cmdErr != nil {
 		// Action rejected (wrong turn, illegal move, wrong phase).
 		// Send the error to the player's subscription channel and
-		// return it synchronously.
+		// send it on the command response channel so the blocked
+		// submitter receives the rejection.
 		s.sendError(c.seat, cmdErr.Code, cmdErr.Message, c.msg.ActionID)
 		c.resp <- SubmitResult{
 			Err: &api.ErrorMessage{
@@ -250,8 +261,9 @@ func (s *session) handlePlay(c playCmd) {
 	snap := s.playerSnapshot(c.seat)
 	s.cacheActionID(c.msg.ActionID, snap)
 
-	// Return success to the caller and handle game pacing (AI turns,
-	// trick/round completion, or game finished).
+	// Send success response to the blocked command submitter and
+	// handle game pacing (AI turns, trick/round completion, or game
+	// finished).
 	c.resp <- SubmitResult{}
 	switch res.Outcome {
 	case StepContinue:
@@ -259,11 +271,7 @@ func (s *session) handlePlay(c playCmd) {
 	case StepPause:
 		s.driveTurns(true)
 	case StepFinished:
-		s.closeSubscribers()
-		if s.onDone != nil {
-			s.onDone(Finished)
-		}
-		s.finished = true
+		s.finishWithGrace()
 	}
 }
 
@@ -284,6 +292,7 @@ func (s *session) driveTurns(fromPause bool) driveResult {
 		status = s.resumePauses()
 	}
 	if status == driveFatal {
+		slog.Error("driveFatal reached, closing subscribers immediately", "session", s.id)
 		s.closeSubscribers()
 		if s.onDone != nil {
 			s.onDone(Finished)
@@ -314,27 +323,19 @@ func (s *session) resumePauses() driveResult {
 		slog.Error("Resume failed", "error", err)
 		return driveFatal
 	}
+	s.seq++
+	s.broadcastSnapshot()
+	if s.finished {
+		return driveFinished
+	}
 
 	switch res.Outcome {
 	case StepContinue:
 		return s.processTurns()
 	case StepPause:
-		s.broadcastSnapshot()
-		if s.finished {
-			return driveFinished
-		}
 		return drivePaused
 	case StepFinished:
-		s.broadcastSnapshot()
-		if s.finished {
-			return driveFinished
-		}
-		s.closeSubscribers()
-		if s.onDone != nil {
-			s.onDone(Finished)
-		}
-		s.finished = true
-		return driveFinished
+		return s.finishWithGrace()
 	}
 	return driveFatal
 }
@@ -349,6 +350,7 @@ func (s *session) processTurns() driveResult {
 		seat := s.game.Turn()
 		// Guard: if seat is out of range (e.g., empty config), stop.
 		if seat < 0 || seat >= len(s.config.Seats) {
+			slog.Error("driveFatal: invalid seat", "seat", seat, "session", s.id)
 			return driveFatal
 		}
 		// If human, set turn timeout and return so run() can handle it.
@@ -360,13 +362,24 @@ func (s *session) processTurns() driveResult {
 			return driveHuman
 		}
 
-		// Pace AI turns for UX readability.
+		// Pace AI turns for UX readability; also process any buffered
+		// commands so late subscribers are not stranded.
 		delay := s.config.delay()
 		if delay > 0 {
 			select {
 			case <-time.After(time.Duration(delay) * time.Millisecond):
 			case <-s.cancel:
 				return driveShutdown
+			case cmd := <-s.cmds:
+				s.handleCommand(cmd)
+			}
+		} else {
+			select {
+			case <-s.cancel:
+				return driveShutdown
+			case cmd := <-s.cmds:
+				s.handleCommand(cmd)
+			default:
 			}
 		}
 		if s.finished {
@@ -386,19 +399,10 @@ func (s *session) processTurns() driveResult {
 
 		switch res.Outcome {
 		case StepContinue:
-			if s.game.Turn() == seat {
-				// Turn did not advance; adapter is stuck.
-				return driveFatal
-			}
 		case StepPause:
 			return drivePaused
 		case StepFinished:
-			s.closeSubscribers()
-			if s.onDone != nil {
-				s.onDone(Finished)
-			}
-			s.finished = true
-			return driveFinished
+			return s.finishWithGrace()
 		}
 	}
 }
@@ -439,22 +443,14 @@ func (s *session) handleTurnTimeout() {
 	case StepPause:
 		s.driveTurns(true)
 	case StepFinished:
-		s.closeSubscribers()
-		if s.onDone != nil {
-			s.onDone(Finished)
-		}
-		s.finished = true
+		s.finishWithGrace()
 	}
 }
 
-// Snapshot failure design principle:
-// Isolated snapshot failures (single client, stale sequence) are logged
-// and the client is skipped so the session continues.
-// Global snapshot failures (broadcast to all subscribers after a state
-// mutation) terminate the session because the game becomes unplayable.
-
 // playerSnapshot generates a marshaled player snapshot for the given seat.
-// It logs marshal errors and returns nil so the caller can skip the send.
+// It logs marshal errors and returns nil so the caller can handle the
+// fatal session state. A marshal failure represents an unrecoverable
+// session error that terminates the game.
 func (s *session) playerSnapshot(seat int) []byte {
 	snap := s.game.PlayerSnapshot(seat, s.seq)
 	b, err := json.Marshal(snap)
@@ -466,7 +462,9 @@ func (s *session) playerSnapshot(seat int) []byte {
 }
 
 // observerSnapshot generates a marshaled observer snapshot.
-// It logs marshal errors and returns nil so the caller can skip the send.
+// It logs marshal errors and returns nil so the caller can handle the
+// fatal session state. A marshal failure represents an unrecoverable
+// session error that terminates the game.
 func (s *session) observerSnapshot() []byte {
 	snap := s.game.ObserverSnapshot(s.seq)
 	b, err := json.Marshal(snap)
@@ -494,7 +492,8 @@ func (s *session) broadcastSnapshot() {
 		snap := s.playerSnapshot(seat)
 		if snap == nil {
 			s.terminateOnMarshalFailure(
-				fmt.Sprintf("player snapshot marshal failed for seat %d", seat),
+				"player snapshot marshal failed",
+				"seat", seat,
 			)
 			return
 		}
@@ -535,23 +534,34 @@ func (s *session) sendError(seat int, code, message, actionID string) {
 // handleSubscribePlayer registers a new player subscriber.
 // If the seat already has a subscriber, the old channel is closed.
 func (s *session) handleSubscribePlayer(c subscribePlayerCmd) {
+	replaced := false
 	if old, ok := s.players[c.seat]; ok {
 		close(old)
+		replaced = true
 	}
+	slog.Info("player subscribed", "session", s.id, "seat", c.seat, "replaced", replaced)
 	s.players[c.seat] = c.ch
 	snap := s.playerSnapshot(c.seat)
-	if snap != nil {
-		s.sendNonBlocking(c.ch, snap)
+	if snap == nil {
+		s.terminateOnMarshalFailure(
+			"player snapshot marshal failed",
+			"seat", c.seat,
+		)
+		return
 	}
+	s.sendNonBlocking(c.ch, snap)
 }
 
 // handleSubscribeObserver registers a new observer subscriber.
 func (s *session) handleSubscribeObserver(c subscribeObserverCmd) {
+	slog.Info("observer subscribed", "session", s.id, "observer_count", len(s.observers)+1)
 	s.observers = append(s.observers, c.ch)
 	snap := s.observerSnapshot()
-	if snap != nil {
-		s.sendNonBlocking(c.ch, snap)
+	if snap == nil {
+		s.terminateOnMarshalFailure("observer snapshot marshal failed")
+		return
 	}
+	s.sendNonBlocking(c.ch, snap)
 }
 
 // handleUnsubscribe removes a subscriber.
@@ -563,6 +573,10 @@ func (s *session) handleUnsubscribe(c unsubscribeCmd) {
 				last := len(s.observers) - 1
 				s.observers[i] = s.observers[last]
 				s.observers = s.observers[:last]
+				slog.Info("observer unsubscribed",
+					"session", s.id,
+					"observer_count", len(s.observers),
+				)
 				return
 			}
 		}
@@ -572,6 +586,7 @@ func (s *session) handleUnsubscribe(c unsubscribeCmd) {
 	if ch, ok := s.players[c.seat]; ok {
 		close(ch)
 		delete(s.players, c.seat)
+		slog.Info("player unsubscribed", "session", s.id, "seat", c.seat)
 	}
 }
 
@@ -591,9 +606,24 @@ func (s *session) closeSubscribers() {
 	s.observers = nil
 }
 
+// finishWithGrace closes subscribers after a brief grace period so
+// observers can read the final snapshot before connections close.
+func (s *session) finishWithGrace() driveResult {
+	select {
+	case <-time.After(100 * time.Millisecond):
+	case <-s.cancel:
+	}
+	s.closeSubscribers()
+	if s.onDone != nil {
+		s.onDone(Finished)
+	}
+	s.finished = true
+	return driveFinished
+}
+
 // drainCmds processes commands left in the buffer after the event loop
 // exits. It closes subscriber channels and sends errors on playCmd.resp
-// so that external callers do not block forever on a dead goroutine.
+// so that blocked command submitters do not wait forever.
 func (s *session) drainCmds() {
 	for {
 		select {
@@ -625,8 +655,9 @@ func (s *session) drainCmds() {
 // 1011 Internal Error, closes all subscriber channels, notifies the
 // Manager that the session is finished, and marks the session as
 // finished so the goroutine exits.
-func (s *session) terminateOnMarshalFailure(msg string) {
-	slog.Error("session terminating due to marshal failure", "message", msg)
+func (s *session) terminateOnMarshalFailure(msg string, args ...any) {
+	slog.Error("session terminating due to marshal failure",
+		append([]any{"message", msg}, args...)...)
 	for _, ch := range s.players {
 		select {
 		case ch <- SubscriberMessage{CloseCode: 1011}:
