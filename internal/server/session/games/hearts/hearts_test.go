@@ -206,7 +206,7 @@ func TestHandleActionGameOver(t *testing.T) {
 // enforced by the engine, not verified here.
 func TestAIPlay(t *testing.T) {
 	a := allAIAdapter(t)
-	advanceToPlayPhase(t, a)
+	advanceToPlayPhase(t, a, allAISeats())
 	seat := int(a.game.Turn)
 	handBefore := a.game.Hands[seat].Len()
 
@@ -242,13 +242,24 @@ func TestAIPlayPass(t *testing.T) {
 	}
 }
 
-// TestAIPlayHumanSeat verifies that AIPlay on a human seat returns an
-// error.
-func TestAIPlayHumanSeat(t *testing.T) {
+// TestAIPlayHumanSeatTimeout verifies that AIPlay on a human seat
+// succeeds because a fallback AI player is created for all seats.
+func TestAIPlayHumanSeatTimeout(t *testing.T) {
 	a := adapterInPlayPhase(t)
-	_, err := a.AIPlay(0) // seat 0 is human in validSeats()
-	if err == nil {
-		t.Fatal("got nil error, want human seat error")
+
+	for a.game.Turn != 0 {
+		seat := int(a.game.Turn)
+		if _, err := a.AIPlay(seat); err != nil {
+			t.Fatalf("AIPlay seat %d: %v", seat, err)
+		}
+	}
+
+	res, err := a.AIPlay(0)
+	if err != nil {
+		t.Fatalf("AIPlay human seat: %v", err)
+	}
+	if res.Outcome != session.StepContinue && res.Outcome != session.StepPause {
+		t.Errorf("got outcome %d, want StepContinue or StepPause", res.Outcome)
 	}
 }
 
@@ -256,7 +267,7 @@ func TestAIPlayHumanSeat(t *testing.T) {
 // trick completes.
 func TestResumeAfterTrickComplete(t *testing.T) {
 	a := allAIAdapter(t)
-	advanceToPlayPhase(t, a)
+	advanceToPlayPhase(t, a, allAISeats())
 
 	// Play a full trick (4 cards).
 	var lastRes session.StepResult
@@ -343,7 +354,7 @@ func TestSnapshotSerializable(t *testing.T) {
 // trick_complete pause, the snapshot phase is "trick_complete".
 func TestTrickCompletePauseShowsCompletedTrick(t *testing.T) {
 	a := allAIAdapter(t)
-	advanceToPlayPhase(t, a)
+	advanceToPlayPhase(t, a, allAISeats())
 
 	// Play a full trick.
 	for range hearts.NumPlayers {
@@ -509,7 +520,7 @@ func adapterInPlayPhase(t *testing.T) *Adapter {
 	if err != nil {
 		t.Fatalf("NewAdapter: %v", err)
 	}
-	advanceToPlayPhase(t, a)
+	advanceToPlayPhase(t, a, validSeats())
 	return a
 }
 
@@ -530,7 +541,7 @@ func adapterInPassPhase(t *testing.T) *Adapter {
 // advanceToPlayPhase advances the adapter past the pass phase. For
 // human seats, it submits the first three cards. For AI seats, it
 // calls AIPlay.
-func advanceToPlayPhase(t *testing.T, a *Adapter) {
+func advanceToPlayPhase(t *testing.T, a *Adapter, seats []session.SeatConfig) {
 	t.Helper()
 	if a.game.Phase == hearts.PhasePlay {
 		return
@@ -542,7 +553,7 @@ func advanceToPlayPhase(t *testing.T, a *Adapter) {
 		if a.game.Phase != hearts.PhasePass {
 			break
 		}
-		if a.players[i] != nil {
+		if seats[i].Type == session.SeatAI {
 			if _, err := a.AIPlay(i); err != nil {
 				t.Fatalf("AIPlay pass seat %d: %v", i, err)
 			}

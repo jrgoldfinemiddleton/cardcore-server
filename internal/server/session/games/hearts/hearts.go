@@ -19,24 +19,31 @@ import (
 
 // Adapter implements [session.Game] for Hearts.
 type Adapter struct {
-	game    *hearts.Game
+	// game is the underlying Hearts engine instance.
+	game *hearts.Game
+	// players holds the AI player for each seat. Human seats receive a
+	// fallback AI player for timeout auto-play.
 	players [hearts.NumPlayers]hearts.Player
-
 	// paused tracks which UX pause is active. Nil when not paused.
 	paused *pauseState
-
+	// logger is the per-component structured logger.
 	logger *slog.Logger
 }
 
 // pauseState captures the adapter state during a UX pause.
 type pauseState struct {
+	// trickComplete is true when the adapter is paused after a trick
+	// completes and is waiting for the client to acknowledge.
 	trickComplete bool
+	// roundComplete is true when the adapter is paused after a round
+	// completes and is waiting for the client to acknowledge.
 	roundComplete bool
 }
 
 // NewAdapter creates a Hearts game adapter. It validates the seat
-// configuration, creates AI players for AI seats, and deals the first
-// hand.
+// configuration, creates AI players for all seats (using the configured
+// ai_type for AI seats and a "random" fallback for human seats), and deals
+// the first hand.
 func NewAdapter(
 	seats []session.SeatConfig, rng *rand.Rand,
 ) (*Adapter, error) {
@@ -51,10 +58,11 @@ func NewAdapter(
 		logger: slog.With("component", "hearts_adapter"),
 	}
 	for i, sc := range seats {
+		aiType := sc.AIType
 		if sc.Type != session.SeatAI {
-			continue
+			aiType = "random"
 		}
-		p, err := newPlayer(sc.AIType, rng)
+		p, err := newPlayer(aiType, rng)
 		if err != nil {
 			return nil, fmt.Errorf("seat %d: %w", i, err)
 		}

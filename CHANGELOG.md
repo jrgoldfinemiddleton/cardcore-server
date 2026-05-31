@@ -35,6 +35,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- Human turn timeout deadlock: `NewAdapter` only created AI players for `SeatAI` seats, so when a human timed out, `AIPlay` returned an error and the game deadlocked. Now creates a fallback "random" AI player for all human seats, used exclusively by `handleTurnTimeout` while preserving the seat's human classification for normal play
 - Missing snapshot broadcast after `Resume()`: trick/round/game transitions following a `StepPause` were invisible to observers because `broadcastSnapshot()` was not called after `Resume()` advanced the game state
 - `finishWithGrace` grace period: reduced from 60s to 100ms since the final snapshot is already broadcast before entering the grace period
 - Turn advancement in Hearts passing phase: human `pass_cards` commands left `Turn` stale, causing the session to wait indefinitely on the wrong seat. Added `advanceTurn()` helper used by both human and AI pass paths

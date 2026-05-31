@@ -199,6 +199,86 @@ func TestHumanAIFullGameIntegration(t *testing.T) {
 	}
 }
 
+// TestHumanTurnTimeoutIntegration verifies that when a human player does
+// not act within the turn timeout, the session auto-plays an AI move and
+// the game advances.
+func TestHumanTurnTimeoutIntegration(t *testing.T) {
+	t.Parallel()
+	srv, mgr := setupHeartsServer(t)
+	httpSrv := mustStartTestServer(t, srv)
+
+	timeout := 50
+	delay := 0
+	cfg := session.Config{
+		Game: "hearts",
+		Seats: []session.SeatConfig{
+			{Type: session.SeatHuman},
+			{Type: session.SeatAI, AIType: "random"},
+			{Type: session.SeatAI, AIType: "random"},
+			{Type: session.SeatAI, AIType: "random"},
+		},
+		PacingDelayMS: &delay,
+		TurnTimeoutMS: &timeout,
+	}
+
+	info, seats, err := mgr.Create(cfg)
+	if err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+	id := info.SessionID
+
+	var token string
+	for _, s := range seats {
+		if s.Type == session.SeatHuman {
+			token = s.Token
+			break
+		}
+	}
+	if token == "" {
+		t.Fatal("no human seat token found")
+	}
+
+	if err := mgr.Start(id); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+
+	// Connect human player but do not send any commands.
+	playerConn := mustDialPlayerWS(t, httpSrv.URL, id, token)
+	obsConn := mustDialObserverWS(t, httpSrv.URL, id)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Read initial snapshot.
+	snap := mustReadSnapshot(t, playerConn, ctx)
+	initialSeq, ok := snap["seq"].(float64)
+	if !ok {
+		t.Fatalf("snapshot missing seq: %v", snap)
+	}
+
+	// Wait longer than the timeout for the AI fallback to fire.
+	time.Sleep(150 * time.Millisecond)
+
+	// Read the post-timeout snapshot.
+	snap = mustReadSnapshot(t, playerConn, ctx)
+	timeoutSeq, ok := snap["seq"].(float64)
+	if !ok {
+		t.Fatalf("post-timeout snapshot missing seq: %v", snap)
+	}
+
+	if int(timeoutSeq) <= int(initialSeq) {
+		t.Fatalf(
+			"seq did not advance after timeout: got %d, want > %d",
+			int(timeoutSeq), int(initialSeq),
+		)
+	}
+
+	// Clean up: close connections and delete session.
+	_ = playerConn.Close(websocket.StatusNormalClosure, "")
+	_ = obsConn.Close(websocket.StatusNormalClosure, "")
+	_ = mgr.Delete(id)
+}
+
 // hashTestName returns a deterministic uint64 seed derived from the test name.
 func hashTestName(name string) uint64 {
 	h := fnv.New64a()
