@@ -45,6 +45,11 @@ func (pc *playerConn) run(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	pc.logger.Debug("player connection started",
+		"session_id", pc.sessionID,
+		"seat", pc.seat,
+	)
+
 	var wg sync.WaitGroup
 
 	wg.Go(func() {
@@ -56,6 +61,11 @@ func (pc *playerConn) run(ctx context.Context) {
 	})
 
 	wg.Wait()
+
+	pc.logger.Debug("player connection ended",
+		"session_id", pc.sessionID,
+		"seat", pc.seat,
+	)
 
 	// Both goroutines exited. Unsubscribe and close WS.
 	if err := pc.mgr.UnsubscribePlayer(pc.sessionID, pc.seat); err != nil {
@@ -90,6 +100,13 @@ func (pc *playerConn) reader(ctx context.Context, cancel context.CancelFunc) {
 			writeErrorToOutCh(ctx, pc.outCh, api.ErrMalformedMessage, err.Error(), msg.ActionID)
 			continue
 		}
+
+		pc.logger.Debug("player message received",
+			"session_id", pc.sessionID,
+			"seat", pc.seat,
+			"type", msg.Type,
+			"action_id", msg.ActionID,
+		)
 
 		result, err := pc.mgr.SubmitAction(pc.sessionID, pc.seat, &msg)
 		if err != nil {
@@ -148,6 +165,11 @@ func (pc *playerConn) writer(ctx context.Context, cancel context.CancelFunc) {
 					"session_id", pc.sessionID, "seat", pc.seat)
 				continue
 			}
+			pc.logger.Debug("player writing snapshot",
+				"session_id", pc.sessionID,
+				"seat", pc.seat,
+				"len", len(msg.Data),
+			)
 			if err := writeWSBytes(ctx, pc.ws, msg.Data); err != nil {
 				pc.logger.Error("ws write snapshot", "error", err)
 				return
@@ -162,6 +184,11 @@ func (pc *playerConn) writer(ctx context.Context, cancel context.CancelFunc) {
 					"session_id", pc.sessionID, "seat", pc.seat)
 				continue
 			}
+			pc.logger.Debug("player writing message",
+				"session_id", pc.sessionID,
+				"seat", pc.seat,
+				"len", len(msg),
+			)
 			if err := writeWSBytes(ctx, pc.ws, msg); err != nil {
 				pc.logger.Error("ws write message", "error", err)
 				return
@@ -216,6 +243,11 @@ func (s *Server) handlePlayerWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	conn.SetReadLimit(s.wsReadLimit)
+
+	s.logger.Info("player connected",
+		"session_id", id,
+		"seat", seat,
+	)
 
 	pc := &playerConn{
 		ws:        conn,

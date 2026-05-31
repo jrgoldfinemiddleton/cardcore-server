@@ -76,7 +76,7 @@ func NewServer(cfg Config) *Server {
 
 	s.srv = &http.Server{
 		Addr:           addr,
-		Handler:        recoveryMiddleware(requestLogMiddleware(s.mux)),
+		Handler:        recoveryMiddleware(requestLogMiddleware(s.mux, s.logger), s.logger),
 		ReadTimeout:    cfg.ReadTimeout,
 		WriteTimeout:   cfg.WriteTimeout,
 		MaxHeaderBytes: cfg.MaxHeaderBytes,
@@ -112,6 +112,8 @@ func (s *Server) Stop(ctx context.Context) error {
 // frame to every tracked WebSocket connection, deletes all non-expired
 // sessions from the [session.Manager], and then shuts down the HTTP server.
 func (s *Server) Shutdown(ctx context.Context) error {
+	s.logger.Info("server shutdown initiated")
+
 	s.closing.Store(true)
 
 	// Close WebSocket connections before deleting sessions so that
@@ -174,14 +176,15 @@ func (rw *responseWriter) WriteHeader(code int) {
 // recoveryMiddleware recovers from panics in HTTP handlers and logs
 // the stack trace. It re-panics http.ErrAbortHandler so that
 // net/http can handle it correctly.
-func recoveryMiddleware(next http.Handler) http.Handler {
+func recoveryMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
+	logger = logger.With("component", "transport")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rec := recover(); rec != nil {
 				if err, ok := rec.(error); ok && errors.Is(err, http.ErrAbortHandler) {
 					panic(rec)
 				}
-				slog.Error("handler panic",
+				logger.Error("handler panic",
 					"error", rec,
 					"stack", string(debug.Stack()),
 					"path", r.URL.Path,
@@ -197,12 +200,13 @@ func recoveryMiddleware(next http.Handler) http.Handler {
 
 // requestLogMiddleware logs each HTTP request with method, path,
 // status, and duration.
-func requestLogMiddleware(next http.Handler) http.Handler {
+func requestLogMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
+	logger = logger.With("component", "transport")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		ww := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 		next.ServeHTTP(ww, r)
-		slog.Info("request",
+		logger.Info("request",
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", ww.statusCode,

@@ -90,6 +90,10 @@ type session struct {
 	waitingForHuman bool
 	// turnDeadline is the time at which the turn timeout fires.
 	turnDeadline time.Time
+
+	// logger is the per-component logger so all session goroutine log
+	// lines carry session_id for filtering and correlation.
+	logger *slog.Logger
 }
 
 // run is the session goroutine event loop.
@@ -98,6 +102,8 @@ func (s *session) run() {
 	// channels have been closed. Manager methods use <-done to detect
 	// shutdown and avoid blocking on a dead session.
 	defer close(s.done)
+
+	s.logger.Debug("session goroutine started")
 
 	driveTurnsResult := s.driveTurns(false)
 	if driveTurnsResult == driveFinished || s.finished {
@@ -131,6 +137,7 @@ func (s *session) run() {
 
 		select {
 		case cmd := <-s.cmds:
+			s.logger.Debug("command received", "type", cmdType(cmd))
 			if pc, ok := cmd.(playCmd); ok && s.waitingForHuman &&
 				pc.seat == s.game.Turn() && s.isHumanSeat(pc.seat) {
 				s.waitingForHuman = false
@@ -141,10 +148,12 @@ func (s *session) run() {
 				return
 			}
 		case <-s.cancel:
+			s.logger.Debug("shutdown requested")
 			s.closeSubscribers()
 			s.drainCmds()
 			return
 		case <-timeoutCh:
+			s.logger.Debug("turn timeout fired")
 			s.waitingForHuman = false
 			s.handleTurnTimeout()
 			if s.finished {
@@ -173,9 +182,22 @@ func (s *session) handleCommand(cmd command) {
 func (s *session) handlePlay(c playCmd) {
 	defer close(c.resp)
 
+	s.logger.Debug("handlePlay",
+		"seat", c.seat,
+		"type", c.msg.Type,
+		"action_id", c.msg.ActionID,
+		"seq", c.msg.Seq,
+		"server_seq", s.seq,
+	)
+
 	// Client seq is behind the server. Send the latest snapshot so
 	// the client can resync, along with an error.
 	if c.msg.Seq < s.seq {
+		s.logger.Warn("stale seq",
+			"seat", c.seat,
+			"client_seq", c.msg.Seq,
+			"server_seq", s.seq,
+		)
 		snap := s.playerSnapshot(c.seat)
 		if snap == nil {
 			s.terminateOnMarshalFailure(
@@ -209,6 +231,7 @@ func (s *session) handlePlay(c playCmd) {
 	// Duplicate action_id: client resent a command that already
 	// succeeded. Send the cached snapshot without mutating state.
 	if cached, ok := s.actionIDs[c.msg.ActionID]; ok {
+		s.logger.Warn("duplicate action_id", "action_id", c.msg.ActionID)
 		result := SubmitResult{}
 		if cached != nil {
 			result.Snapshot = cached
@@ -224,6 +247,12 @@ func (s *session) handlePlay(c playCmd) {
 		// Send the error to the player's subscription channel and
 		// send it on the command response channel so the blocked
 		// submitter receives the rejection.
+		s.logger.Warn("action rejected",
+			"seat", c.seat,
+			"type", c.msg.Type,
+			"error_code", cmdErr.Code,
+			"message", cmdErr.Message,
+		)
 		s.sendError(c.seat, cmdErr.Code, cmdErr.Message, c.msg.ActionID)
 		c.resp <- SubmitResult{
 			Err: &api.ErrorMessage{
@@ -282,6 +311,8 @@ func (s *session) handlePlay(c playCmd) {
 // mutual recursion and keep all state transitions synchronous on the
 // session goroutine.
 func (s *session) driveTurns(fromPause bool) driveResult {
+	s.logger.Debug("driveTurns", "from_pause", fromPause)
+
 	var status driveResult
 	if fromPause {
 		status = s.resumePauses()
@@ -292,13 +323,16 @@ func (s *session) driveTurns(fromPause bool) driveResult {
 		status = s.resumePauses()
 	}
 	if status == driveFatal {
-		slog.Error("driveFatal reached, closing subscribers immediately", "session", s.id)
+		s.logger.Error("driveFatal reached, closing subscribers immediately")
 		s.closeSubscribers()
 		if s.onDone != nil {
 			s.onDone(Finished)
 		}
 		s.finished = true
 	}
+
+	s.logger.Debug("driveTurns done", "status", status)
+
 	return status
 }
 
@@ -308,6 +342,7 @@ func (s *session) driveTurns(fromPause bool) driveResult {
 func (s *session) resumePauses() driveResult {
 	delay := s.config.delay()
 	if delay > 0 {
+		s.logger.Debug("resumePauses waiting", "delay_ms", delay)
 		select {
 		case <-time.After(time.Duration(delay) * time.Millisecond):
 		case <-s.cancel:
@@ -320,10 +355,11 @@ func (s *session) resumePauses() driveResult {
 
 	res, err := s.game.Resume()
 	if err != nil {
-		slog.Error("Resume failed", "error", err)
+		s.logger.Error("Resume failed", "error", err)
 		return driveFatal
 	}
 	s.seq++
+	s.logger.Debug("Resume succeeded", "outcome", res.Outcome)
 	s.broadcastSnapshot()
 	if s.finished {
 		return driveFinished
@@ -350,14 +386,17 @@ func (s *session) processTurns() driveResult {
 		seat := s.game.Turn()
 		// Guard: if seat is out of range (e.g., empty config), stop.
 		if seat < 0 || seat >= len(s.config.Seats) {
-			slog.Error("driveFatal: invalid seat", "seat", seat, "session", s.id)
+			s.logger.Error("driveFatal: invalid seat", "seat", seat)
 			return driveFatal
 		}
+		isHuman := s.isHumanSeat(seat)
+		s.logger.Debug("processTurns", "seat", seat, "human", isHuman)
 		// If human, set turn timeout and return so run() can handle it.
-		if s.isHumanSeat(seat) {
+		if isHuman {
 			if s.config.turnTimeout() > 0 {
 				s.waitingForHuman = true
 				s.turnDeadline = time.Now().Add(s.config.turnTimeout())
+				s.logger.Debug("turn timeout scheduled", "seat", seat, "deadline", s.turnDeadline)
 			}
 			return driveHuman
 		}
@@ -388,7 +427,7 @@ func (s *session) processTurns() driveResult {
 
 		res, err := s.game.AIPlay(seat)
 		if err != nil {
-			slog.Error("AIPlay failed", "seat", seat, "error", err)
+			s.logger.Error("AIPlay failed", "seat", seat, "error", err)
 			return driveFatal
 		}
 		s.seq++
@@ -410,7 +449,7 @@ func (s *session) processTurns() driveResult {
 // isHumanSeat reports whether the given seat is configured as human.
 func (s *session) isHumanSeat(seat int) bool {
 	if seat < 0 || seat >= len(s.config.Seats) {
-		slog.Error("game adapter returned invalid seat", "seat", seat, "session", s.id)
+		s.logger.Error("game adapter returned invalid seat", "seat", seat)
 		return false
 	}
 	return s.config.Seats[seat].Type == SeatHuman
@@ -423,13 +462,14 @@ func (s *session) handleTurnTimeout() {
 	// Guard that the seat is still human (e.g., client disconnected human
 	// player since timeout was set).
 	if !s.isHumanSeat(seat) {
+		s.logger.Debug("turn timeout skipped: seat no longer human", "seat", seat)
 		return
 	}
 
-	slog.Info("turn timeout, playing AI move", "seat", seat, "session", s.id)
+	s.logger.Info("turn timeout, playing AI move", "seat", seat)
 	res, err := s.game.AIPlay(seat)
 	if err != nil {
-		slog.Error("AIPlay on timeout failed", "seat", seat, "error", err)
+		s.logger.Error("AIPlay on timeout failed", "seat", seat, "error", err)
 		return
 	}
 	s.seq++
@@ -455,7 +495,7 @@ func (s *session) playerSnapshot(seat int) []byte {
 	snap := s.game.PlayerSnapshot(seat, s.seq)
 	b, err := json.Marshal(snap)
 	if err != nil {
-		slog.Error("marshal player snapshot", "seat", seat, "error", err)
+		s.logger.Error("marshal player snapshot", "seat", seat, "error", err)
 		return nil
 	}
 	return b
@@ -469,7 +509,7 @@ func (s *session) observerSnapshot() []byte {
 	snap := s.game.ObserverSnapshot(s.seq)
 	b, err := json.Marshal(snap)
 	if err != nil {
-		slog.Error("marshal observer snapshot", "error", err)
+		s.logger.Error("marshal observer snapshot", "error", err)
 		return nil
 	}
 	return b
@@ -479,6 +519,8 @@ func (s *session) observerSnapshot() []byte {
 // If a snapshot fails to marshal, the session is terminated because the
 // game state is unplayable.
 func (s *session) broadcastSnapshot() {
+	s.logger.Debug("broadcastSnapshot", "seq", s.seq)
+
 	obsSnap := s.observerSnapshot()
 	if obsSnap == nil {
 		s.terminateOnMarshalFailure("observer snapshot marshal failed")
@@ -507,6 +549,9 @@ func (s *session) sendNonBlocking(ch chan SubscriberMessage, data []byte) {
 	select {
 	case ch <- SubscriberMessage{Data: data}:
 	default:
+		s.logger.Warn("subscriber channel full, snapshot dropped",
+			"queue_depth", subChanSize,
+		)
 	}
 }
 
@@ -539,7 +584,7 @@ func (s *session) handleSubscribePlayer(c subscribePlayerCmd) {
 		close(old)
 		replaced = true
 	}
-	slog.Info("player subscribed", "session", s.id, "seat", c.seat, "replaced", replaced)
+	s.logger.Info("player subscribed", "seat", c.seat, "replaced", replaced)
 	s.players[c.seat] = c.ch
 	snap := s.playerSnapshot(c.seat)
 	if snap == nil {
@@ -554,7 +599,7 @@ func (s *session) handleSubscribePlayer(c subscribePlayerCmd) {
 
 // handleSubscribeObserver registers a new observer subscriber.
 func (s *session) handleSubscribeObserver(c subscribeObserverCmd) {
-	slog.Info("observer subscribed", "session", s.id, "observer_count", len(s.observers)+1)
+	s.logger.Info("observer subscribed", "observer_count", len(s.observers)+1)
 	s.observers = append(s.observers, c.ch)
 	snap := s.observerSnapshot()
 	if snap == nil {
@@ -573,8 +618,7 @@ func (s *session) handleUnsubscribe(c unsubscribeCmd) {
 				last := len(s.observers) - 1
 				s.observers[i] = s.observers[last]
 				s.observers = s.observers[:last]
-				slog.Info("observer unsubscribed",
-					"session", s.id,
+				s.logger.Info("observer unsubscribed",
 					"observer_count", len(s.observers),
 				)
 				return
@@ -586,7 +630,7 @@ func (s *session) handleUnsubscribe(c unsubscribeCmd) {
 	if ch, ok := s.players[c.seat]; ok {
 		close(ch)
 		delete(s.players, c.seat)
-		slog.Info("player unsubscribed", "session", s.id, "seat", c.seat)
+		s.logger.Info("player unsubscribed", "seat", c.seat)
 	}
 }
 
@@ -609,6 +653,8 @@ func (s *session) closeSubscribers() {
 // finishWithGrace closes subscribers after a brief grace period so
 // observers can read the final snapshot before connections close.
 func (s *session) finishWithGrace() driveResult {
+	s.logger.Info("game finished")
+
 	select {
 	case <-time.After(100 * time.Millisecond):
 	case <-s.cancel:
@@ -656,7 +702,7 @@ func (s *session) drainCmds() {
 // Manager that the session is finished, and marks the session as
 // finished so the goroutine exits.
 func (s *session) terminateOnMarshalFailure(msg string, args ...any) {
-	slog.Error("session terminating due to marshal failure",
+	s.logger.Error("session terminating due to marshal failure",
 		append([]any{"message", msg}, args...)...)
 	for _, ch := range s.players {
 		select {
@@ -731,7 +777,24 @@ func newSession(
 		cancel:        make(chan struct{}),
 		done:          make(chan struct{}),
 		onDone:        onDone,
+		logger:        slog.With("component", "session", "session_id", id),
 	}
 	go s.run()
 	return s
+}
+
+// cmdType returns a human-readable name for a command value.
+func cmdType(cmd command) string {
+	switch cmd.(type) {
+	case playCmd:
+		return "play"
+	case subscribePlayerCmd:
+		return "subscribe_player"
+	case subscribeObserverCmd:
+		return "subscribe_observer"
+	case unsubscribeCmd:
+		return "unsubscribe"
+	default:
+		return "unknown"
+	}
 }

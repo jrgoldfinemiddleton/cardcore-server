@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
@@ -100,6 +101,12 @@ func (m *Manager) Create(cfg Config) (*SessionInfo, []SeatInfo, error) {
 	}
 	info := m.sessions[id].info(id)
 	m.mu.Unlock()
+
+	slog.With("component", "session_manager").Info("session created",
+		"session_id", id,
+		"game", cfg.Game,
+		"seats", len(cfg.Seats),
+	)
 
 	return info, seats, nil
 }
@@ -246,6 +253,11 @@ func (m *Manager) Start(id string) error {
 
 	e.sess = newSession(id, game, e.config, onDone)
 	e.state = Active
+
+	slog.With("component", "session_manager").Info("session started",
+		"session_id", id,
+	)
+
 	return nil
 }
 
@@ -271,6 +283,11 @@ func (m *Manager) Delete(id string) error {
 		}
 	}
 	e.state = Expired
+
+	slog.With("component", "session_manager").Info("session deleted",
+		"session_id", id,
+	)
+
 	return nil
 }
 

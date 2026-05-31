@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 
 	"github.com/jrgoldfinemiddleton/cardcore"
@@ -23,6 +24,8 @@ type Adapter struct {
 
 	// paused tracks which UX pause is active. Nil when not paused.
 	paused *pauseState
+
+	logger *slog.Logger
 }
 
 // pauseState captures the adapter state during a UX pause.
@@ -44,7 +47,9 @@ func NewAdapter(
 		)
 	}
 
-	a := &Adapter{}
+	a := &Adapter{
+		logger: slog.With("component", "hearts_adapter"),
+	}
 	for i, sc := range seats {
 		if sc.Type != session.SeatAI {
 			continue
@@ -70,7 +75,10 @@ func NewAdapter(
 func (a *Adapter) HandleAction(
 	seat int, msg *api.InboundMessage,
 ) (session.StepResult, *session.CommandError) {
+	a.logger.Debug("HandleAction", "seat", seat, "type", msg.Type)
+
 	if a.game.Phase == hearts.PhaseEnd {
+		a.logger.Warn("action rejected: game over", "seat", seat, "type", msg.Type)
 		return session.StepResult{},
 			&session.CommandError{
 				Code:    api.ErrGameOver,
@@ -84,6 +92,7 @@ func (a *Adapter) HandleAction(
 	case "pass_cards":
 		return a.handlePassCards(seat, msg.Payload)
 	default:
+		a.logger.Warn("unknown message type", "seat", seat, "type", msg.Type)
 		return session.StepResult{},
 			&session.CommandError{
 				Code: api.ErrMalformedMessage,
@@ -96,9 +105,12 @@ func (a *Adapter) HandleAction(
 
 // AIPlay executes the AI player's move for the given seat.
 func (a *Adapter) AIPlay(seat int) (session.StepResult, error) {
+	a.logger.Debug("AIPlay", "seat", seat, "phase", heartsapi.PhaseToWire(a.game.Phase))
+
 	s := hearts.Seat(seat)
 	p := a.players[seat]
 	if p == nil {
+		a.logger.Error("AIPlay on non-AI seat", "seat", seat)
 		return session.StepResult{},
 			fmt.Errorf("seat %d is not an AI seat", seat)
 	}
@@ -107,6 +119,7 @@ func (a *Adapter) AIPlay(seat int) (session.StepResult, error) {
 	case hearts.PhasePass:
 		cards := p.ChoosePass(a.game, s)
 		if err := a.game.SetPass(s, cards); err != nil {
+			a.logger.Error("AI pass failed", "seat", seat, "error", err)
 			return session.StepResult{},
 				fmt.Errorf("AI pass seat %d: %w", seat, err)
 		}
@@ -120,6 +133,9 @@ func (a *Adapter) AIPlay(seat int) (session.StepResult, error) {
 	case hearts.PhasePlay:
 		return a.playCard(seat, p.ChoosePlay(a.game, s))
 	default:
+		a.logger.Error("AI cannot act in current phase",
+			"seat", seat, "phase", heartsapi.PhaseToWire(a.game.Phase),
+		)
 		return session.StepResult{},
 			fmt.Errorf(
 				"AI cannot act in phase %q",
@@ -131,7 +147,10 @@ func (a *Adapter) AIPlay(seat int) (session.StepResult, error) {
 // Resume advances the game past a pausable state. Only valid when the
 // adapter is paused after returning StepPause.
 func (a *Adapter) Resume() (session.StepResult, error) {
+	a.logger.Debug("Resume", "paused", a.paused != nil)
+
 	if a.paused == nil {
+		a.logger.Warn("Resume called when not paused")
 		return session.StepResult{},
 			errors.New("Resume called when not paused")
 	}
@@ -204,6 +223,9 @@ func (a *Adapter) handlePlayCard(
 	s := hearts.Seat(seat)
 
 	if a.game.Phase != hearts.PhasePlay {
+		a.logger.Warn("play rejected: wrong phase",
+			"seat", seat, "phase", heartsapi.PhaseToWire(a.game.Phase),
+		)
 		return session.StepResult{},
 			&session.CommandError{
 				Code:    api.ErrWrongPhase,
@@ -211,6 +233,7 @@ func (a *Adapter) handlePlayCard(
 			}
 	}
 	if s != a.game.Turn {
+		a.logger.Warn("play rejected: out of turn", "seat", seat, "current_turn", a.game.Turn)
 		return session.StepResult{},
 			&session.CommandError{
 				Code: api.ErrOutOfTurn,
@@ -256,6 +279,9 @@ func (a *Adapter) handlePassCards(
 	s := hearts.Seat(seat)
 
 	if a.game.Phase != hearts.PhasePass {
+		a.logger.Warn("pass rejected: wrong phase",
+			"seat", seat, "phase", heartsapi.PhaseToWire(a.game.Phase),
+		)
 		return session.StepResult{},
 			&session.CommandError{
 				Code:    api.ErrWrongPhase,
