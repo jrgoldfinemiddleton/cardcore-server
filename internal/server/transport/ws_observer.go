@@ -40,6 +40,10 @@ func (oc *observerConn) run(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	oc.logger.Debug("observer connection started",
+		"session_id", oc.sessionID,
+	)
+
 	var wg sync.WaitGroup
 
 	// CloseRead handles ping/pong and close frames automatically.
@@ -52,6 +56,10 @@ func (oc *observerConn) run(ctx context.Context) {
 	})
 
 	wg.Wait()
+
+	oc.logger.Debug("observer connection ended",
+		"session_id", oc.sessionID,
+	)
 
 	// Both goroutines exited. Unsubscribe and close WS.
 	if err := oc.mgr.UnsubscribeObserver(oc.sessionID, oc.subCh); err != nil {
@@ -90,7 +98,7 @@ func (oc *observerConn) writer(ctx context.Context, cancel context.CancelFunc) {
 					"session_id", oc.sessionID)
 				continue
 			}
-			oc.logger.Info("observer writing snapshot",
+			oc.logger.Debug("observer writing snapshot",
 				"session_id", oc.sessionID, "len", len(msg.Data))
 			if err := writeWSBytes(ctx, oc.ws, msg.Data); err != nil {
 				oc.logger.Error("ws write snapshot", "error", err)
@@ -129,6 +137,10 @@ func (s *Server) handleObserverWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	conn.SetReadLimit(s.wsReadLimit)
+
+	s.logger.Info("observer connected",
+		"session_id", id,
+	)
 
 	oc := &observerConn{
 		ws:        conn,

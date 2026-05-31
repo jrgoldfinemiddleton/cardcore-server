@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -123,7 +124,7 @@ func TestPanicRecovery(t *testing.T) {
 	panicHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		panic("intentional panic for test")
 	})
-	wrapped := recoveryMiddleware(panicHandler)
+	wrapped := recoveryMiddleware(panicHandler, slog.Default())
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
@@ -140,7 +141,7 @@ func TestRequestLogMiddleware(t *testing.T) {
 	okHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	wrapped := requestLogMiddleware(okHandler)
+	wrapped := requestLogMiddleware(okHandler, slog.Default())
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)

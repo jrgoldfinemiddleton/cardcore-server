@@ -3,6 +3,7 @@ package session
 import (
 	"bytes"
 	"container/list"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -335,7 +336,8 @@ func TestSessionUnsubscribeObserverClosesChannel(t *testing.T) {
 func TestDrainCmdsHandlesPlayCmd(t *testing.T) {
 	g := &mockGame{}
 	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
-	defer close(s.cancel)
+	close(s.cancel)
+	<-s.done // Wait for the goroutine to exit so it does not race on s.cmds.
 
 	resp := make(chan SubmitResult, 1)
 	s.cmds <- playCmd{
@@ -348,7 +350,6 @@ func TestDrainCmdsHandlesPlayCmd(t *testing.T) {
 		resp: resp,
 	}
 
-	// drainCmds is called directly — no goroutine involvement needed.
 	s.drainCmds()
 
 	select {
@@ -731,6 +732,7 @@ func TestEvictLRUActionID(t *testing.T) {
 		actionIDs:     make(map[string][]byte),
 		actionIDList:  list.New(),
 		actionIDIndex: make(map[string]*list.Element),
+		logger:        slog.Default(),
 	}
 
 	// Manually populate the cache with 3 entries.
@@ -776,6 +778,7 @@ func TestEvictLRUActionIDEmptyList(t *testing.T) {
 		actionIDs:     make(map[string][]byte),
 		actionIDList:  list.New(),
 		actionIDIndex: make(map[string]*list.Element),
+		logger:        slog.Default(),
 	}
 
 	// Should not panic on empty list.
@@ -793,6 +796,7 @@ func TestIsHumanSeatBounds(t *testing.T) {
 			{Type: SeatHuman},
 			{Type: SeatAI, AIType: "random"},
 		}},
+		logger: slog.Default(),
 	}
 
 	if s.isHumanSeat(-1) {
@@ -816,6 +820,7 @@ func TestPlayerSnapshotMarshal(t *testing.T) {
 		id:     "test",
 		seq:    42,
 		config: Config{Seats: []SeatConfig{{Type: SeatHuman}}},
+		logger: slog.Default(),
 	}
 
 	// Success path: mockGame returns nil which marshals to "null".
@@ -844,6 +849,7 @@ func TestObserverSnapshotMarshal(t *testing.T) {
 		id:     "test",
 		seq:    7,
 		config: Config{Seats: []SeatConfig{{Type: SeatHuman}}},
+		logger: slog.Default(),
 	}
 
 	// Success path: mockGame returns nil which marshals to "null".
