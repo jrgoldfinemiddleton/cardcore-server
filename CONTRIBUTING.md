@@ -43,11 +43,11 @@ An optional `!` after the type/scope indicates a breaking change: `feat(session)
 
 - **Tests are required.** Every code change should include corresponding tests.
 - **Run `make check`** before pushing. It runs formatting, vetting, linting, and tests.
-- **Suppress log output during tests.** Tests suppress `log/slog` output by default. To see structured logs while debugging a failing test, set `TEST_LOGS=1`:
+- **Log output during tests.** By default only WARN and ERROR `log/slog` output is printed to stderr. To reveal all structured logs while debugging a failing test, set `TEST_LOG_LEVEL=debug`:
 
   ```bash
-  TEST_LOGS=1 go test ./internal/server/session/...
-  TEST_LOGS=1 make race
+  TEST_LOG_LEVEL=debug go test ./internal/server/session/...
+  TEST_LOG_LEVEL=debug make race
   ```
 
 - **Update the changelog.** Add a note under the `## [Unreleased]` section in `CHANGELOG.md` for user-facing changes.

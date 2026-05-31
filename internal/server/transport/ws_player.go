@@ -205,6 +205,7 @@ func (pc *playerConn) writer(ctx context.Context, cancel context.CancelFunc) {
 // subscribes the player to snapshot updates, upgrades the connection,
 // and launches a goroutine to manage the connection.
 func (s *Server) handlePlayerWS(w http.ResponseWriter, r *http.Request) {
+	logger := s.logger.With("component", "transport")
 	id := r.PathValue("id")
 
 	token, err := parseBearerToken(r)
@@ -215,19 +216,19 @@ func (s *Server) handlePlayerWS(w http.ResponseWriter, r *http.Request) {
 
 	sessionID, seat, err := s.mgr.LookupToken(token)
 	if err != nil {
-		s.logger.Info("lookup token failed", "error", err)
+		logger.Warn("lookup token failed", "error", err)
 		writeError(w, http.StatusUnauthorized, "invalid token")
 		return
 	}
 	if sessionID != id {
-		s.logger.Info("token session mismatch", "want_session", id, "got_session", sessionID)
+		logger.Warn("token session mismatch", "want_session", id, "got_session", sessionID)
 		writeError(w, http.StatusUnauthorized, "token does not match session")
 		return
 	}
 
 	subCh, err := s.mgr.SubscribePlayer(id, seat)
 	if err != nil {
-		s.logger.Info("subscribe player failed", "session_id", id, "seat", seat, "error", err)
+		logger.Warn("subscribe player failed", "session_id", id, "seat", seat, "error", err)
 		writeError(w, httpStatus(err), err.Error())
 		return
 	}
@@ -236,15 +237,15 @@ func (s *Server) handlePlayerWS(w http.ResponseWriter, r *http.Request) {
 		OriginPatterns: []string{"*"},
 	})
 	if err != nil {
-		s.logger.Error("websocket accept failed", "error", err)
+		logger.Error("websocket accept failed", "error", err)
 		if unsubErr := s.mgr.UnsubscribePlayer(id, seat); unsubErr != nil {
-			s.logger.Error("cleanup unsubscribe failed", "error", unsubErr)
+			logger.Error("cleanup unsubscribe failed", "error", unsubErr)
 		}
 		return
 	}
 	conn.SetReadLimit(s.wsReadLimit)
 
-	s.logger.Info("player connected",
+	logger.Info("player connected",
 		"session_id", id,
 		"seat", seat,
 	)
@@ -256,7 +257,7 @@ func (s *Server) handlePlayerWS(w http.ResponseWriter, r *http.Request) {
 		seat:      seat,
 		subCh:     subCh,
 		outCh:     make(chan []byte, 16),
-		logger:    s.logger,
+		logger:    logger,
 		closing:   &s.closing,
 	}
 	s.RegisterWSConn(conn)
