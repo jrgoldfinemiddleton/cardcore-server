@@ -1,22 +1,29 @@
 package transport
 
 import (
-	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 )
 
-// TestMain sets up the test environment and discards log output so that
-// tests do not print to stderr.
+// TestMain configures the default logger for test runs.
 //
-// When debugging a failing test, set TEST_LOGS=1 to see the full
-// structured log output.
+// By default only WARN and ERROR logs are printed to stderr.
+// Set TEST_LOG_LEVEL=debug to reveal all structured log output
+// while debugging a failing test.
 func TestMain(m *testing.M) {
-	var w = io.Discard
-	if os.Getenv("TEST_LOGS") != "" {
-		w = os.Stderr
+	level := slog.LevelWarn
+	if v := os.Getenv("TEST_LOG_LEVEL"); v != "" {
+		switch strings.ToLower(v) {
+		case "debug":
+			level = slog.LevelDebug
+		case "info":
+			level = slog.LevelInfo
+		case "error":
+			level = slog.LevelError
+		}
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(w, nil)))
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 	os.Exit(m.Run())
 }

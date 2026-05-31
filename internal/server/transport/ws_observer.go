@@ -117,11 +117,12 @@ func (oc *observerConn) writer(ctx context.Context, cancel context.CancelFunc) {
 // manage the connection. Observers receive snapshots but cannot send
 // commands, so no authentication is required.
 func (s *Server) handleObserverWS(w http.ResponseWriter, r *http.Request) {
+	logger := s.logger.With("component", "transport")
 	id := r.PathValue("id")
 
 	subCh, err := s.mgr.SubscribeObserver(id)
 	if err != nil {
-		s.logger.Info("subscribe observer failed", "session_id", id, "error", err)
+		logger.Warn("subscribe observer failed", "session_id", id, "error", err)
 		writeError(w, httpStatus(err), err.Error())
 		return
 	}
@@ -130,15 +131,15 @@ func (s *Server) handleObserverWS(w http.ResponseWriter, r *http.Request) {
 		OriginPatterns: []string{"*"},
 	})
 	if err != nil {
-		s.logger.Error("websocket accept failed", "error", err)
+		logger.Error("websocket accept failed", "error", err)
 		if unsubErr := s.mgr.UnsubscribeObserver(id, subCh); unsubErr != nil {
-			s.logger.Error("cleanup unsubscribe failed", "error", unsubErr)
+			logger.Error("cleanup unsubscribe failed", "error", unsubErr)
 		}
 		return
 	}
 	conn.SetReadLimit(s.wsReadLimit)
 
-	s.logger.Info("observer connected",
+	logger.Info("observer connected",
 		"session_id", id,
 	)
 
@@ -147,7 +148,7 @@ func (s *Server) handleObserverWS(w http.ResponseWriter, r *http.Request) {
 		mgr:       s.mgr,
 		sessionID: id,
 		subCh:     subCh,
-		logger:    s.logger,
+		logger:    logger,
 		closing:   &s.closing,
 	}
 	s.RegisterWSConn(conn)

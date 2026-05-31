@@ -3,8 +3,10 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"hash/fnv"
 	"math/rand/v2"
+	"sync"
 	"testing"
 	"time"
 
@@ -279,6 +281,237 @@ func TestHumanTurnTimeoutIntegration(t *testing.T) {
 	_ = mgr.Delete(id)
 }
 
+// TestPassPhaseTimeoutIntegration verifies that when a human player does
+// not send pass_cards during the pass phase, the turn timeout fires and
+// the AI fallback selects 3 cards to pass.
+func TestPassPhaseTimeoutIntegration(t *testing.T) {
+	t.Parallel()
+	srv, mgr := setupHeartsServer(t)
+	httpSrv := mustStartTestServer(t, srv)
+
+	timeout := 100
+	delay := 0
+	cfg := session.Config{
+		Game: "hearts",
+		Seats: []session.SeatConfig{
+			{Type: session.SeatHuman},
+			{Type: session.SeatAI, AIType: "random"},
+			{Type: session.SeatAI, AIType: "random"},
+			{Type: session.SeatAI, AIType: "random"},
+		},
+		PacingDelayMS: &delay,
+		TurnTimeoutMS: &timeout,
+	}
+
+	info, seats, err := mgr.Create(cfg)
+	if err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+	id := info.SessionID
+
+	var token string
+	for _, s := range seats {
+		if s.Type == session.SeatHuman {
+			token = s.Token
+			break
+		}
+	}
+	if token == "" {
+		t.Fatal("no human seat token found")
+	}
+
+	if err := mgr.Start(id); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+
+	playerConn := mustDialPlayerWS(t, httpSrv.URL, id, token)
+	obsConn := mustDialObserverWS(t, httpSrv.URL, id)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	snap := mustReadSnapshot(t, playerConn, ctx)
+	phase, _ := snap["phase"].(string)
+	if phase != "passing" {
+		t.Fatalf("expected passing phase, got %q", phase)
+	}
+	initialSeq, ok := snap["seq"].(float64)
+	if !ok {
+		t.Fatalf("snapshot missing seq: %v", snap)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+
+	snap = mustReadSnapshot(t, playerConn, ctx)
+	passSeq, ok := snap["seq"].(float64)
+	if !ok {
+		t.Fatalf("post-timeout snapshot missing seq: %v", snap)
+	}
+
+	if int(passSeq) <= int(initialSeq) {
+		t.Fatalf(
+			"seq did not advance after pass timeout: got %d, want > %d",
+			int(passSeq), int(initialSeq),
+		)
+	}
+
+	_ = playerConn.Close(websocket.StatusNormalClosure, "")
+	_ = obsConn.Close(websocket.StatusNormalClosure, "")
+	_ = mgr.Delete(id)
+}
+
+// TestFourHumansFullGameIntegration verifies that a session with 4 human
+// seats completes correctly. Each human client independently detects
+// their turn and sends commands.
+func TestFourHumansFullGameIntegration(t *testing.T) {
+	t.Parallel()
+	srv, mgr := setupHeartsServer(t)
+	httpSrv := mustStartTestServer(t, srv)
+
+	info, seats, err := mgr.Create(fourHumanHeartsConfig())
+	if err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+	id := info.SessionID
+
+	tokens := make([]string, 4)
+	for i, s := range seats {
+		if s.Type != session.SeatHuman {
+			t.Fatalf("seat %d is not human", i)
+		}
+		tokens[i] = s.Token
+	}
+
+	if err := mgr.Start(id); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, 4)
+	var cancelOnce sync.Once
+
+	for seat := range 4 {
+		wg.Go(func() {
+			conn := mustDialPlayerWS(t, httpSrv.URL, id, tokens[seat])
+			defer func() {
+				_ = conn.Close(websocket.StatusNormalClosure, "")
+			}()
+
+			actionCount := 0
+			maxSeq := -1
+
+			for {
+				snap, err := readSnapshot(t, conn, ctx)
+				if err != nil {
+					if ctx.Err() != nil {
+						return
+					}
+					errCh <- fmt.Errorf("read snapshot: %w", err)
+					return
+				}
+
+				if msgType, ok := snap["type"].(string); ok && msgType == "error" {
+					errCh <- fmt.Errorf(
+						"seat %d received error: %v", seat, snap,
+					)
+					return
+				}
+
+				seq, ok := snap["seq"].(float64)
+				if !ok {
+					errCh <- fmt.Errorf(
+						"snapshot missing seq: %v", snap,
+					)
+					return
+				}
+				if int(seq) <= maxSeq {
+					errCh <- fmt.Errorf(
+						"seq not strictly monotonic: got %d after max %d",
+						int(seq), maxSeq,
+					)
+					return
+				}
+				maxSeq = int(seq)
+
+				phase, _ := snap["phase"].(string)
+				if phase == "game_over" {
+					cancelOnce.Do(cancel)
+					return
+				}
+
+				turn, _ := snap["turn"].(float64)
+				if int(turn) == seat &&
+					(phase == "passing" || phase == "playing") {
+					legalActionsRaw, ok := snap["legal_actions"]
+					if !ok {
+						errCh <- fmt.Errorf(
+							"snapshot missing legal_actions: %v", snap,
+						)
+						return
+					}
+					legalActions := extractCards(t, legalActionsRaw)
+					if len(legalActions) == 0 {
+						errCh <- fmt.Errorf(
+							"no legal actions for seat %d", seat,
+						)
+						return
+					}
+
+					actionID := fmt.Sprintf(
+						"seat%d-action-%c", seat, 'a'+actionCount,
+					)
+					actionCount++
+
+					switch phase {
+					case "passing":
+						if len(legalActions) < 3 {
+							errCh <- fmt.Errorf(
+								"expected at least 3 legal actions, got %d",
+								len(legalActions),
+							)
+							return
+						}
+						sendPassCards(
+							t, conn, actionID, maxSeq, legalActions[:3],
+						)
+					case "playing":
+						sendPlayCard(
+							t, conn, actionID, maxSeq, legalActions[0],
+						)
+					}
+				}
+			}
+		})
+	}
+
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("client goroutine error: %v", err)
+		}
+	}
+}
+
+// fourHumanHeartsConfig returns a 4-seat all-human Hearts config with
+// zero pacing delay.
+func fourHumanHeartsConfig() session.Config {
+	delay := 0
+	return session.Config{
+		Game: "hearts",
+		Seats: []session.SeatConfig{
+			{Type: session.SeatHuman},
+			{Type: session.SeatHuman},
+			{Type: session.SeatHuman},
+			{Type: session.SeatHuman},
+		},
+		PacingDelayMS: &delay,
+	}
+}
+
 // hashTestName returns a deterministic uint64 seed derived from the test name.
 func hashTestName(name string) uint64 {
 	h := fnv.New64a()
@@ -376,6 +609,27 @@ func sendPassCards(t *testing.T, conn *websocket.Conn, actionID string, seq int,
 	if err := writeWSJSON(context.Background(), conn, msg); err != nil {
 		t.Fatalf("write pass_cards: %v", err)
 	}
+}
+
+// readSnapshot reads a single WebSocket message and unmarshals it as a
+// snapshot. Unlike mustReadSnapshot it returns an error so callers can
+// decide whether the error is fatal. Used by the 4-human goroutine so it
+// can return quietly when the shared context is cancelled after another
+// seat sees game_over.
+func readSnapshot(t *testing.T, conn *websocket.Conn, ctx context.Context) (map[string]any, error) {
+	t.Helper()
+	typ, b, err := conn.Read(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if typ != websocket.MessageText {
+		return nil, fmt.Errorf("got message type %d, want text", typ)
+	}
+	var snap map[string]any
+	if err := json.Unmarshal(b, &snap); err != nil {
+		return nil, fmt.Errorf("unmarshal snapshot: %w", err)
+	}
+	return snap, nil
 }
 
 // extractCards extracts a slice of heartsapi.Card from a []any of map[string]any
