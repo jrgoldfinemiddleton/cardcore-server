@@ -10,12 +10,15 @@ Module: `github.com/jrgoldfinemiddleton/cardcore-server`
 cardcore-server/
 ├── cmd/
 │   ├── server/          # Game server binary
-│   └── tui/             # Bubble Tea TUI client binary
+│   ├── tui/             # Bubble Tea TUI client binary
+│   └── client/          # Non-TTY CLI client binary
 ├── internal/
 │   ├── api/
 │   │   ├── api.go        # Game-agnostic message envelopes and error codes
 │   │   └── games/
 │   │       └── <game>/   # Wire-format DTOs and conversion functions
+│   ├── client/          # Shared protocol-agnostic client engine
+│   │   └── hearts/      # Hearts-specific adapter and DTOs
 │   └── server/
 │       ├── transport/   # HTTP/WebSocket plumbing
 │       ├── session/     # Session lifecycle and game goroutine
@@ -78,7 +81,7 @@ cardcore-server/
 
 ## 5. Development Workflow
 1. Make a change
-2. Run `make check` — must pass clean
+2. Run `make check` and `make race` — must pass clean
 3. If lint errors appear, fix the code (do not suppress with `//nolint`)
 4. Commit only when all checks pass
 5. Write commit messages following [Conventional Commits](https://www.conventionalcommits.org/)
@@ -111,6 +114,7 @@ Read `doc/decisions/` for the rationale behind key choices. Important ADRs:
 - Before adding any dependency not listed in `doc/dependencies.md`
 - Before writing or modifying any file, propose the change and wait for explicit approval
 - Before installing any dev tool
+- Before running ANY git or GitHub write/delete command.  Previous authorization does not constitute current approval.  Authorization must be explicit.
 
 ## 9. Maintainer Runbook
 If `doc/maintainer-runbook.md` exists locally, read it for release procedures, PR review workflow, repository settings reference, and recovery steps.

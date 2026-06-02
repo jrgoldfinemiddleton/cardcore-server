@@ -2,15 +2,18 @@
 
 ## Package Structure
 
-The project uses a `cmd/` + `internal/` layout: `cmd/` holds thin entry points for the server and TUI binaries, while `internal/api/` provides shared wire DTOs and `internal/server/` splits server logic into transport, session, and view layers.
+The project uses a `cmd/` + `internal/` layout: `cmd/` holds thin entry points for the server and client binaries, while `internal/api/` provides shared wire DTOs, `internal/server/` splits server logic into transport, session, and view layers, and `internal/client/` provides a protocol-agnostic client engine shared by the TUI and CLI.
 
 ```
 github.com/jrgoldfinemiddleton/cardcore-server
 ├── cmd/
 │   ├── server/              ← entry point: parse flags, wire deps, start HTTP listener
-│   └── tui/                 ← entry point: parse flags, connect WS, run Bubble Tea
+│   ├── tui/                 ← entry point: parse flags, connect WS, run Bubble Tea
+│   └── client/              ← entry point: scripted or batch CLI client
 ├── internal/
-│   ├── api/                 ← wire DTOs shared by server and TUI (JSON structs)
+│   ├── api/                 ← wire DTOs shared by server and clients (JSON structs)
+│   ├── client/              ← shared client engine: HTTP lifecycle, WS connection, messages, errors
+│   │   └── hearts/          ← Hearts-specific adapter, DTOs, and command builders
 │   └── server/
 │       ├── transport/       ← HTTP handlers, WebSocket upgrade, routing, message parsing
 │       ├── session/         ← session lifecycle, game goroutine, token management, seq
@@ -20,27 +23,41 @@ github.com/jrgoldfinemiddleton/cardcore-server
 ## Data Flow
 
 ```
-┌───────────┐          HTTP/WS          ┌────────────┐
-│    TUI    │◄─────────────────────────►│   Server   │
-│  (client) │       JSON messages       │            │
-└───────────┘                           └─────┬──────┘
-                                              │
-                                    ┌─────────┼─────────┐
-                                    │         │         │
-                              transport/  session/    view/
-                                    │         │         │
-                                    │    ┌────┴────┐    │
-                                    │    │cardcore │    │
-                                    │    │ engine  │    │
-                                    │    └─────────┘    │
-                                    └───────────────────┘
+                    ┌─────────┐
+                    │   TUI   │
+                    └────┬────┘
+                    ┌────┴────┐
+                    │   CLI   │
+                    └────┬────┘
+                         │
+                    ┌────┴────┐
+                    │ Client  │  ← HTTP lifecycle, WS read loop, maxSeenSeq
+                    │ Engine  │     (internal/client/, internal/client/hearts/)
+                    └────┬────┘
+                         │  HTTP/WS
+                         │  JSON messages
+                         ▼
+               ┌───────────────────┐
+               │      Server       │
+               └─────────┬─────────┘
+                         │
+               ┌─────────┼─────────┐
+               │         │         │
+         transport/  session/    view/
+               │         │         │
+               │    ┌────┴────┐    │
+               │    │cardcore │    │
+               │    │ engine  │    │
+               │    └─────────┘    │
+               └───────────────────┘
 ```
 
-1. **TUI** sends player commands (`play_card`, `pass_cards`) as JSON over WebSocket.
-2. **Transport** accepts HTTP requests, upgrades WebSocket connections, parses inbound messages, and routes them to the appropriate session.
-3. **Session** owns the game goroutine. It validates commands, applies them to the cardcore engine, runs AI turns, increments the seq counter, and broadcasts state changes.
-4. **View** takes raw engine state and a seat index, produces a filtered snapshot DTO (hides opponents' hands, computes legal actions).
-5. **Transport** serializes the snapshot and sends it to connected clients.
+1. **TUI** (interactive) or **CLI** (scripted/batch) calls into the **Client Engine** (`internal/client/`) for HTTP session management and WebSocket I/O.
+2. The **Client Engine** sends player commands (`play_card`, `pass_cards`) as JSON over WebSocket and receives snapshot/error broadcasts, filtering duplicates via `maxSeenSeq`.
+3. **Transport** accepts HTTP requests, upgrades WebSocket connections, parses inbound messages, and routes them to the appropriate session.
+4. **Session** owns the game goroutine. It validates commands, applies them to the cardcore engine, runs AI turns, increments the seq counter, and broadcasts state changes.
+5. **View** takes raw engine state and a seat index, produces a filtered snapshot DTO (hides opponents' hands, computes legal actions).
+6. **Transport** serializes the snapshot and sends it to connected clients.
 
 ## Session Lifecycle
 
