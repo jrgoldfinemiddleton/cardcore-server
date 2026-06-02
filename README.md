@@ -25,12 +25,16 @@ Cardcore Server provides a localhost WebSocket server that hosts card games powe
 cardcore-server/
 ├── cmd/
 │   ├── server/          # Game server binary
-│   └── tui/             # TUI client binary
+│   ├── tui/             # Bubble Tea TUI client binary
+│   └── client/          # Non-TTY CLI client binary
 └── internal/
+    ├── client/          # Shared protocol-agnostic client engine
+    │   └── hearts/      # Hearts-specific adapter and DTOs
     └── server/
-        ├── transport/   # HTTP/WebSocket plumbing
-        ├── session/     # Session lifecycle and game goroutine
-        └── view/        # Seat-filtered snapshot generation
+        ├── transport/       # HTTP/WebSocket plumbing
+        ├── session/         # Session lifecycle and game goroutine
+        └── view/
+            └── <game>/      # Seat-filtered snapshot generation
 ```
 
 ## Requirements
