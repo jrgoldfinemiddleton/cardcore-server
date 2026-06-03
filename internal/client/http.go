@@ -1,0 +1,200 @@
+package client
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+)
+
+// SeatConfig describes a single seat's setup at session creation time.
+type SeatConfig struct {
+	// Type is "human" or "ai".
+	Type string `json:"type"`
+	// AIType is the AI implementation name (e.g., "random", "heuristic").
+	// Only meaningful when Type is "ai".
+	AIType string `json:"ai_type,omitempty"`
+}
+
+// Config holds the parameters for creating a new session.
+type Config struct {
+	// Game is the game identifier (e.g., "hearts").
+	Game string `json:"game"`
+	// Seats defines each seat's configuration.
+	Seats []SeatConfig `json:"seats"`
+	// PacingDelayMS is the delay in milliseconds between state
+	// transitions that require UX pacing (e.g., trick completion,
+	// round completion, AI turns). Zero means use the server default.
+	PacingDelayMS int `json:"pacing_delay_ms,omitempty"`
+	// TurnTimeoutMS is the maximum time in milliseconds to wait for
+	// a human player to act before auto-playing an AI move. Zero means
+	// use the server default.
+	TurnTimeoutMS int `json:"turn_timeout_ms,omitempty"`
+}
+
+// SeatInfo is returned from session creation with the seat's token.
+// Token is only present for human seats.
+type SeatInfo struct {
+	// Index is the 0-based seat position.
+	Index int `json:"index"`
+	// Type is "human" or "ai".
+	Type string `json:"type"`
+	// Token is the bearer token for WebSocket authentication.
+	// Empty for AI seats.
+	Token string `json:"token,omitempty"`
+}
+
+// SessionInfo is the full session detail returned by get and update
+// operations.
+type SessionInfo struct {
+	// SessionID is the opaque session identifier.
+	SessionID string `json:"session_id"`
+	// Game is the game identifier.
+	Game string `json:"game"`
+	// State is the current lifecycle state (e.g., "draft", "active", "finished").
+	State string `json:"state"`
+	// Seats describes each seat's configuration.
+	Seats []SeatDetail `json:"seats"`
+	// PacingDelayMS is the configured pacing delay in milliseconds.
+	PacingDelayMS int `json:"pacing_delay_ms"`
+	// TurnTimeoutMS is the configured turn timeout in milliseconds.
+	// 0 means disabled.
+	TurnTimeoutMS int `json:"turn_timeout_ms"`
+}
+
+// SeatDetail describes a seat in session info responses.
+// Unlike SeatInfo, it does not include the token.
+type SeatDetail struct {
+	// Index is the 0-based seat position.
+	Index int `json:"index"`
+	// Type is "human" or "ai".
+	Type string `json:"type"`
+	// AIType is the AI implementation name. Empty for human seats.
+	AIType string `json:"ai_type,omitempty"`
+}
+
+// HTTPError is returned when the server responds with a non-success
+// status code.
+type HTTPError struct {
+	// StatusCode is the HTTP status code from the response.
+	StatusCode int
+	// Message is the error message from the response body.
+	Message string
+}
+
+// SessionClient wraps HTTP calls to the cardcore server for session
+// lifecycle management.
+type SessionClient struct {
+	// BaseURL is the server base URL (e.g., "http://localhost:8080").
+	BaseURL string
+	// HTTPClient is the HTTP client used for requests. If nil,
+	// [http.DefaultClient] is used.
+	HTTPClient *http.Client
+}
+
+// createResponse is the JSON body for POST /sessions responses.
+type createResponse struct {
+	SessionID string     `json:"session_id"`
+	Seats     []SeatInfo `json:"seats"`
+}
+
+// startResponse is the JSON body for POST /sessions/{id}/start responses.
+type startResponse struct {
+	SessionID string `json:"session_id"`
+	State     string `json:"state"`
+}
+
+// Error returns a string including the status code and message.
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("HTTP %d: %s", e.StatusCode, e.Message)
+}
+
+// CreateSession creates a new session in draft state.
+// On success it returns the session ID and seat info (including tokens
+// for human seats).
+func (c *SessionClient) CreateSession(ctx context.Context, cfg Config) (string, []SeatInfo, error) {
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return "", nil, err
+	}
+
+	resp, err := c.doRequest(ctx, http.MethodPost, "/sessions", data)
+	if err != nil {
+		return "", nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusCreated {
+		return "", nil, readError(resp)
+	}
+
+	var cr createResponse
+	if err := json.NewDecoder(resp.Body).Decode(&cr); err != nil {
+		return "", nil, err
+	}
+	return cr.SessionID, cr.Seats, nil
+}
+
+// StartSession transitions a draft session to active.
+func (c *SessionClient) StartSession(ctx context.Context, sessionID string) error {
+	resp, err := c.doRequest(ctx, http.MethodPost, "/sessions/"+sessionID+"/start", nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return readError(resp)
+	}
+	return nil
+}
+
+// DeleteSession deletes a session.
+func (c *SessionClient) DeleteSession(ctx context.Context, sessionID string) error {
+	resp, err := c.doRequest(ctx, http.MethodDelete, "/sessions/"+sessionID, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusNoContent {
+		return readError(resp)
+	}
+	return nil
+}
+
+// doRequest sends an HTTP request and returns the response. The caller
+// is responsible for closing the response body.
+func (c *SessionClient) doRequest(
+	ctx context.Context,
+	method, path string,
+	body []byte,
+) (*http.Response, error) {
+	client := c.HTTPClient
+	if client == nil {
+		client = http.DefaultClient
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, c.BaseURL+path, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	return client.Do(req)
+}
+
+// readError decodes an error response body into an HTTPError.
+func readError(resp *http.Response) *HTTPError {
+	var er struct {
+		Error string `json:"error"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&er)
+	return &HTTPError{
+		StatusCode: resp.StatusCode,
+		Message:    er.Error,
+	}
+}
