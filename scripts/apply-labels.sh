@@ -24,6 +24,7 @@ fi
 # triage labels) are left untouched.
 managed=(
 	"scope:server"
+	"scope:client"
 	"scope:tui"
 	"scope:api"
 	"scope:docs"
@@ -68,6 +69,8 @@ while IFS= read -r f; do
 			add_want "scope:api" ;;
 		internal/server/*|cmd/server/*)
 			add_want "scope:server" ;;
+		internal/client/*|cmd/client/*)
+			add_want "scope:client" ;;
 		internal/tui/*|cmd/tui/*)
 			add_want "scope:tui" ;;
 		doc/*)
