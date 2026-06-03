@@ -45,7 +45,7 @@ func TestObserverWSReceivesBroadcastSnapshotsIntegration(t *testing.T) {
 	cmd := map[string]any{
 		"type":      "play_card",
 		"action_id": "test-action-1",
-		"seq":       0,
+		"seq":       1,
 		"payload": map[string]any{
 			"card": map[string]any{"rank": "two", "suit": "clubs"},
 		},

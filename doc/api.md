@@ -392,6 +392,18 @@ snapshots out of monotonic order. The client must track the highest
 `seq` it has seen (`maxSeenSeq`) and ignore any snapshot with
 `seq <= maxSeenSeq`.
 
+**Sequence number contract:** The `seq` field is a monotonically
+increasing integer starting at 1. Every snapshot the server sends has
+`seq >= 1`. The initial snapshot sent on WebSocket connection (both
+player and observer) carries `seq=1` if no state changes have occurred
+yet, or the current `seq` if the client connected mid-game.
+
+On connection, the client initializes `maxSeenSeq` to 0, so the initial
+snapshot is always accepted. When sending a command, the client includes
+its current `maxSeenSeq` as the `seq` field. If the client's seq is
+behind the server's, the server responds with a `stale_seq` error and a
+fresh snapshot.
+
 ### `error`
 
 Sent when a client command is rejected. The WebSocket connection
