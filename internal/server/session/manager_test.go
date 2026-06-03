@@ -466,7 +466,7 @@ func TestManagerSubmitActionRejectsNotActive(t *testing.T) {
 	_, err = m.SubmitAction(id, 0, &api.InboundMessage{
 		Type:     "test",
 		ActionID: "action1",
-		Seq:      0,
+		Seq:      1,
 	})
 	if !errors.Is(err, ErrNotActive) {
 		t.Errorf("got error %v, want ErrNotActive", err)
@@ -484,7 +484,7 @@ func TestManagerSubmitActionActiveSucceeds(t *testing.T) {
 	result, err := m.SubmitAction(id, 0, &api.InboundMessage{
 		Type:     "test",
 		ActionID: "action1",
-		Seq:      0,
+		Seq:      1,
 	})
 	if err != nil {
 		t.Fatalf("SubmitAction() transport error: %v", err)
@@ -539,7 +539,7 @@ func TestManagerSubmitActionRejectsFinished(t *testing.T) {
 	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
 		Type:     "test",
 		ActionID: "action1",
-		Seq:      0,
+		Seq:      1,
 	})
 	if err != nil {
 		t.Fatalf("SubmitAction() error: %v", err)
@@ -566,7 +566,7 @@ func TestManagerSubscribePlayerRejectsFinished(t *testing.T) {
 	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
 		Type:     "test",
 		ActionID: "action1",
-		Seq:      0,
+		Seq:      1,
 	})
 	if err != nil {
 		t.Fatalf("SubmitAction() error: %v", err)
@@ -590,7 +590,7 @@ func TestManagerSubscribeObserverRejectsFinished(t *testing.T) {
 	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
 		Type:     "test",
 		ActionID: "action1",
-		Seq:      0,
+		Seq:      1,
 	})
 	if err != nil {
 		t.Fatalf("SubmitAction() error: %v", err)
@@ -613,7 +613,7 @@ func TestManagerUnsubscribePlayerRejectsFinished(t *testing.T) {
 	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
 		Type:     "test",
 		ActionID: "action1",
-		Seq:      0,
+		Seq:      1,
 	})
 	if err != nil {
 		t.Fatalf("SubmitAction() error: %v", err)
@@ -637,7 +637,7 @@ func TestManagerUnsubscribeObserverRejectsFinished(t *testing.T) {
 	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
 		Type:     "test",
 		ActionID: "action1",
-		Seq:      0,
+		Seq:      1,
 	})
 	if err != nil {
 		t.Fatalf("SubmitAction() error: %v", err)
@@ -662,7 +662,7 @@ func TestSubmitActionDoesNotBlockAfterGoroutineExits(t *testing.T) {
 	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
 		Type:     "test",
 		ActionID: "action1",
-		Seq:      0,
+		Seq:      1,
 	})
 	if err != nil {
 		t.Fatalf("SubmitAction() error: %v", err)
@@ -876,7 +876,7 @@ func TestManagerMarshalFailureTransitionsToFinished(t *testing.T) {
 	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
 		Type:     "test",
 		ActionID: "action1",
-		Seq:      0,
+		Seq:      1,
 	})
 	if err != nil {
 		t.Fatalf("SubmitAction() error: %v", err)

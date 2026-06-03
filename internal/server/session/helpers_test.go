@@ -46,6 +46,38 @@ type aiPlayPauseGame struct {
 	turnSeat  int
 }
 
+// seqSnapshotGame is a mock Game that returns snapshots embedding the
+// seq value so tests can verify the sequence number in the wire format.
+type seqSnapshotGame struct{}
+
+// HandleAction implements Game.HandleAction for seqSnapshotGame.
+func (seqSnapshotGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
+	return StepResult{}, nil
+}
+
+// AIPlay implements Game.AIPlay for seqSnapshotGame.
+func (seqSnapshotGame) AIPlay(int) (StepResult, error) {
+	return StepResult{}, nil
+}
+
+// Resume implements Game.Resume for seqSnapshotGame.
+func (seqSnapshotGame) Resume() (StepResult, error) {
+	return StepResult{}, nil
+}
+
+// Turn implements Game.Turn for seqSnapshotGame.
+func (seqSnapshotGame) Turn() int { return 0 }
+
+// PlayerSnapshot implements Game.PlayerSnapshot for seqSnapshotGame.
+func (seqSnapshotGame) PlayerSnapshot(seat, seq int) any {
+	return map[string]any{"seq": seq}
+}
+
+// ObserverSnapshot implements Game.ObserverSnapshot for seqSnapshotGame.
+func (seqSnapshotGame) ObserverSnapshot(seq int) any {
+	return map[string]any{"seq": seq}
+}
+
 // HandleAction implements Game.HandleAction for aiPlayPauseGame.
 func (a *aiPlayPauseGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	a.turnSeat = 1

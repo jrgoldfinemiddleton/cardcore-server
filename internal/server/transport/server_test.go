@@ -1323,13 +1323,13 @@ func (stubGame) Resume() (session.StepResult, error) {
 func (stubGame) Turn() int { return 0 }
 
 // PlayerSnapshot implements session.Game.
-func (stubGame) PlayerSnapshot(int, int) any {
-	return map[string]any{"type": "snapshot", "seq": 0}
+func (stubGame) PlayerSnapshot(seat, seq int) any {
+	return map[string]any{"type": "snapshot", "seq": seq}
 }
 
 // ObserverSnapshot implements session.Game.
-func (stubGame) ObserverSnapshot(int) any {
-	return map[string]any{"type": "snapshot", "seq": 0}
+func (stubGame) ObserverSnapshot(seq int) any {
+	return map[string]any{"type": "snapshot", "seq": seq}
 }
 
 // HandleAction implements session.Game for unmarshalableStubGame.

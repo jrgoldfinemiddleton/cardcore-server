@@ -767,6 +767,7 @@ func newSession(
 ) *session {
 	s := &session{
 		id:            id,
+		seq:           1,
 		game:          g,
 		config:        cfg,
 		actionIDs:     make(map[string][]byte),

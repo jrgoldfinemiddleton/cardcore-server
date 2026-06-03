@@ -3,6 +3,7 @@ package session
 import (
 	"bytes"
 	"container/list"
+	"encoding/json"
 	"log/slog"
 	"testing"
 	"time"
@@ -23,14 +24,14 @@ func TestSessionHandlePlayIncrementsSeq(t *testing.T) {
 		msg: &api.InboundMessage{
 			Type:     "test",
 			ActionID: "action1",
-			Seq:      0,
+			Seq:      1,
 		},
 		resp: resp,
 	}
 
 	<-resp
 
-	if got, want := s.seq, 1; got != want {
+	if got, want := s.seq, 2; got != want {
 		t.Errorf("seq: got %d, want %d", got, want)
 	}
 }
@@ -91,7 +92,7 @@ func TestSessionDuplicateActionIDReturnsCachedSnapshot(t *testing.T) {
 		msg: &api.InboundMessage{
 			Type:     "test",
 			ActionID: "action1",
-			Seq:      0,
+			Seq:      1,
 		},
 		resp: resp1,
 	}
@@ -111,7 +112,7 @@ func TestSessionDuplicateActionIDReturnsCachedSnapshot(t *testing.T) {
 		msg: &api.InboundMessage{
 			Type:     "test",
 			ActionID: "action1",
-			Seq:      1,
+			Seq:      2,
 		},
 		resp: resp2,
 	}
@@ -155,6 +156,40 @@ func TestSessionSubscribePlayerKicksPrevious(t *testing.T) {
 	}
 }
 
+// TestSessionInitialSnapshotSeq verifies that handleSubscribePlayer
+// sends a snapshot with seq >= 1 on the initial subscription.
+func TestSessionInitialSnapshotSeq(t *testing.T) {
+	g := &seqSnapshotGame{}
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
+	defer close(s.cancel)
+
+	ch := make(chan SubscriberMessage, subChanSize)
+	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch}
+
+	var msg SubscriberMessage
+	select {
+	case msg = <-ch:
+		if msg.CloseCode != 0 {
+			t.Fatalf("got close code %d, want snapshot", msg.CloseCode)
+		}
+		if len(msg.Data) == 0 {
+			t.Error("got empty initial snapshot, want non-empty")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for initial snapshot")
+	}
+
+	var snap struct {
+		Seq int `json:"seq"`
+	}
+	if err := json.Unmarshal(msg.Data, &snap); err != nil {
+		t.Fatalf("unmarshal snapshot: %v", err)
+	}
+	if snap.Seq < 1 {
+		t.Errorf("initial snapshot seq: got %d, want >= 1", snap.Seq)
+	}
+}
+
 // TestSessionGameOverClosesSubscribers verifies that StepFinished closes
 // all subscriber channels.
 func TestSessionGameOverClosesSubscribers(t *testing.T) {
@@ -174,7 +209,7 @@ func TestSessionGameOverClosesSubscribers(t *testing.T) {
 		msg: &api.InboundMessage{
 			Type:     "test",
 			ActionID: "action1",
-			Seq:      0,
+			Seq:      1,
 		},
 		resp: resp,
 	}
@@ -211,7 +246,7 @@ func TestSessionGoroutineExitsOnStepFinished(t *testing.T) {
 		msg: &api.InboundMessage{
 			Type:     "test",
 			ActionID: "action1",
-			Seq:      0,
+			Seq:      1,
 		},
 		resp: resp,
 	}
@@ -239,7 +274,7 @@ func TestSessionDrainCmdsClosesPendingSubscribers(t *testing.T) {
 		msg: &api.InboundMessage{
 			Type:     "test",
 			ActionID: "action1",
-			Seq:      0,
+			Seq:      1,
 		},
 		resp: resp,
 	}
@@ -345,7 +380,7 @@ func TestDrainCmdsHandlesPlayCmd(t *testing.T) {
 		msg: &api.InboundMessage{
 			Type:     "test",
 			ActionID: "action1",
-			Seq:      0,
+			Seq:      1,
 		},
 		resp: resp,
 	}
@@ -376,14 +411,14 @@ func TestSessionSeqMonotonicity(t *testing.T) {
 			msg: &api.InboundMessage{
 				Type:     "test",
 				ActionID: "action" + string(rune('0'+i)),
-				Seq:      i,
+				Seq:      i + 1,
 			},
 			resp: resp,
 		}
 		<-resp
 	}
 
-	if got, want := s.seq, 5; got != want {
+	if got, want := s.seq, 6; got != want {
 		t.Errorf("seq: got %d, want %d", got, want)
 	}
 }
@@ -396,9 +431,6 @@ func TestSessionStaleSeqMarshalFailure(t *testing.T) {
 	g := &playerSnapshotUnmarshalableGame{}
 	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
 	defer close(s.cancel)
-
-	// Advance seq so the next command is stale.
-	s.seq = 1
 
 	resp := make(chan SubmitResult, 1)
 	s.cmds <- playCmd{
@@ -446,7 +478,7 @@ func TestSessionMarshalFailureTerminates(t *testing.T) {
 		msg: &api.InboundMessage{
 			Type:     "test",
 			ActionID: "action1",
-			Seq:      0,
+			Seq:      1,
 		},
 		resp: resp,
 	}
@@ -485,7 +517,7 @@ func TestSessionMarshalFailureBroadcastsError(t *testing.T) {
 		msg: &api.InboundMessage{
 			Type:     "test",
 			ActionID: "action1",
-			Seq:      0,
+			Seq:      1,
 		},
 		resp: resp,
 	}
@@ -551,8 +583,59 @@ func TestSessionTurnTimeoutFires(t *testing.T) {
 	close(s.cancel)
 	<-s.done
 
-	if got, want := s.seq, 1; got < want {
+	if got, want := s.seq, 2; got < want {
 		t.Errorf("seq: got %d, want at least %d after timeout AI play", got, want)
+	}
+}
+
+// TestSessionDriveTurnsTerminatesOnInvalidTurn verifies that when
+// game.Turn returns an invalid seat, driveTurns treats it as a fatal
+// error and terminates the session.
+func TestSessionDriveTurnsTerminatesOnInvalidTurn(t *testing.T) {
+	g := &invalidTurnGame{}
+	s := newSession("test", g, Config{
+		Seats: []SeatConfig{
+			{Type: SeatHuman},
+			{Type: SeatAI, AIType: "random"},
+		},
+	}, nil)
+
+	select {
+	case <-s.done:
+		// Goroutine exited after fatal error on invalid Turn().
+	case <-time.After(time.Second):
+		t.Fatal("goroutine did not exit after invalid Turn()")
+	}
+
+	if !s.finished {
+		t.Error("expected session to be finished after invalid Turn()")
+	}
+}
+
+// TestSessionInitialTurnTimeoutFires verifies that a human player's
+// initial turn times out and an AI move is played.
+func TestSessionInitialTurnTimeoutFires(t *testing.T) {
+	timeout := 100
+	g := &timeoutGame{turnSeat: 0, seatCount: 2}
+	s := newSession("test", g, Config{
+		Seats: []SeatConfig{
+			{Type: SeatHuman},
+			{Type: SeatAI, AIType: "random"},
+		},
+		TurnTimeoutMS: &timeout,
+	}, nil)
+
+	// No command sent — the timeout should fire from the initial
+	// driveTurns() call in run().
+	time.Sleep(200 * time.Millisecond)
+
+	// Stop the goroutine and wait for it to exit before reading seq
+	// to avoid data race.
+	close(s.cancel)
+	<-s.done
+
+	if got, want := s.seq, 2; got < want {
+		t.Errorf("seq: got %d, want at least %d after initial timeout AI play", got, want)
 	}
 }
 
@@ -582,7 +665,7 @@ func TestSessionDriveTurnsTerminatesOnFinished(t *testing.T) {
 		msg: &api.InboundMessage{
 			Type:     "test",
 			ActionID: "action1",
-			Seq:      0,
+			Seq:      1,
 		},
 		resp: resp,
 	}
@@ -639,7 +722,7 @@ func TestSessionDriveTurnsHandlesPause(t *testing.T) {
 		msg: &api.InboundMessage{
 			Type:     "test",
 			ActionID: "action1",
-			Seq:      0,
+			Seq:      1,
 		},
 		resp: resp,
 	}
@@ -657,7 +740,7 @@ func TestSessionDriveTurnsHandlesPause(t *testing.T) {
 	if !s.finished {
 		t.Error("expected session to be finished after AIPlay StepPause + Resume")
 	}
-	if got, want := s.seq, 4; got != want {
+	if got, want := s.seq, 5; got != want {
 		t.Errorf("seq: got %d, want %d", got, want)
 	}
 
@@ -667,58 +750,6 @@ func TestSessionDriveTurnsHandlesPause(t *testing.T) {
 		if msg.CloseCode != 0 {
 			t.Error("got unexpected close code broadcast for normal StepPause")
 		}
-	}
-}
-
-// TestSessionDriveTurnsTerminatesOnInvalidTurn verifies that when
-// game.Turn returns an invalid seat, driveTurns treats it as a fatal
-// error and terminates the session.
-func TestSessionDriveTurnsTerminatesOnInvalidTurn(t *testing.T) {
-	g := &invalidTurnGame{}
-	s := newSession("test", g, Config{
-		Seats: []SeatConfig{
-			{Type: SeatHuman},
-			{Type: SeatAI, AIType: "random"},
-		},
-	}, nil)
-
-	select {
-	case <-s.done:
-		// Goroutine exited after fatal error on invalid Turn().
-	case <-time.After(time.Second):
-		t.Fatal("goroutine did not exit after invalid Turn()")
-	}
-
-	if !s.finished {
-		t.Error("expected session to be finished after invalid Turn()")
-	}
-}
-
-// TestSessionInitialTurnTimeoutFires verifies that the turn timeout
-// fires on the very first turn even when no command has been received
-// yet.
-func TestSessionInitialTurnTimeoutFires(t *testing.T) {
-	timeout := 100
-	g := &timeoutGame{turnSeat: 0, seatCount: 2}
-	s := newSession("test", g, Config{
-		Seats: []SeatConfig{
-			{Type: SeatHuman},
-			{Type: SeatAI, AIType: "random"},
-		},
-		TurnTimeoutMS: &timeout,
-	}, nil)
-
-	// No command sent — the timeout should fire from the initial
-	// driveTurns() call in run().
-	time.Sleep(200 * time.Millisecond)
-
-	// Stop the goroutine and wait for it to exit before reading seq
-	// to avoid data race.
-	close(s.cancel)
-	<-s.done
-
-	if got, want := s.seq, 1; got < want {
-		t.Errorf("seq: got %d, want at least %d after initial timeout AI play", got, want)
 	}
 }
 

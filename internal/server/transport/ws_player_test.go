@@ -12,7 +12,8 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
 )
 
-// errorGame is a stub Game implementation that rejects every action.
+// errorGame is a stub Game implementation that rejects every action with
+// an illegal_move error.
 type errorGame struct{}
 
 // TestPlayerWSSendsCommandIntegration verifies that a player can send a command via
@@ -30,7 +31,7 @@ func TestPlayerWSSendsCommandIntegration(t *testing.T) {
 	cmd := api.InboundMessage{
 		Type:     "play_card",
 		ActionID: "test-action-1",
-		Seq:      0,
+		Seq:      1,
 		Payload:  json.RawMessage(`{"card":"2c"}`),
 	}
 	if err := writeWSJSON(ctx, conn, cmd); err != nil {
@@ -57,7 +58,7 @@ func TestPlayerWSMalformedMessageIntegration(t *testing.T) {
 
 	cmd := api.InboundMessage{
 		ActionID: "test-action-2",
-		Seq:      0,
+		Seq:      1,
 	}
 	if err := writeWSJSON(ctx, conn, cmd); err != nil {
 		t.Fatalf("write command: %v", err)
@@ -141,7 +142,7 @@ func TestPlayerWSReceivesGameErrorIntegration(t *testing.T) {
 	cmd := api.InboundMessage{
 		Type:     "play_card",
 		ActionID: "test-action-3",
-		Seq:      0,
+		Seq:      1,
 		Payload:  json.RawMessage(`{"card":"2c"}`),
 	}
 	if err := writeWSJSON(ctx, conn, cmd); err != nil {
@@ -196,7 +197,8 @@ func (errorGame) HandleAction(
 	int, *api.InboundMessage,
 ) (session.StepResult, *session.CommandError) {
 	return session.StepResult{}, &session.CommandError{
-		Code: api.ErrIllegalMove, Message: "test error",
+		Code:    api.ErrIllegalMove,
+		Message: "test error",
 	}
 }
 
@@ -214,11 +216,11 @@ func (errorGame) Resume() (session.StepResult, error) {
 func (errorGame) Turn() int { return 0 }
 
 // PlayerSnapshot implements session.Game for errorGame.
-func (errorGame) PlayerSnapshot(int, int) any {
-	return map[string]any{"type": "snapshot", "seq": 0}
+func (errorGame) PlayerSnapshot(seat, seq int) any {
+	return map[string]any{"type": "snapshot", "seq": seq}
 }
 
 // ObserverSnapshot implements session.Game for errorGame.
-func (errorGame) ObserverSnapshot(int) any {
-	return map[string]any{"type": "snapshot", "seq": 0}
+func (errorGame) ObserverSnapshot(seq int) any {
+	return map[string]any{"type": "snapshot", "seq": seq}
 }
