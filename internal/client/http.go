@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 )
 
@@ -91,6 +92,9 @@ type SessionClient struct {
 	// HTTPClient is the HTTP client used for requests. If nil,
 	// [http.DefaultClient] is used.
 	HTTPClient *http.Client
+	// Logger is the structured logger for client operations. If nil,
+	// [slog.Default] is used.
+	Logger *slog.Logger
 }
 
 // createResponse is the JSON body for POST /sessions responses.
@@ -116,23 +120,29 @@ func (e *HTTPError) Error() string {
 func (c *SessionClient) CreateSession(ctx context.Context, cfg Config) (string, []SeatInfo, error) {
 	data, err := json.Marshal(cfg)
 	if err != nil {
+		c.logger().Error("marshal create session config", "error", err)
 		return "", nil, err
 	}
 
 	resp, err := c.doRequest(ctx, http.MethodPost, "/sessions", data)
 	if err != nil {
+		c.logger().Error("create session request", "error", err)
 		return "", nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
-		return "", nil, readError(resp)
+		he := readError(resp)
+		c.logger().Warn("create session failed", "status_code", he.StatusCode, "error", he.Message)
+		return "", nil, he
 	}
 
 	var cr createResponse
 	if err := json.NewDecoder(resp.Body).Decode(&cr); err != nil {
+		c.logger().Error("decode create session response", "error", err)
 		return "", nil, err
 	}
+	c.logger().Info("session created", "session_id", cr.SessionID)
 	return cr.SessionID, cr.Seats, nil
 }
 
@@ -140,13 +150,20 @@ func (c *SessionClient) CreateSession(ctx context.Context, cfg Config) (string, 
 func (c *SessionClient) StartSession(ctx context.Context, sessionID string) error {
 	resp, err := c.doRequest(ctx, http.MethodPost, "/sessions/"+sessionID+"/start", nil)
 	if err != nil {
+		c.logger().Error("start session request", "session_id", sessionID, "error", err)
 		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return readError(resp)
+		he := readError(resp)
+		c.logger().Warn("start session failed",
+			"session_id", sessionID,
+			"status_code", he.StatusCode,
+			"error", he.Message)
+		return he
 	}
+	c.logger().Info("session started", "session_id", sessionID)
 	return nil
 }
 
@@ -154,14 +171,29 @@ func (c *SessionClient) StartSession(ctx context.Context, sessionID string) erro
 func (c *SessionClient) DeleteSession(ctx context.Context, sessionID string) error {
 	resp, err := c.doRequest(ctx, http.MethodDelete, "/sessions/"+sessionID, nil)
 	if err != nil {
+		c.logger().Error("delete session request", "session_id", sessionID, "error", err)
 		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNoContent {
-		return readError(resp)
+		he := readError(resp)
+		c.logger().Warn("delete session failed",
+			"session_id", sessionID,
+			"status_code", he.StatusCode,
+			"error", he.Message)
+		return he
 	}
+	c.logger().Info("session deleted", "session_id", sessionID)
 	return nil
+}
+
+// logger returns the configured logger or [slog.Default] if nil.
+func (c *SessionClient) logger() *slog.Logger {
+	if c.Logger != nil {
+		return c.Logger
+	}
+	return slog.Default()
 }
 
 // doRequest sends an HTTP request and returns the response. The caller
@@ -184,7 +216,15 @@ func (c *SessionClient) doRequest(
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	return client.Do(req)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	c.logger().Debug("http response",
+		"method", method,
+		"path", path,
+		"status_code", resp.StatusCode)
+	return resp, nil
 }
 
 // readError decodes an error response body into an HTTPError.
