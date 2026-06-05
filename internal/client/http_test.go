@@ -14,11 +14,12 @@ type roundTripperFunc func(*http.Request) (*http.Response, error)
 // TestCreateSession verifies that CreateSession sends a POST /sessions
 // with the correct request body and parses the 201 response.
 func TestCreateSession(t *testing.T) {
+	delay, timeout := 100, 5000
 	wantCfg := Config{
 		Game:          "hearts",
 		Seats:         []SeatConfig{{Type: "human"}, {Type: "ai", AIType: "random"}},
-		PacingDelayMS: 100,
-		TurnTimeoutMS: 5000,
+		PacingDelayMS: &delay,
+		TurnTimeoutMS: &timeout,
 	}
 	wantSessionID := "test-session-123"
 	wantSeats := []SeatInfo{
@@ -65,11 +66,11 @@ func TestCreateSession(t *testing.T) {
 			t.Errorf("got body.Seats[%d] %+v, want %+v", i, gotBody.Seats[i], wantCfg.Seats[i])
 		}
 	}
-	if gotBody.PacingDelayMS != wantCfg.PacingDelayMS {
-		t.Errorf("got body.PacingDelayMS %d, want %d", gotBody.PacingDelayMS, wantCfg.PacingDelayMS)
+	if !intPtrEqual(gotBody.PacingDelayMS, wantCfg.PacingDelayMS) {
+		t.Errorf("got body.PacingDelayMS %v, want %v", gotBody.PacingDelayMS, wantCfg.PacingDelayMS)
 	}
-	if gotBody.TurnTimeoutMS != wantCfg.TurnTimeoutMS {
-		t.Errorf("got body.TurnTimeoutMS %d, want %d", gotBody.TurnTimeoutMS, wantCfg.TurnTimeoutMS)
+	if !intPtrEqual(gotBody.TurnTimeoutMS, wantCfg.TurnTimeoutMS) {
+		t.Errorf("got body.TurnTimeoutMS %v, want %v", gotBody.TurnTimeoutMS, wantCfg.TurnTimeoutMS)
 	}
 	if sessionID != wantSessionID {
 		t.Errorf("got sessionID %s, want %s", sessionID, wantSessionID)
@@ -213,4 +214,16 @@ func TestReadErrorMalformedBody(t *testing.T) {
 // RoundTrip implements http.RoundTripper.
 func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+// intPtrEqual reports whether two *int values are equal (both nil or
+// both pointing to the same value).
+func intPtrEqual(a, b *int) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
 }

@@ -1,4 +1,4 @@
-package hearts
+package heartsclient
 
 import (
 	"encoding/json"

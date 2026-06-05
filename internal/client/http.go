@@ -26,12 +26,13 @@ type Config struct {
 	Seats []SeatConfig `json:"seats"`
 	// PacingDelayMS is the delay in milliseconds between state
 	// transitions that require UX pacing (e.g., trick completion,
-	// round completion, AI turns). Zero means use the server default.
-	PacingDelayMS int `json:"pacing_delay_ms,omitempty"`
+	// round completion, AI turns). Zero means no delay. nil means
+	// use the server default.
+	PacingDelayMS *int `json:"pacing_delay_ms,omitempty"`
 	// TurnTimeoutMS is the maximum time in milliseconds to wait for
 	// a human player to act before auto-playing an AI move. Zero means
-	// use the server default.
-	TurnTimeoutMS int `json:"turn_timeout_ms,omitempty"`
+	// no timeout. nil means use the server default.
+	TurnTimeoutMS *int `json:"turn_timeout_ms,omitempty"`
 }
 
 // SeatInfo is returned from session creation with the seat's token.

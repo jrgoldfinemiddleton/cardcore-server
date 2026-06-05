@@ -32,8 +32,9 @@ coverage.html
 # AI orchestration scratch directory (local only)
 .sisyphus/
 
-# Maintainer runbook (local only)
+# Local-only doc files (not committed)
 doc/maintainer-runbook.md
+doc/integration-testing.md
 
 # Proposed architecture plans (local only)
 doc/plans/

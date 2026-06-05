@@ -1,4 +1,4 @@
-package hearts
+package heartsclient
 
 // Phase constants for the Hearts game.
 const (

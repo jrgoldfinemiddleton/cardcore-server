@@ -10,6 +10,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- Client-side full game integration tests: `TestIntegrationFullLifecycle` (human player lifecycle), `TestIntegrationObserverFullGame` (observer reads until `game_over`), `TestIntegrationPlayerAndObserver` (concurrent player and observer with goroutine separation to prevent backpressure), and `TestIntegrationErrorResponse` (wrong-phase command returns `ErrorMessage` with connection left open)
 - Debug logging across session, transport, and Hearts adapter with per-component `slog.With` prefixes. Test output defaults to WARN level; set `TEST_LOG_LEVEL=debug` to reveal all logs while debugging
 - Full game integration tests via WebSocket: `TestAllAIFullGameIntegration` (4-AI Hearts, observer verifies phase progression and seq monotonicity) and `TestHumanAIFullGameIntegration` (1 human + 3 AI, human sends pass/play commands, game completes)
 - Generic WebSocket test helpers: `testSnapshot` for fast phase/seq observation, `mustReadTestSnapshot`, `readTestSnapshot` (goroutine-safe), `writeWSJSON`, `readSnapshotsUntil`

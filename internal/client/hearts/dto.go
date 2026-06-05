@@ -1,4 +1,4 @@
-package hearts
+package heartsclient
 
 // Card represents a playing card in the wire format.
 type Card struct {
