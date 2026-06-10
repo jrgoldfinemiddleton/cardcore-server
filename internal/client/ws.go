@@ -40,13 +40,16 @@ func (e *ConnectionClosedError) Error() string {
 	return fmt.Sprintf("websocket closed: code=%d reason=%s", e.Code, e.Reason)
 }
 
-// Connect upgrades to a WebSocket connection at the given URL with Bearer
-// token authentication.
+// Connect upgrades to a WebSocket connection at the given URL. If token
+// is non-empty, it is sent as a Bearer authorization header.
 func (c *Conn) Connect(ctx context.Context, url, token string) error {
-	headers := http.Header{"Authorization": []string{"Bearer " + token}}
-	conn, _, err := websocket.Dial(ctx, url, &websocket.DialOptions{
-		HTTPHeader: headers,
-	})
+	opts := &websocket.DialOptions{}
+	if token != "" {
+		opts.HTTPHeader = http.Header{
+			"Authorization": []string{"Bearer " + token},
+		}
+	}
+	conn, _, err := websocket.Dial(ctx, url, opts)
 	if err != nil {
 		c.logger().Error("websocket dial", "url", url, "error", err)
 		return fmt.Errorf("dial: %w", err)
