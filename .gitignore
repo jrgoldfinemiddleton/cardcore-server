@@ -45,3 +45,4 @@ scripts/configure-repo.sh
 # Ignore nested AGENTS.md files (root AGENTS.md is the authority)
 **/AGENTS.md
 !/AGENTS.md
+.omo/
