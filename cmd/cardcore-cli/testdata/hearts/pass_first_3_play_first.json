@@ -1,0 +1,4 @@
+[
+  {"phase": "passing", "action": "pass_cards", "selector": "first_n", "selector_args": {"count": 3}},
+  {"phase": "playing", "action": "play_card", "selector": "first_legal"}
+]

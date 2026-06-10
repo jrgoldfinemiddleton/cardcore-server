@@ -69,7 +69,7 @@ while IFS= read -r f; do
 			add_want "scope:api" ;;
 		internal/server/*|cmd/server/*)
 			add_want "scope:server" ;;
-		internal/client/*|cmd/client/*)
+		internal/client/*|cmd/cardcore-cli/*)
 			add_want "scope:client" ;;
 		internal/tui/*|cmd/tui/*)
 			add_want "scope:tui" ;;

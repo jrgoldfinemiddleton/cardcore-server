@@ -15,7 +15,7 @@ set -euo pipefail
 # scope:* labels mirror Conventional Commits scopes used in commit messages.
 # Single blue family so they visually cluster in label dropdowns.
 gh label create "scope:server" --color "1d76db" --description "Game server (internal/server/, cmd/server/)" --force
-gh label create "scope:client" --color "1d76db" --description "Client engine and CLI (internal/client/, cmd/client/)" --force
+gh label create "scope:client" --color "1d76db" --description "Client engine and CLI (internal/client/, cmd/cardcore-cli/)" --force
 gh label create "scope:tui" --color "1d76db" --description "Terminal UI client (internal/tui/, cmd/tui/)" --force
 gh label create "scope:api" --color "1d76db" --description "API contract (internal/api/, doc/api.md)" --force
 gh label create "scope:docs" --color "1d76db" --description "Documentation (doc/, README, AGENTS, CHANGELOG, CONTRIBUTING, ADRs)" --force
