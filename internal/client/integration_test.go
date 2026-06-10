@@ -100,14 +100,15 @@ func TestIntegrationFullLifecycle(t *testing.T) {
 	}()
 
 	// maxRounds is a safety limit. A full Hearts game generates ~900
-	// snapshots; 1000 prevents an infinite loop if the game never reaches
-	// game_over (e.g., due to a client command that is silently ignored).
+	// snapshots, but nondeterministic map iteration in the random AI can
+	// stretch it to ~1500. 5000 prevents an infinite loop while still
+	// capping runaway games; the 120s ctx is the real timeout.
 	var (
 		lastSeq   int
 		gotPass   bool
 		gotPlay   bool
 		gotOver   bool
-		maxRounds = 1000
+		maxRounds = 5000
 	)
 	for range maxRounds {
 		res := <-resCh
@@ -195,12 +196,15 @@ func TestIntegrationFullLifecycle(t *testing.T) {
 	// gotPlay verify the human was actually asked to act; gotOver
 	// verifies the game reached completion.
 	if !gotPass {
+		t.Logf("last seq=%d", lastSeq)
 		t.Error("never saw a passing phase with our turn")
 	}
 	if !gotPlay {
+		t.Logf("last seq=%d", lastSeq)
 		t.Error("never saw a playing phase with our turn")
 	}
 	if !gotOver {
+		t.Logf("last seq=%d", lastSeq)
 		t.Error("never saw game_over phase")
 	}
 }
@@ -288,7 +292,7 @@ func TestIntegrationObserverFullGame(t *testing.T) {
 		lastSeq int
 		gotOver bool
 	)
-	for range 1000 {
+	for range 5000 {
 		res := <-resCh
 		if res.err != nil {
 			// We do not check gotOver here because it is set on the
@@ -318,6 +322,7 @@ func TestIntegrationObserverFullGame(t *testing.T) {
 	}
 
 	if !gotOver {
+		t.Logf("last seq=%d", lastSeq)
 		t.Error("never saw game_over phase")
 	}
 	for _, required := range []string{"playing", "trick_complete", "round_complete", "game_over"} {
@@ -436,7 +441,7 @@ func TestIntegrationPlayerAndObserver(t *testing.T) {
 	go func() {
 		defer close(playerDone)
 		var playerLastSeq int
-		for range 1000 {
+		for range 5000 {
 			data, err := playerConn.ReadSnapshot(ctx)
 			if err != nil {
 				playerErrCh <- fmt.Errorf("player read snapshot: %w", err)
@@ -523,7 +528,10 @@ func TestIntegrationPlayerAndObserver(t *testing.T) {
 				continue
 			}
 		}
-		playerErrCh <- fmt.Errorf("player loop exceeded 1000 iterations without game_over")
+		playerErrCh <- fmt.Errorf(
+			"player loop exceeded 5000 iterations without game_over (last seq=%d)",
+			playerLastSeq,
+		)
 	}()
 
 	// Main goroutine: drain observer until game_over.
@@ -532,7 +540,7 @@ func TestIntegrationPlayerAndObserver(t *testing.T) {
 		obsLastSeq int
 		obsGotOver bool
 	)
-	for range 2000 {
+	for range 5000 {
 		res := <-obsCh
 		if res.err != nil {
 			// obsGotOver is set on the same iteration that calls
@@ -585,9 +593,11 @@ func TestIntegrationPlayerAndObserver(t *testing.T) {
 		t.Error("player never saw playing phase with our turn")
 	}
 	if !playerGotOver {
+		t.Logf("player last seq unknown (goroutine-local)")
 		t.Error("player never saw game_over phase")
 	}
 	if !obsGotOver {
+		t.Logf("observer last seq=%d", obsLastSeq)
 		t.Error("observer never saw game_over phase")
 	}
 	for _, required := range []string{
