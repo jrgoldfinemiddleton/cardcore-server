@@ -116,14 +116,40 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 	s.closing.Store(true)
 
-	// Close WebSocket connections before deleting sessions so that
-	// the GoingAway status reaches clients before playerConn.run()
-	// sends NormalClosure on goroutine exit.
+	// Close WebSocket connections before deleting sessions so the
+	// GoingAway status reaches clients before playerConn.run() sends
+	// NormalClosure on goroutine exit. Each close runs in its own
+	// goroutine: coder/websocket's Close writes and flushes the
+	// GoingAway frame immediately, then blocks up to 5s in the close
+	// handshake waiting for the peer to echo a close frame. A
+	// connection's reader goroutine holds the read lock while parked in
+	// Read, so a synchronous Close here would serialize behind that 5s
+	// handshake per connection. Fanning out lets every GoingAway frame
+	// hit the wire at once; the handshake wait then drains off the
+	// shutdown path.
+	var wg sync.WaitGroup
 	s.wsConns.Range(func(key, value any) bool {
 		conn := key.(*websocket.Conn)
-		_ = conn.Close(websocket.StatusGoingAway, "server shutting down")
+		wg.Go(func() {
+			_ = conn.Close(websocket.StatusGoingAway, "server shutting down")
+		})
 		return true
 	})
+
+	// Wait for the close handshakes to complete, but cap the wait so a
+	// non-echoing client cannot stall shutdown for the full 5s per
+	// connection. The grace window is long enough for the already-sent
+	// GoingAway frames to reach clients before the HTTP server tears
+	// down; clients see status 1001 rather than a raw connection error.
+	closed := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(closed)
+	}()
+	select {
+	case <-closed:
+	case <-time.After(250 * time.Millisecond):
+	}
 
 	for _, summary := range s.mgr.List() {
 		if summary.State != session.Expired {
