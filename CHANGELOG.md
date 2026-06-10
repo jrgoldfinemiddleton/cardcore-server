@@ -35,6 +35,10 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 - Seat-filtered snapshot generation for Hearts: player view masks opponent hands, observer view is omniscient, phase priority (`TrickComplete` > `RoundComplete` > engine phase) with tested correctness across game states
 - Wire-format DTOs and runtime dependencies: game-agnostic envelopes (`InboundMessage`, `ErrorMessage`), Hearts-specific wire types (`Card`, `TrickEntry`, `PlayerSnapshot`, `ObserverSnapshot`, `PlayCardPayload`, `PassCardsPayload`), and runtime dependency declarations
 
+### Changed
+
+- Bumped `cardcore` engine dependency to v0.5.0: the engine now requires an explicit `*rand.Rand` for `hearts.New()` and `Deck.Shuffle()`, making seeded games fully deterministic. The server's `NewAdapter` passes its existing RNG through to the engine
+
 ### Fixed
 
 - Flaky `TestServerShutdownPropagatesGoingAwayIntegration` (`got close status -1, want 1001`): `Server.Shutdown` closed each WebSocket connection synchronously with `conn.Close(StatusGoingAway, …)`. Because every connection's reader goroutine holds the read lock while parked in `Read`, the close handshake's wait-for-peer-echo step blocked up to 5s per connection, then force-closed the TCP socket — racing GoingAway-frame delivery against teardown. `Shutdown` now closes connections concurrently and waits on a bounded 250ms grace window: the GoingAway frames are written and flushed the instant each close begins, so clients reliably observe status 1001 while shutdown no longer stalls on the 5s handshake

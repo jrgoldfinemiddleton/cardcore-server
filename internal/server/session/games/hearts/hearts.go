@@ -69,7 +69,7 @@ func NewAdapter(
 		a.players[i] = p
 	}
 
-	a.game = hearts.New()
+	a.game = hearts.New(rng)
 	if err := a.game.Deal(); err != nil {
 		return nil, fmt.Errorf("initial deal: %w", err)
 	}

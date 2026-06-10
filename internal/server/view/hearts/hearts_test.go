@@ -1,6 +1,7 @@
 package heartsview
 
 import (
+	"math/rand/v2"
 	"testing"
 
 	"github.com/jrgoldfinemiddleton/cardcore"
@@ -69,7 +70,7 @@ func TestPlayerViewHandSorted(t *testing.T) {
 // TestPlayerViewScores verifies that scores and round_points map correctly
 // from the engine arrays.
 func TestPlayerViewScores(t *testing.T) {
-	g := hearts.New()
+	g := hearts.New(rand.New(rand.NewPCG(1, 2)))
 	g.Scores = [hearts.NumPlayers]int{10, 3, 0, 13}
 	g.RoundPts = [hearts.NumPlayers]int{5, 8, 13, 0}
 	vs := ViewState{Game: g}
@@ -150,7 +151,7 @@ func TestPlayerViewOneIndexed(t *testing.T) {
 func TestPlayerViewPhasePriority(t *testing.T) {
 	phases := []hearts.Phase{hearts.PhaseDeal, hearts.PhaseScore}
 	for _, phase := range phases {
-		g := hearts.New()
+		g := hearts.New(rand.New(rand.NewPCG(1, 2)))
 		g.Phase = phase
 
 		// Engine phase wins when no overrides are set.
@@ -340,7 +341,7 @@ func TestLegalActions(t *testing.T) {
 // dealGame creates and deals a new Hearts game, returning it in the pass phase.
 func dealGame(t *testing.T) *hearts.Game {
 	t.Helper()
-	g := hearts.New()
+	g := hearts.New(rand.New(rand.NewPCG(1, 2)))
 	if err := g.Deal(); err != nil {
 		t.Fatalf("Deal: %v", err)
 	}
