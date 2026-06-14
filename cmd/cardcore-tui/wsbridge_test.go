@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 // testModel is a minimal Bubble Tea model for testing wsbridge.
 type testModel struct {
 	program *tea.Program
+	mu      sync.Mutex
 	msgs    []tea.Msg
 }
 
@@ -162,7 +164,9 @@ func (m *testModel) Init() tea.Cmd {
 
 // Update implements tea.Model. It captures all messages for test inspection.
 func (m *testModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.mu.Lock()
 	m.msgs = append(m.msgs, msg)
+	m.mu.Unlock()
 	return m, nil
 }
 
@@ -179,7 +183,13 @@ func (m *testModel) waitForMsg(t *testing.T) tea.Msg {
 	deadline := time.After(2 * time.Second)
 	for {
 		// Wait for at least one message.
-		for len(m.msgs) == 0 {
+		for {
+			m.mu.Lock()
+			length := len(m.msgs)
+			m.mu.Unlock()
+			if length > 0 {
+				break
+			}
 			select {
 			case <-deadline:
 				t.Fatal("timeout waiting for message")
@@ -188,6 +198,7 @@ func (m *testModel) waitForMsg(t *testing.T) tea.Msg {
 			}
 		}
 		// Skip Bubble Tea system messages.
+		m.mu.Lock()
 		for len(m.msgs) > 0 {
 			msg := m.msgs[0]
 			m.msgs = m.msgs[1:]
@@ -195,8 +206,10 @@ func (m *testModel) waitForMsg(t *testing.T) tea.Msg {
 			case tea.ColorProfileMsg, tea.WindowSizeMsg, tea.EnvMsg:
 				continue
 			}
+			m.mu.Unlock()
 			return msg
 		}
+		m.mu.Unlock()
 		// All messages were system messages, wait for more.
 		select {
 		case <-deadline:
