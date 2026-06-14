@@ -10,14 +10,15 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- TUI binary `cmd/cardcore-tui/` with Bubble Tea v2: terminal UI client with WebSocket bridge, game-agnostic model state machine, error handling with flash timers, lipgloss-based layout rendering, and 14 unit tests covering state machine, WebSocket message dispatch, and error flash behavior
 - CLI binary `cmd/cardcore-cli/` with phase-matched script execution (`first_n`, `first_legal`, `by_index` selectors), deterministic action IDs, and three modes: auto-create human player, auto-create observer (`--observe`), and join existing session (`--session-id` + `--token` + `--seat`)
 - Client-side full game integration tests: `TestIntegrationFullLifecycle` (human player lifecycle), `TestIntegrationObserverFullGame` (observer reads until `game_over`), `TestIntegrationPlayerAndObserver` (concurrent player and observer with goroutine separation to prevent backpressure), and `TestIntegrationErrorResponse` (wrong-phase command returns `ErrorMessage` with connection left open)
 - Debug logging across session, transport, and Hearts adapter with per-component `slog.With` prefixes. Test output defaults to WARN level; set `TEST_LOG_LEVEL=debug` to reveal all logs while debugging
 - Full game integration tests via WebSocket: `TestAllAIFullGameIntegration` (4-AI Hearts, observer verifies phase progression and seq monotonicity) and `TestHumanAIFullGameIntegration` (1 human + 3 AI, human sends pass/play commands, game completes)
 - Generic WebSocket test helpers: `testSnapshot` for fast phase/seq observation, `mustReadTestSnapshot`, `readTestSnapshot` (goroutine-safe), `writeWSJSON`, `readSnapshotsUntil`
 - Subscription logging: structured `slog.Info` calls for player/observer subscribe and unsubscribe events
-- Graceful shutdown: `Server.Shutdown(ctx)` sends `websocket.StatusGoingAway` to all active WebSocket connections, deletes all active sessions, and shuts down the HTTP server. `cmd/server/main.go` binary handles SIGINT/SIGTERM with a configurable timeout via `CARDCORE_SHUTDOWN_TIMEOUT` (default 10s)
-- Server binary `cmd/server/main.go` with game adapter dispatch: currently supports `hearts`; new games can be added by extending the factory switch in `main.go`
+- Graceful shutdown: `Server.Shutdown(ctx)` sends `websocket.StatusGoingAway` to all active WebSocket connections, deletes all active sessions, and shuts down the HTTP server. `cmd/cardcore-server/main.go` binary handles SIGINT/SIGTERM with a configurable timeout via `CARDCORE_SHUTDOWN_TIMEOUT` (default 10s)
+- Server binary `cmd/cardcore-server/main.go` with game adapter dispatch: currently supports `hearts`; new games can be added by extending the factory switch in `main.go`
 - Configurable human turn timeout with AI auto-play fallback: session config gains `turn_timeout_ms` (default 30s, `0` to disable); when a human player doesn't act in time, the session auto-plays an AI move and broadcasts the result while preserving the human seat configuration
 - Observer WebSocket connection: receive-only writer goroutine with `CloseRead` for ping/pong/close frame handling, context-based coordination, and automatic cleanup on disconnect
 - Player WebSocket reader/writer goroutines: full bidirectional message handling with context-based coordination, envelope validation, and game error propagation

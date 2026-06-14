@@ -68,7 +68,7 @@ An optional `!` after the type/scope indicates a breaking change: `feat(session)
 | Integration | `internal/server/`, `internal/client/`, `cmd/cardcore-cli/`, or root | Real server on `:0`, real WebSocket client, play through a full game. WebSocket upgrade, message framing, close frames, and concurrent clients use `httptest.Server` + `websocket.Dial`. Exercises the same code path as production. |
 | Protocol conformance | `internal/server/` or root | Table-driven: "send this message, expect this response shape." Validates wire format against `doc/api.md`. |
 | Game protocol | `internal/server/` or root | Game-specific message handling: do commands produce correct snapshots? Do game-specific error cases fire correctly? Full-game integration through all phases. Validates behavior against `doc/games/<game>/protocol.md`. |
-| TUI model | `cmd/tui/` | Bubble Tea model tests: send messages, assert on model state without rendering. Visual testing is manual. |
+| TUI model | `cmd/cardcore-tui/` | Bubble Tea model tests: send messages, assert on model state without rendering. Visual testing is manual. |
 | Stress | `internal/server/` or root | Full games with all-AI sessions across many iterations. Surfaces protocol issues, state machine edge cases, and resource leaks at volume. |
 
 ### Test helpers convention
