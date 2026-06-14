@@ -1,0 +1,129 @@
+package main
+
+import (
+	"fmt"
+
+	"charm.land/lipgloss/v2"
+)
+
+// layoutStyle is the global style for the TUI layout.
+//
+// It defines the color scheme, border styles, and padding used across all
+// layout components. This is the single source of truth for visual styling.
+var layoutStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#FAFAFA")).
+	Background(lipgloss.Color("#1A1A2E"))
+
+// headerStyle is the style for the top header bar.
+//
+// It shows the round number, phase, and score summary. The header is
+// visually distinct from the main game area to provide context at a glance.
+var headerStyle = lipgloss.NewStyle().
+	Bold(true).
+	Foreground(lipgloss.Color("#E94560")).
+	Padding(0, 1).
+	Width(80)
+
+// footerStyle is the style for the bottom status bar.
+//
+// It shows error messages, connection status, and "AI thinking...".
+// Error messages are rendered in red; normal status in default color.
+var footerStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#FAFAFA")).
+	Background(lipgloss.Color("#16213E")).
+	Padding(0, 1).
+	Width(80)
+
+// errorStyle is the style for error flash messages in the status bar.
+//
+// Error messages are rendered in bright red (#FF0000) to grab attention.
+// They flash for 3 seconds, then clear.
+var errorStyle = lipgloss.NewStyle().
+	Bold(true).
+	Foreground(lipgloss.Color("#FF0000")).
+	Background(lipgloss.Color("#16213E")).
+	Padding(0, 1).
+	Width(80)
+
+// renderLayout renders the full screen layout.
+//
+// The layout is a vertical stack: header, main area, footer.
+// Each section is rendered by a separate function for clarity.
+//
+// The layout uses lipgloss to style each section. The header and footer
+// are fixed-height; the main area expands to fill the remaining space.
+func (m *model) renderLayout() string {
+	header := m.renderHeader()
+	main := m.renderMain()
+	footer := m.renderFooter()
+
+	// Join vertically with lipgloss.
+	// The header is bold, the main area is the game state, and the footer
+	// is the status bar.
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		header,
+		main,
+		footer,
+	)
+}
+
+// renderHeader renders the top section (scores, phase, round info).
+//
+// TODO: Add score summary when snapshot decoding is implemented.
+// The header shows the current round number, game phase, and a score summary.
+// It is styled with bold red text to make it visually distinct.
+func (m *model) renderHeader() string {
+	return headerStyle.Render(
+		lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			fmt.Sprintf("Round %d", m.roundNumber),
+			" | ",
+			fmt.Sprintf("Phase: %s", m.phase),
+		),
+	)
+}
+
+// renderMain renders the central game area.
+//
+// TODO: Replace placeholder with card rendering, trick display, and hand selection.
+// The main area shows the current game state. For now, this is a placeholder
+// that will be replaced by card rendering, trick display, and hand selection.
+//
+// The main area is styled with the default layout color scheme.
+func (m *model) renderMain() string {
+	// For now, show the current snapshot (or a placeholder if no snapshot).
+	if m.snapshot == nil {
+		return layoutStyle.Render("Waiting for game state...")
+	}
+
+	// Show the raw JSON (placeholder — will be replaced with actual rendering).
+	return layoutStyle.Render(fmt.Sprintf("Snapshot received (seq %d)", m.roundNumber))
+}
+
+// renderFooter renders the status bar (error messages, connection status).
+//
+// TODO: Add actual connection state detection (show "Disconnected" on close).
+// TODO: Set status messages ("AI thinking...", "Your turn") from snapshot data.
+//
+// The footer shows one of three things:
+//
+//  1. Error flash message (red, 3 seconds)
+//  2. Connection status ("Connected" / "Disconnected")
+//  3. Persistent status ("AI thinking...", "Your turn")
+//
+// The error flash takes priority over other status messages.
+func (m *model) renderFooter() string {
+	// Error flash takes priority.
+	if m.errMsg != "" {
+		return errorStyle.Render(m.errMsg)
+	}
+
+	// Connection status.
+	if m.statusMsg != "" {
+		return footerStyle.Render(m.statusMsg)
+	}
+
+	// Default: show connected status.
+	return footerStyle.Render("Connected")
+}

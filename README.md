@@ -24,9 +24,9 @@ Cardcore Server provides a localhost WebSocket server that hosts card games powe
 ```text
 cardcore-server/
 ├── cmd/
-│   ├── server/          # Game server binary
-│   ├── tui/             # Bubble Tea TUI client binary
-│   └── client/          # Non-TTY CLI client binary
+│   ├── cardcore-server/ # Game server binary
+│   ├── cardcore-tui/    # Bubble Tea TUI client binary
+│   └── cardcore-cli/    # Non-TTY CLI client binary
 └── internal/
     ├── client/          # Shared protocol-agnostic client engine
     │   └── hearts/      # Hearts-specific adapter and DTOs
@@ -48,6 +48,20 @@ make check
 ```
 
 This runs formatting, vetting, linting, and tests. Dev tools like [golangci-lint](https://golangci-lint.run/) are declared in `go.mod` via the Go 1.25 `tool` directive and are compiled automatically on first use.
+
+### TUI Terminal Requirements
+
+The TUI (`cmd/cardcore-tui`) requires a terminal emulator with ANSI escape sequence support. All modern terminals (xterm, iTerm2, Windows Terminal, etc.) meet this.
+
+Specific requirements:
+
+- **Alternate screen buffer** (smcup/rmcup): enabled so the TUI does not scroll the terminal history.
+- **True color (24-bit)**: required for the lipgloss color scheme.
+- **Minimum width**: 80 columns for the layout.
+
+For tmux users: set `TERM=screen-256color` or `tmux-256color`. Focus reporting is not enabled — the game continues regardless of terminal focus.
+
+See [Bubble Tea's terminal docs](https://charm.land/bubbletea/docs/terminal) for details.
 
 ## Makefile Targets
 

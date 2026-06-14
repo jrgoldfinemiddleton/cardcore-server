@@ -1,5 +1,7 @@
 # Binaries
-cardcore-server
+/cardcore-server
+/cardcore-cli
+/cardcore-tui
 *.exe
 *.dll
 *.so
