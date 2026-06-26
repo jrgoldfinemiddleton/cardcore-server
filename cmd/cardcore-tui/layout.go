@@ -84,21 +84,13 @@ func (m *model) renderHeader() string {
 	)
 }
 
-// renderMain renders the central game area.
-//
-// TODO: Replace placeholder with card rendering, trick display, and hand selection.
-// The main area shows the current game state. For now, this is a placeholder
-// that will be replaced by card rendering, trick display, and hand selection.
-//
-// The main area is styled with the default layout color scheme.
+// renderMain renders the central game area. It delegates to the game client
+// once a snapshot has arrived; before then it shows a waiting message.
 func (m *model) renderMain() string {
-	// For now, show the current snapshot (or a placeholder if no snapshot).
 	if m.snapshot == nil {
 		return layoutStyle.Render("Waiting for game state...")
 	}
-
-	// Show the raw JSON (placeholder — will be replaced with actual rendering).
-	return layoutStyle.Render(fmt.Sprintf("Snapshot received (seq %d)", m.roundNumber))
+	return layoutStyle.Render(m.game.Render())
 }
 
 // renderFooter renders the status bar (error messages, connection status).
