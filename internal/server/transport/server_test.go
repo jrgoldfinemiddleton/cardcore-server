@@ -1281,6 +1281,72 @@ func TestServerShutdownPropagatesGoingAwayIntegration(t *testing.T) {
 	}
 }
 
+// TestServerShutdownPropagatesGoingAwayToObserverIntegration verifies that
+// Shutdown sends StatusGoingAway to active observer WebSocket connections and
+// deletes active sessions.
+func TestServerShutdownPropagatesGoingAwayToObserverIntegration(t *testing.T) {
+	srv, sessionID, _ := setupTestServerWithSession(t)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- srv.Start()
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	addr := srv.Addr()
+	if addr == "" {
+		t.Fatal("server has no address after start")
+	}
+
+	ctx := context.Background()
+	wsURL := "ws://" + addr + "/sessions/" + sessionID + "/ws/observe"
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("ws dial: %v", err)
+	}
+	defer func() {
+		_ = conn.Close(websocket.StatusNormalClosure, "")
+	}()
+
+	shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		t.Fatalf("shutdown: %v", err)
+	}
+
+	select {
+	case err := <-done:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			t.Fatalf("Start() returned unexpected error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Start() did not return after Shutdown()")
+	}
+
+	readCtx, cancelRead := context.WithTimeout(ctx, 2*time.Second)
+	defer cancelRead()
+
+	var readErr error
+	for {
+		_, _, readErr = conn.Read(readCtx)
+		if readErr != nil {
+			break
+		}
+	}
+
+	status := websocket.CloseStatus(readErr)
+	if status != websocket.StatusGoingAway {
+		t.Errorf("got close status %d, want %d (GoingAway)", status, websocket.StatusGoingAway)
+	}
+
+	_, err = srv.mgr.Get(sessionID)
+	if !errors.Is(err, session.ErrNotFound) {
+		t.Errorf("got error %v, want ErrNotFound", err)
+	}
+}
+
 // mockManager returns a session manager with a stubGame factory.
 func mockManager() *session.Manager {
 	return session.NewManager(func(_ session.Config) (session.Game, error) {

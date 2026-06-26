@@ -33,8 +33,10 @@ type playerConn struct {
 	// logger is the structured logger.
 	logger *slog.Logger
 	// closing references the server's shutdown flag. When true, run()
-	// skips the final NormalClosure close frame because Shutdown()
-	// has already sent GoingAway.
+	// skips the final NormalClosure frame and the writer skips cancelling
+	// the read context, leaving Shutdown's conn.Close(GoingAway) as the
+	// sole teardown path. Cancelling the read context during shutdown
+	// would race that close frame and drop it.
 	closing *atomic.Bool
 }
 
@@ -144,13 +146,24 @@ func (pc *playerConn) reader(ctx context.Context, cancel context.CancelFunc) {
 // It multiplexes snapshots from the session goroutine (subCh) and
 // error responses from the reader (outCh).
 func (pc *playerConn) writer(ctx context.Context, cancel context.CancelFunc) {
-	defer cancel() // signal reader to exit on any return path
+	skipCancel := false
+	defer func() {
+		if !skipCancel {
+			cancel() // signal reader to exit on any return path
+		}
+	}()
 
 	for {
 		select {
 		case msg, ok := <-pc.subCh:
 			if !ok {
 				// Session goroutine closed subCh (game over or kicked).
+				// During shutdown, leave the reader parked so Shutdown's
+				// conn.Close(GoingAway) drives teardown instead of an
+				// abrupt read-context cancel that drops the close frame.
+				if pc.closing != nil && pc.closing.Load() {
+					skipCancel = true
+				}
 				return
 			}
 			if msg.CloseCode != 0 {
@@ -262,6 +275,12 @@ func (s *Server) handlePlayerWS(w http.ResponseWriter, r *http.Request) {
 	}
 	s.RegisterWSConn(conn)
 	go func() {
+		// If Shutdown began before this connection registered, its close
+		// sweep missed us; send GoingAway here so a connection accepted
+		// during shutdown still sees 1001 rather than an abrupt close.
+		if s.closing.Load() {
+			_ = conn.Close(websocket.StatusGoingAway, "server shutting down")
+		}
 		pc.run(context.Background())
 		s.UnregisterWSConn(conn)
 	}()
