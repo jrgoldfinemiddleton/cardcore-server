@@ -10,6 +10,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- `heartstui` package with pure card rendering, phase views, observer mode, and command builders; card symbols, styled rendering with cursor/selected/dimmed states, passing/playing views, and seat-prefixed action IDs to prevent cross-client collisions
+- Game-agnostic TUI model with `gameClient` interface and `-game` flag for client selection; delegates all game-specific logic to adapters so the model stays protocol-only
 - TUI binary `cmd/cardcore-tui/` with Bubble Tea v2: terminal UI client with WebSocket bridge, game-agnostic model state machine, error handling with flash timers, lipgloss-based layout rendering, and 14 unit tests covering state machine, WebSocket message dispatch, and error flash behavior
 - CLI binary `cmd/cardcore-cli/` with phase-matched script execution (`first_n`, `first_legal`, `by_index` selectors), deterministic action IDs, and three modes: auto-create human player, auto-create observer (`--observe`), and join existing session (`--session-id` + `--token` + `--seat`)
 - Client-side full game integration tests: `TestIntegrationFullLifecycle` (human player lifecycle), `TestIntegrationObserverFullGame` (observer reads until `game_over`), `TestIntegrationPlayerAndObserver` (concurrent player and observer with goroutine separation to prevent backpressure), and `TestIntegrationErrorResponse` (wrong-phase command returns `ErrorMessage` with connection left open)

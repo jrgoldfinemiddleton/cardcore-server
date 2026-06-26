@@ -8,8 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 
+	heartstui "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/hearts"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
 )
 
@@ -20,6 +21,8 @@ import (
 type tuiConfig struct {
 	// server is the base URL of the cardcore server (e.g., "http://localhost:8080").
 	server string
+	// game selects which game client to render (e.g., "hearts").
+	game string
 	// session is the session ID to join. Required for observer mode and when joining as a player.
 	session string
 	// token is the bearer token for the seat being joined. Required when joining a session.
@@ -74,6 +77,7 @@ func parseFlags() (*tuiConfig, error) {
 	cfg := &tuiConfig{}
 
 	flag.StringVar(&cfg.server, "server", "http://localhost:8080", "server base URL")
+	flag.StringVar(&cfg.game, "game", "hearts", "game to play")
 	flag.StringVar(&cfg.session, "session", "", "session ID to join")
 	flag.StringVar(&cfg.token, "token", "", "seat bearer token")
 	flag.IntVar(&cfg.seat, "seat", 0, "seat index (game-dependent)")
@@ -131,18 +135,15 @@ func parseFlags() (*tuiConfig, error) {
 // Step 7: Run.
 //
 //	p.Run() blocks until the user exits (ctrl+c, game over, etc.).
-//
-// Step 8: Cleanup.
-//
-//	Ensure the connection is closed on all exit paths.
+//	Cleanup is handled by defer on the connection.
 func run(cfg *tuiConfig) error {
-	// Step 2: Create WebSocket connection.
+	// Step 1: Create WebSocket connection.
 	//
 	// Conn is created but not connected yet. The Connect method establishes
 	// the WebSocket handshake and returns the initial snapshot.
 	conn := &client.Conn{}
 
-	// Step 3: Connect.
+	// Step 2: Connect.
 	//
 	// Construct the WebSocket URL from the base URL, session ID, and path.
 	// The wsURL helper converts http:// to ws:// and appends the session path.
@@ -162,7 +163,7 @@ func run(cfg *tuiConfig) error {
 	}
 	defer func() { _ = conn.Close() }()
 
-	// Step 4: Create model with pointer receiver.
+	// Step 3: Create model with pointer receiver.
 	//
 	// CRITICAL: The model must be a pointer (*model).
 	//
@@ -177,30 +178,33 @@ func run(cfg *tuiConfig) error {
 	// (interface{} holds the pointer value). The program and your local
 	// variable both point to the same struct. Setting m.program = p modifies
 	// the shared struct, so the goroutine sees the correct program reference.
+	game, err := newGameClient(cfg.game, cfg.seat, cfg.observer)
+	if err != nil {
+		return err
+	}
 	m := &model{
-		conn:     conn,
-		seat:     cfg.seat,
-		observer: cfg.observer,
-		phase:    "connecting",
+		conn:  conn,
+		game:  game,
+		phase: "connecting",
 	}
 
-	// Step 5: Create program.
+	// Step 4: Create program.
 	p := tea.NewProgram(m)
 
-	// Step 6: Set model.program.
+	// Step 5: Set model.program.
 	//
 	// Now that p exists, store the reference in the model. Because m is a
 	// pointer, this modification is visible to the program.
 	m.program = p
 
-	// Step 7: Start WebSocket reader goroutine.
+	// Step 6: Start WebSocket reader goroutine.
 	//
 	// The goroutine reads from the WebSocket and sends messages into the
 	// model via program.Send(). This is safe because Program.Send() is
 	// thread-safe — it can be called from any goroutine.
 	go startWSReader(ctx, conn, p)
 
-	// Step 8: Run.
+	// Step 7: Run.
 	//
 	// p.Run() blocks until the user exits. The model's Update() handles
 	// all messages (snapshots, errors, keypresses, timers).
@@ -209,6 +213,18 @@ func run(cfg *tuiConfig) error {
 	}
 
 	return nil
+}
+
+// newGameClient constructs the game-specific client for the named game. It is
+// the single composition point where concrete games are wired into the
+// game-agnostic model; add new games by extending the switch.
+func newGameClient(game string, seat int, observer bool) (gameClient, error) {
+	switch game {
+	case "hearts":
+		return heartstui.NewClient(seat, observer), nil
+	default:
+		return nil, fmt.Errorf("unsupported game: %q", game)
+	}
 }
 
 // wsURL converts an HTTP base URL to a WebSocket URL for a session.
