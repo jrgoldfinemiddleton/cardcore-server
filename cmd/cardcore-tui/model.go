@@ -53,12 +53,20 @@ type model struct {
 	// roundNumber is the current round number (1-based), from the envelope.
 	roundNumber int
 
+	// scores is the cumulative scores per seat, decoded from the snapshot
+	// envelope. It is used to render the header score summary.
+	scores []int
+
 	// errMsg is the current error flash message. It is displayed in the
 	// status bar for 3 seconds, then cleared.
 	errMsg string
 
 	// statusMsg is a persistent status message (e.g., a close reason).
 	statusMsg string
+
+	// disconnected is true when the WebSocket has closed. It drives the
+	// footer connection-state display.
+	disconnected bool
 }
 
 // commandSentMsg is delivered after an outgoing command send completes. A
@@ -123,12 +131,13 @@ func (m *model) View() tea.View {
 	return v
 }
 
-// handleSnapshot decodes the generic snapshot envelope for the header and
-// delegates the full snapshot to the gameClient for game-specific decoding.
+// handleSnapshot decodes the generic snapshot envelope for the header/footer
+// and delegates the full snapshot to the gameClient for game-specific decoding.
 func (m *model) handleSnapshot(raw []byte) {
 	var envelope struct {
 		Phase       string `json:"phase"`
 		RoundNumber int    `json:"round_number"`
+		Scores      []int  `json:"scores"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		m.errMsg = "Failed to decode snapshot"
@@ -137,15 +146,22 @@ func (m *model) handleSnapshot(raw []byte) {
 
 	m.phase = envelope.Phase
 	m.roundNumber = envelope.RoundNumber
+	m.scores = envelope.Scores
 	m.snapshot = raw
 	m.game.HandleSnapshot(raw)
 }
 
-// handleKeyPress handles keyboard input. ctrl+c always quits; all other keys
-// are delegated to the gameClient, which may return a command to send and/or a
-// status message to flash.
+// handleKeyPress handles keyboard input. ctrl+c always quits; Enter quits in
+// game_over phase. All other keys are delegated to the gameClient.
 func (m *model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if msg.String() == "ctrl+c" {
+		if m.conn != nil {
+			_ = m.conn.Close()
+		}
+		return m, tea.Quit
+	}
+
+	if m.phase == "game_over" && msg.Code == tea.KeyEnter {
 		if m.conn != nil {
 			_ = m.conn.Close()
 		}

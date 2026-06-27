@@ -118,3 +118,87 @@ func TestRenderTrickEmpty(t *testing.T) {
 		t.Errorf("RenderTrick(empty) = %q, want %q", got, want)
 	}
 }
+
+// TestRenderTrickCompleteViewWinner verifies the winner is shown when the
+// trick has all 4 cards.
+func TestRenderTrickCompleteViewWinner(t *testing.T) {
+	snap := heartsclient.PlayerSnapshot{
+		Trick: []heartsclient.TrickEntry{
+			{Seat: 0, Card: heartsclient.Card{Rank: "two", Suit: "clubs"}},
+			{Seat: 1, Card: heartsclient.Card{Rank: "ace", Suit: "clubs"}},
+			{Seat: 2, Card: heartsclient.Card{Rank: "king", Suit: "clubs"}},
+			{Seat: 3, Card: heartsclient.Card{Rank: "queen", Suit: "clubs"}},
+		},
+		Turn: 1,
+	}
+	got := RenderTrickCompleteView(snap, 0)
+	if !strings.Contains(got, "Seat 1 won") {
+		t.Errorf("RenderTrickCompleteView = %q, want to contain 'Seat 1 won'", got)
+	}
+}
+
+// TestRenderTrickCompleteViewIncomplete verifies no winner is claimed when
+// the trick is not complete.
+func TestRenderTrickCompleteViewIncomplete(t *testing.T) {
+	snap := heartsclient.PlayerSnapshot{
+		Trick: []heartsclient.TrickEntry{
+			{Seat: 0, Card: heartsclient.Card{Rank: "two", Suit: "clubs"}},
+			{Seat: 1, Card: heartsclient.Card{Rank: "ace", Suit: "clubs"}},
+		},
+	}
+	got := RenderTrickCompleteView(snap, 0)
+	if strings.Contains(got, "won") {
+		t.Errorf("RenderTrickCompleteView = %q, should not claim winner for incomplete trick", got)
+	}
+	if !strings.Contains(got, "Trick complete") {
+		t.Errorf("RenderTrickCompleteView = %q, want to contain 'Trick complete'", got)
+	}
+}
+
+// TestRenderRoundCompleteView verifies the round-complete view shows scores.
+func TestRenderRoundCompleteView(t *testing.T) {
+	snap := heartsclient.PlayerSnapshot{
+		RoundNumber: 1,
+		Scores:      []int{13, 0, 13, 0},
+		RoundPoints: []int{11, 0, 0, 0},
+	}
+	got := RenderRoundCompleteView(snap)
+	if !strings.Contains(got, "Round 1 complete") {
+		t.Errorf("RenderRoundCompleteView = %q, want 'Round 1 complete'", got)
+	}
+	if !strings.Contains(got, "Seat 0: 13 (+11)") {
+		t.Errorf("RenderRoundCompleteView = %q, want Seat 0 score", got)
+	}
+}
+
+// TestRenderRoundCompleteViewMismatch verifies an explicit error is shown
+// when RoundPoints length does not match Scores length.
+func TestRenderRoundCompleteViewMismatch(t *testing.T) {
+	snap := heartsclient.PlayerSnapshot{
+		RoundNumber: 1,
+		Scores:      []int{13, 0, 13, 0},
+		RoundPoints: []int{11, 0},
+	}
+	got := RenderRoundCompleteView(snap)
+	if !strings.Contains(got, "ERROR") {
+		t.Errorf("RenderRoundCompleteView = %q, want to contain 'ERROR'", got)
+	}
+}
+
+// TestRenderGameOverView verifies the game-over view shows final scores and
+// an exit prompt.
+func TestRenderGameOverView(t *testing.T) {
+	snap := heartsclient.PlayerSnapshot{
+		Scores: []int{26, 0, 0, 0},
+	}
+	got := RenderGameOverView(snap)
+	if !strings.Contains(got, "Game Over") {
+		t.Errorf("RenderGameOverView = %q, want 'Game Over'", got)
+	}
+	if !strings.Contains(got, "Seat 0: 26") {
+		t.Errorf("RenderGameOverView = %q, want Seat 0 score", got)
+	}
+	if !strings.Contains(got, "Press Enter to exit") {
+		t.Errorf("RenderGameOverView = %q, want exit prompt", got)
+	}
+}

@@ -23,18 +23,16 @@ func RenderObserverView(snap heartsclient.ObserverSnapshot) string {
 
 	trick := RenderTrick(snap.Trick)
 
-	scoreParts := make([]string, 0, len(snap.Scores))
-	for i, s := range snap.Scores {
-		rp := 0
-		// Defensive bounds check: RoundPoints may be shorter than Scores in a
-		// malformed snapshot (e.g., first round before points are populated, or a
-		// server bug). Zero is a safe default.
-		if i < len(snap.RoundPoints) {
-			rp = snap.RoundPoints[i]
+	var scores string
+	if len(snap.RoundPoints) != len(snap.Scores) {
+		scores = "Scores: ERROR (data mismatch)"
+	} else {
+		scoreParts := make([]string, 0, len(snap.Scores))
+		for i, s := range snap.Scores {
+			scoreParts = append(scoreParts, fmt.Sprintf("S%d=%d(+%d)", i, s, snap.RoundPoints[i]))
 		}
-		scoreParts = append(scoreParts, fmt.Sprintf("S%d=%d(+%d)", i, s, rp))
+		scores = "Scores: " + strings.Join(scoreParts, " ")
 	}
-	scores := "Scores: " + strings.Join(scoreParts, " ")
 
 	turnLine := fmt.Sprintf("Seat %d's turn", snap.Turn)
 

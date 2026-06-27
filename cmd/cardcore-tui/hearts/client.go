@@ -108,6 +108,12 @@ func (c *Client) Render() string {
 		return RenderPassingView(c.playerSnap, c.seat, c.cursor, c.selected)
 	case heartsclient.PhasePlaying:
 		return RenderPlayingView(c.playerSnap, c.seat, c.cursor)
+	case heartsclient.PhaseTrickComplete:
+		return RenderTrickCompleteView(c.playerSnap, c.seat)
+	case heartsclient.PhaseRoundComplete:
+		return RenderRoundCompleteView(c.playerSnap)
+	case heartsclient.PhaseGameOver:
+		return RenderGameOverView(c.playerSnap)
 	default:
 		return fmt.Sprintf("Phase: %s", c.phase)
 	}
@@ -168,7 +174,7 @@ func (c *Client) submitPlay() (client.Command, bool, string) {
 	}
 	hand := c.playerSnap.Hand
 	if c.cursor < 0 || c.cursor >= len(hand) {
-		return client.Command{}, false, ""
+		return client.Command{}, false, "Invalid state"
 	}
 	card := hand[c.cursor]
 	if !slices.Contains(c.playerSnap.LegalActions, card) {
