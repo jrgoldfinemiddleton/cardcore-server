@@ -81,6 +81,18 @@ func TestModelUpdateKeyPressCtrlC(t *testing.T) {
 	isQuitMsg(t, cmd)
 }
 
+// TestModelUpdateKeyPressGameOverEnter verifies Enter quits in game_over phase.
+func TestModelUpdateKeyPressGameOverEnter(t *testing.T) {
+	m := &model{game: &fakeGame{}, phase: "game_over"}
+
+	newM, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, ok := newM.(*model)
+	if !ok {
+		t.Fatalf("Update returned %T, want *model", newM)
+	}
+	isQuitMsg(t, cmd)
+}
+
 // TestModelUpdateWSClose verifies WebSocket close quits the program.
 func TestModelUpdateWSClose(t *testing.T) {
 	m := &model{game: &fakeGame{}}
@@ -137,6 +149,30 @@ func TestModelHandleSnapshotInvalid(t *testing.T) {
 	}
 	if f.snapshotCalls != 0 {
 		t.Errorf("got snapshotCalls %d, want 0", f.snapshotCalls)
+	}
+}
+
+// TestModelHandleSnapshotScores verifies scores are decoded from the envelope.
+func TestModelHandleSnapshotScores(t *testing.T) {
+	f := &fakeGame{}
+	m := &model{game: f}
+
+	m.handleSnapshot([]byte(`{"phase":"playing","round_number":2,"scores":[13,0,13,0]}`))
+
+	if m.phase != "playing" {
+		t.Errorf("got phase %q, want playing", m.phase)
+	}
+	if m.roundNumber != 2 {
+		t.Errorf("got roundNumber %d, want 2", m.roundNumber)
+	}
+	want := []int{13, 0, 13, 0}
+	if len(m.scores) != len(want) {
+		t.Fatalf("got scores %v, want %v", m.scores, want)
+	}
+	for i := range want {
+		if m.scores[i] != want[i] {
+			t.Errorf("scores[%d] = %d, want %d", i, m.scores[i], want[i])
+		}
 	}
 }
 

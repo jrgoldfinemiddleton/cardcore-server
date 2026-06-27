@@ -72,6 +72,60 @@ func RenderPlayingView(snap heartsclient.PlayerSnapshot, seat, cursor int) strin
 	return joinLines([]string{trick, hand, status})
 }
 
+// RenderTrickCompleteView renders the view shown when a trick is complete.
+//
+// It displays the completed trick with seat labels and a status line.
+// In Hearts, snap.Turn is the winner's seat (they lead the next trick).
+// The winner is shown only when the trick has all 4 cards; otherwise a
+// generic message is shown as a defensive fallback.
+func RenderTrickCompleteView(snap heartsclient.PlayerSnapshot, seat int) string {
+	trick := RenderTrick(snap.Trick)
+
+	var status string
+	if len(snap.Trick) == 4 {
+		status = fmt.Sprintf("Trick complete — Seat %d won", snap.Turn)
+	} else {
+		status = "Trick complete"
+	}
+
+	return joinLines([]string{trick, status})
+}
+
+// RenderRoundCompleteView renders the round scores overlay.
+//
+// It shows the scores for each seat and the round points accumulated.
+// The next snapshot (deal/passing) transitions naturally; no blocking.
+func RenderRoundCompleteView(snap heartsclient.PlayerSnapshot) string {
+	if len(snap.RoundPoints) != len(snap.Scores) {
+		return "ERROR: Invalid snapshot (score data mismatch)"
+	}
+
+	var lines []string
+	lines = append(lines, fmt.Sprintf("Round %d complete", snap.RoundNumber))
+
+	for i := 0; i < len(snap.Scores); i++ {
+		lines = append(lines,
+			fmt.Sprintf("Seat %d: %d (+%d)", i, snap.Scores[i], snap.RoundPoints[i]))
+	}
+
+	return joinLines(lines)
+}
+
+// RenderGameOverView renders the final game-over screen.
+//
+// It shows the final scores for all seats and a prompt to exit.
+func RenderGameOverView(snap heartsclient.PlayerSnapshot) string {
+	var lines []string
+	lines = append(lines, "Game Over")
+
+	for i := 0; i < len(snap.Scores); i++ {
+		lines = append(lines, fmt.Sprintf("Seat %d: %d", i, snap.Scores[i]))
+	}
+
+	lines = append(lines, "Press Enter to exit")
+	return joinLines(lines)
+}
+
 // joinLines joins lines with newlines for multi-line view output.
 func joinLines(lines []string) string {
 	return strings.Join(lines, "\n")

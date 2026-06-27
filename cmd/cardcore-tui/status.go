@@ -49,6 +49,7 @@ func (m *model) handleWSError(msg wsErrorMsg) tea.Cmd {
 // The close message is displayed in the footer before quitting. The model
 // does not enter a modal state — it exits immediately with a message.
 func (m *model) handleWSClose(msg wsCloseMsg) tea.Cmd {
+	m.disconnected = true
 	m.statusMsg = closeMessageForCode(msg.code)
 	if m.conn != nil {
 		_ = m.conn.Close()

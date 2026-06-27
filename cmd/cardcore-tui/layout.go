@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"charm.land/lipgloss/v2"
 )
@@ -70,18 +71,21 @@ func (m *model) renderLayout() string {
 
 // renderHeader renders the top section (scores, phase, round info).
 //
-// TODO: Add score summary when snapshot decoding is implemented.
 // The header shows the current round number, game phase, and a score summary.
 // It is styled with bold red text to make it visually distinct.
 func (m *model) renderHeader() string {
-	return headerStyle.Render(
-		lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			fmt.Sprintf("Round %d", m.roundNumber),
-			" | ",
-			fmt.Sprintf("Phase: %s", m.phase),
-		),
-	)
+	var line string
+	if len(m.scores) > 0 {
+		scoreParts := make([]string, len(m.scores))
+		for i, s := range m.scores {
+			scoreParts[i] = fmt.Sprintf("S%d=%d", i, s)
+		}
+		line = fmt.Sprintf("Round %d | Phase: %s | Scores: %s",
+			m.roundNumber, m.phase, strings.Join(scoreParts, " "))
+	} else {
+		line = fmt.Sprintf("Round %d | Phase: %s", m.roundNumber, m.phase)
+	}
+	return headerStyle.Render(line)
 }
 
 // renderMain renders the central game area. It delegates to the game client
@@ -95,16 +99,12 @@ func (m *model) renderMain() string {
 
 // renderFooter renders the status bar (error messages, connection status).
 //
-// TODO: Add actual connection state detection (show "Disconnected" on close).
-// TODO: Set status messages ("AI thinking...", "Your turn") from snapshot data.
-//
-// The footer shows one of three things:
+// The footer shows one of two things:
 //
 //  1. Error flash message (red, 3 seconds)
 //  2. Connection status ("Connected" / "Disconnected")
-//  3. Persistent status ("AI thinking...", "Your turn")
 //
-// The error flash takes priority over other status messages.
+// The error flash takes priority over connection status.
 func (m *model) renderFooter() string {
 	// Error flash takes priority.
 	if m.errMsg != "" {
@@ -112,6 +112,9 @@ func (m *model) renderFooter() string {
 	}
 
 	// Connection status.
+	if m.disconnected {
+		return footerStyle.Render("Disconnected")
+	}
 	if m.statusMsg != "" {
 		return footerStyle.Render(m.statusMsg)
 	}
