@@ -26,8 +26,10 @@ type observerConn struct {
 	// logger is the structured logger.
 	logger *slog.Logger
 	// closing references the server's shutdown flag. When true, run()
-	// skips the final NormalClosure close frame because Shutdown()
-	// has already sent GoingAway.
+	// skips the final NormalClosure frame and the writer skips cancelling
+	// the read context, leaving Shutdown's conn.Close(GoingAway) as the
+	// sole teardown path. Cancelling the read context during shutdown
+	// would race that close frame and drop it.
 	closing *atomic.Bool
 }
 
@@ -46,9 +48,14 @@ func (oc *observerConn) run(ctx context.Context) {
 
 	var wg sync.WaitGroup
 
-	// CloseRead handles ping/pong and close frames automatically.
+	// CloseRead handles ping/pong and close frames automatically. It
+	// spawns its own read goroutine and returns a context cancelled when
+	// the connection closes; wait on that so run() does not return (and
+	// fire defer cancel()) before Shutdown's conn.Close(GoingAway) has
+	// torn the connection down during shutdown.
 	wg.Go(func() {
-		oc.ws.CloseRead(ctx)
+		readCtx := oc.ws.CloseRead(ctx)
+		<-readCtx.Done()
 	})
 
 	wg.Go(func() {
@@ -77,13 +84,24 @@ func (oc *observerConn) run(ctx context.Context) {
 // the observer. It reads snapshots from the session goroutine (subCh)
 // and writes them to the WebSocket.
 func (oc *observerConn) writer(ctx context.Context, cancel context.CancelFunc) {
-	defer cancel() // signal CloseRead goroutine to exit on any return path
+	skipCancel := false
+	defer func() {
+		if !skipCancel {
+			cancel() // signal CloseRead goroutine to exit on any return path
+		}
+	}()
 
 	for {
 		select {
 		case msg, ok := <-oc.subCh:
 			if !ok {
 				// Session goroutine closed subCh (game over or kicked).
+				// During shutdown, leave the read goroutine parked so
+				// Shutdown's conn.Close(GoingAway) drives teardown instead
+				// of an abrupt read-context cancel that drops the frame.
+				if oc.closing != nil && oc.closing.Load() {
+					skipCancel = true
+				}
 				return
 			}
 			if msg.CloseCode != 0 {
@@ -153,6 +171,12 @@ func (s *Server) handleObserverWS(w http.ResponseWriter, r *http.Request) {
 	}
 	s.RegisterWSConn(conn)
 	go func() {
+		// If Shutdown began before this connection registered, its close
+		// sweep missed us; send GoingAway here so a connection accepted
+		// during shutdown still sees 1001 rather than an abrupt close.
+		if s.closing.Load() {
+			_ = conn.Close(websocket.StatusGoingAway, "server shutting down")
+		}
 		oc.run(context.Background())
 		s.UnregisterWSConn(conn)
 	}()
