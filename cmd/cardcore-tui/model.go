@@ -16,6 +16,10 @@ import (
 type gameClient interface {
 	// HandleSnapshot decodes and stores a new snapshot.
 	HandleSnapshot(raw json.RawMessage)
+	// LastError returns the most recent error from the game client, or an
+	// empty string if there is none. It is called after HandleSnapshot so
+	// the model can flash decode failures to the user.
+	LastError() string
 	// HandleKey processes a key press, optionally producing a command to send
 	// and a status message to flash. send is true when cmd should be sent;
 	// status is non-empty when a message should flash.
@@ -149,6 +153,9 @@ func (m *model) handleSnapshot(raw []byte) {
 	m.scores = envelope.Scores
 	m.snapshot = raw
 	m.game.HandleSnapshot(raw)
+	if errMsg := m.game.LastError(); errMsg != "" {
+		m.errMsg = errMsg
+	}
 }
 
 // handleKeyPress handles keyboard input. ctrl+c always quits; Enter quits in

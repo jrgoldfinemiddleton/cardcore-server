@@ -37,6 +37,9 @@ type Client struct {
 	submitted bool
 	// actionCounter generates unique action IDs for outgoing commands.
 	actionCounter int
+	// lastErr holds the most recent game-specific decode or validation
+	// error. It is cleared at the start of each HandleSnapshot call.
+	lastErr string
 }
 
 // NewClient returns a Hearts adapter for the given seat. When observer is true,
@@ -49,10 +52,12 @@ func NewClient(seat int, observer bool) *Client {
 // updates selection state. A phase change resets the cursor and selection; a
 // fresh snapshot re-enables input.
 func (c *Client) HandleSnapshot(raw json.RawMessage) {
+	c.lastErr = ""
 	var envelope struct {
 		Phase string `json:"phase"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
+		c.lastErr = "Failed to decode snapshot envelope"
 		return
 	}
 	phaseChanged := envelope.Phase != c.phase
@@ -60,14 +65,17 @@ func (c *Client) HandleSnapshot(raw json.RawMessage) {
 
 	if c.observer {
 		var snap heartsclient.ObserverSnapshot
-		if err := json.Unmarshal(raw, &snap); err == nil {
-			c.observerSnap = snap
+		if err := json.Unmarshal(raw, &snap); err != nil {
+			c.lastErr = "Failed to decode observer snapshot"
+			return
 		}
+		c.observerSnap = snap
 		return
 	}
 
 	var snap heartsclient.PlayerSnapshot
 	if err := json.Unmarshal(raw, &snap); err != nil {
+		c.lastErr = "Failed to decode player snapshot"
 		return
 	}
 	c.playerSnap = snap
@@ -117,6 +125,12 @@ func (c *Client) Render() string {
 	default:
 		return fmt.Sprintf("Phase: %s", c.phase)
 	}
+}
+
+// LastError returns the most recent game-specific error, or an empty string
+// if the last HandleSnapshot call succeeded.
+func (c *Client) LastError() string {
+	return c.lastErr
 }
 
 // handlePassingKey handles navigation, selection, and submission during the

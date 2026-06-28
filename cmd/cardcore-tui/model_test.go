@@ -14,6 +14,7 @@ import (
 // configured results.
 type fakeGame struct {
 	snapshotCalls int
+	lastErr       string
 	keyCmd        client.Command
 	keySend       bool
 	keyStatus     string
@@ -176,6 +177,19 @@ func TestModelHandleSnapshotScores(t *testing.T) {
 	}
 }
 
+// TestModelHandleSnapshotGameClientError verifies a game-client decode error
+// is flashed to the user.
+func TestModelHandleSnapshotGameClientError(t *testing.T) {
+	f := &fakeGame{lastErr: "Failed to decode player snapshot"}
+	m := &model{game: f}
+
+	m.handleSnapshot([]byte(`{"phase":"playing"}`))
+
+	if m.errMsg != "Failed to decode player snapshot" {
+		t.Errorf("got errMsg %q, want Failed to decode player snapshot", m.errMsg)
+	}
+}
+
 // TestModelRenderMainDelegates verifies the main area is produced by the game
 // client once a snapshot has arrived.
 func TestModelRenderMainDelegates(t *testing.T) {
@@ -191,6 +205,11 @@ func TestModelRenderMainDelegates(t *testing.T) {
 // HandleSnapshot records the snapshot delegation call.
 func (f *fakeGame) HandleSnapshot(raw json.RawMessage) {
 	f.snapshotCalls++
+}
+
+// LastError returns the configured last error.
+func (f *fakeGame) LastError() string {
+	return f.lastErr
 }
 
 // HandleKey records the key delegation call and returns configured results.
