@@ -258,6 +258,59 @@ func TestClientPhaseResetSelection(t *testing.T) {
 	}
 }
 
+// TestClientHandleSnapshotInvalidJSON verifies that invalid JSON sets lastErr
+// and does not update playerSnap.
+func TestClientHandleSnapshotInvalidJSON(t *testing.T) {
+	c := NewClient(0, false)
+	c.HandleSnapshot(json.RawMessage(`not json`))
+
+	if c.LastError() != "Failed to decode snapshot envelope" {
+		t.Errorf("got lastErr %q, want %q", c.LastError(), "Failed to decode snapshot envelope")
+	}
+}
+
+// TestClientHandleSnapshotPlayerDecodeError verifies that a valid envelope with
+// an unmarshalable player snapshot sets lastErr.
+func TestClientHandleSnapshotPlayerDecodeError(t *testing.T) {
+	c := NewClient(0, false)
+	c.HandleSnapshot(json.RawMessage(`{"phase":"playing","turn":0,"hand":["not-a-card"]}`))
+
+	if c.LastError() != "Failed to decode player snapshot" {
+		t.Errorf("got lastErr %q, want %q", c.LastError(), "Failed to decode player snapshot")
+	}
+}
+
+// TestClientHandleSnapshotObserverDecodeError verifies that an unmarshalable
+// observer snapshot sets lastErr.
+func TestClientHandleSnapshotObserverDecodeError(t *testing.T) {
+	c := NewClient(0, true)
+	c.HandleSnapshot(json.RawMessage(`{"phase":"playing","hands":"not-an-array"}`))
+
+	if c.LastError() != "Failed to decode observer snapshot" {
+		t.Errorf("got lastErr %q, want %q", c.LastError(), "Failed to decode observer snapshot")
+	}
+}
+
+// TestClientLastErrorClearedOnSuccess verifies that a successful HandleSnapshot
+// clears any previous lastErr.
+func TestClientLastErrorClearedOnSuccess(t *testing.T) {
+	c := NewClient(0, false)
+	c.HandleSnapshot(json.RawMessage(`not json`))
+	if c.LastError() == "" {
+		t.Fatal("expected lastErr after invalid JSON")
+	}
+
+	snap := heartsclient.PlayerSnapshot{
+		Phase: heartsclient.PhasePassing,
+		Hand:  []heartsclient.Card{{Rank: "two", Suit: "clubs"}},
+	}
+	c.HandleSnapshot(mustMarshal(t, snap))
+
+	if c.LastError() != "" {
+		t.Errorf("got lastErr %q, want empty after successful decode", c.LastError())
+	}
+}
+
 // newPassingClient returns a player client with a four-card hand in the
 // passing phase, ready for navigation and selection tests.
 func newPassingClient(t *testing.T) *Client {
