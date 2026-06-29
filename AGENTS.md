@@ -12,6 +12,7 @@ cardcore-server/
 │   ├── server/          # Game server binary
 │   ├── tui/             # Bubble Tea TUI client binary
 │   └── client/          # Non-TTY CLI client binary
+│       └── <game>/      # Game-specific command builders and formatters
 ├── internal/
 │   ├── api/
 │   │   ├── api.go        # Game-agnostic message envelopes and error codes

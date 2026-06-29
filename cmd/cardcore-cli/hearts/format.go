@@ -1,4 +1,4 @@
-package main
+package heartscli
 
 import (
 	"encoding/json"
@@ -8,25 +8,44 @@ import (
 	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
 )
 
+// Formatter implements game-specific snapshot formatting for Hearts.
+type Formatter struct{}
+
 // snapshotEnvelope captures the fields we need for compact formatting.
 type snapshotEnvelope struct {
-	Seq          int                       `json:"seq"`
-	Phase        string                    `json:"phase"`
-	Turn         int                       `json:"turn"`
-	RoundNumber  int                       `json:"round_number,omitempty"`
-	TrickNumber  int                       `json:"trick_number,omitempty"`
-	Scores       []int                     `json:"scores,omitempty"`
-	Hand         []heartsclient.Card       `json:"hand,omitempty"`
-	LegalActions []heartsclient.Card       `json:"legal_actions,omitempty"`
-	Hands        [][]heartsclient.Card     `json:"hands,omitempty"`
-	Trick        []heartsclient.TrickEntry `json:"trick,omitempty"`
-	RoundPoints  []int                     `json:"round_points,omitempty"`
+	// Seq is the snapshot sequence number.
+	Seq int `json:"seq"`
+	// Phase is the current game phase.
+	Phase string `json:"phase"`
+	// Turn is the seat index whose turn it is.
+	Turn int `json:"turn"`
+	// RoundNumber is the current round (omitted when zero).
+	RoundNumber int `json:"round_number,omitempty"`
+	// TrickNumber is the current trick (omitted when zero).
+	TrickNumber int `json:"trick_number,omitempty"`
+	// Scores are the cumulative scores for each seat.
+	Scores []int `json:"scores,omitempty"`
+	// Hand is the player's own hand (player snapshot only).
+	Hand []heartsclient.Card `json:"hand,omitempty"`
+	// LegalActions are the cards the player may legally play.
+	LegalActions []heartsclient.Card `json:"legal_actions,omitempty"`
+	// Hands contains all seats' hands (observer snapshot only).
+	Hands [][]heartsclient.Card `json:"hands,omitempty"`
+	// Trick is the cards played so far in the current trick.
+	Trick []heartsclient.TrickEntry `json:"trick,omitempty"`
+	// RoundPoints are points taken this round (omitted when empty).
+	RoundPoints []int `json:"round_points,omitempty"`
 }
 
-// formatSnapshot returns a compact one-line string for a snapshot.
+// NewFormatter returns a Hearts snapshot formatter.
+func NewFormatter() *Formatter {
+	return &Formatter{}
+}
+
+// FormatSnapshot returns a compact one-line string for a Hearts snapshot.
 // It handles both player and observer snapshots and produces
 // deterministic output suitable for golden tests and diffing.
-func formatSnapshot(snapshot []byte) string {
+func (f *Formatter) FormatSnapshot(snapshot []byte) string {
 	var env snapshotEnvelope
 	if err := json.Unmarshal(snapshot, &env); err != nil {
 		return fmt.Sprintf("malformed: %v", err)
@@ -41,7 +60,7 @@ func formatSnapshot(snapshot []byte) string {
 		fmt.Fprintf(&b, " trick_num=%d", env.TrickNumber)
 	}
 
-	if env.Phase == phaseGameOver {
+	if env.Phase == "game_over" {
 		fmt.Fprintf(&b, " scores=%v", env.Scores)
 		return b.String()
 	}

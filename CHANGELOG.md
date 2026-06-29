@@ -10,6 +10,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- CLI multi-game support: `-game` flag (default `hearts`) with game-agnostic `ScriptExecutor` (`GameBuilder` interface) and game-specific subpackages (`cmd/cardcore-cli/hearts/`). Added `-addr`, `-pacing`, `-ai-type`, `-exit-delay` flags with `CARDCORE_*` env-var fallback. Action IDs include seat number (`cli-{seat}-{seq}`) to prevent cross-client collisions
 - CLI compact snapshot notation with Unicode suit symbols (e.g., `seq=5 phase=passing turn=0 hand=[2♣ 3♣ 4♣]`)
 - CLI environment variables: `CARDCORE_AI_TYPE` (`random`/`heuristic`/`pimc`), `CARDCORE_PACING_MS`, `CARDCORE_EXIT_DELAY_MS`
 - Server environment variable: `CARDCORE_ADDR`

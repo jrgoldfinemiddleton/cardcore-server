@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	heartscli "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-cli/hearts"
 	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
 )
 
@@ -91,7 +92,7 @@ func TestParseScriptDuplicatePhase(t *testing.T) {
 // completion.
 func TestScriptExecutorGameOver(t *testing.T) {
 	script := Script{"playing": {Phase: "playing", Action: "play_card", Selector: "first_legal"}}
-	exec := NewScriptExecutor(script, 0)
+	exec := NewScriptExecutor(script, 0, heartscli.NewBuilder())
 
 	snapshot := []byte(`{"phase": "game_over", "seq": 100, "scores": [0, 26, 13, 13]}`)
 	cmd, done, err := exec.Step(snapshot)
@@ -110,7 +111,7 @@ func TestScriptExecutorGameOver(t *testing.T) {
 // it is another seat's turn.
 func TestScriptExecutorNotMyTurn(t *testing.T) {
 	script := Script{"playing": {Phase: "playing", Action: "play_card", Selector: "first_legal"}}
-	exec := NewScriptExecutor(script, 0)
+	exec := NewScriptExecutor(script, 0, heartscli.NewBuilder())
 
 	snapshot := []byte(`{
 		"phase": "playing",
@@ -134,7 +135,7 @@ func TestScriptExecutorNotMyTurn(t *testing.T) {
 // the current phase has no script entry.
 func TestScriptExecutorWrongPhase(t *testing.T) {
 	script := Script{"playing": {Phase: "playing", Action: "play_card", Selector: "first_legal"}}
-	exec := NewScriptExecutor(script, 0)
+	exec := NewScriptExecutor(script, 0, heartscli.NewBuilder())
 
 	// trick_complete has no script entry.
 	snapshot := []byte(`{"phase": "trick_complete", "seq": 5, "turn": 0}`)
@@ -155,7 +156,7 @@ func TestScriptExecutorPassingPhase(t *testing.T) {
 			SelectorArgs: []byte(`{"count": 3}`),
 		},
 	}
-	exec := NewScriptExecutor(script, 0)
+	exec := NewScriptExecutor(script, 0, heartscli.NewBuilder())
 
 	snapshot := []byte(`{
 		"phase": "passing",
@@ -209,7 +210,7 @@ func TestScriptExecutorPlayingPhase(t *testing.T) {
 			Selector: "first_legal",
 		},
 	}
-	exec := NewScriptExecutor(script, 0)
+	exec := NewScriptExecutor(script, 0, heartscli.NewBuilder())
 
 	snapshot := []byte(`{
 		"phase": "playing",
@@ -252,7 +253,7 @@ func TestScriptExecutorUnknownAction(t *testing.T) {
 			Selector: "first_legal",
 		},
 	}
-	exec := NewScriptExecutor(script, 0)
+	exec := NewScriptExecutor(script, 0, heartscli.NewBuilder())
 
 	snapshot := []byte(`{
 		"phase": "playing",
@@ -280,7 +281,7 @@ func TestScriptExecutorFirstNInsufficientCards(t *testing.T) {
 			SelectorArgs: []byte(`{"count": 5}`),
 		},
 	}
-	exec := NewScriptExecutor(script, 0)
+	exec := NewScriptExecutor(script, 0, heartscli.NewBuilder())
 
 	snapshot := []byte(`{
 		"phase": "passing",
@@ -308,7 +309,7 @@ func TestScriptExecutorFirstLegalNoActions(t *testing.T) {
 			Selector: "first_legal",
 		},
 	}
-	exec := NewScriptExecutor(script, 0)
+	exec := NewScriptExecutor(script, 0, heartscli.NewBuilder())
 
 	snapshot := []byte(`{
 		"phase": "playing",
@@ -334,7 +335,7 @@ func TestScriptExecutorByIndex(t *testing.T) {
 			SelectorArgs: []byte(`{"indices": [0, 2]}`),
 		},
 	}
-	exec := NewScriptExecutor(script, 0)
+	exec := NewScriptExecutor(script, 0, heartscli.NewBuilder())
 
 	snapshot := []byte(`{
 		"phase": "passing",
@@ -387,7 +388,7 @@ func TestScriptExecutorByIndexOutOfRange(t *testing.T) {
 			SelectorArgs: []byte(`{"indices": [0, 5]}`),
 		},
 	}
-	exec := NewScriptExecutor(script, 0)
+	exec := NewScriptExecutor(script, 0, heartscli.NewBuilder())
 
 	snapshot := []byte(`{
 		"phase": "passing",

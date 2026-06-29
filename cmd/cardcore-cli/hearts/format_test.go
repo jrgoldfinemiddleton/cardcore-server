@@ -1,4 +1,4 @@
-package main
+package heartscli
 
 import (
 	"testing"
@@ -44,6 +44,8 @@ func TestFormatTrick(t *testing.T) {
 
 // TestFormatSnapshot verifies compact notation for player, observer, and terminal snapshots.
 func TestFormatSnapshot(t *testing.T) {
+	f := NewFormatter()
+
 	tests := []struct {
 		name     string
 		snapshot string
@@ -131,9 +133,9 @@ func TestFormatSnapshot(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := formatSnapshot([]byte(tt.snapshot))
+			got := f.FormatSnapshot([]byte(tt.snapshot))
 			if got != tt.want {
-				t.Errorf("formatSnapshot() got\n  %q\nwant\n  %q", got, tt.want)
+				t.Errorf("FormatSnapshot() got\n  %q\nwant\n  %q", got, tt.want)
 			}
 		})
 	}
