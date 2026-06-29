@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
+	"runtime"
 
 	"github.com/jrgoldfinemiddleton/cardcore"
 	"github.com/jrgoldfinemiddleton/cardcore/games/hearts"
@@ -396,6 +397,9 @@ func newPlayer(
 		return ai.NewRandom(rng), nil
 	case "heuristic":
 		return ai.NewHeuristic(rng), nil
+	case "pimc":
+		rollout := func(r *rand.Rand) hearts.Player { return ai.NewRandom(r) }
+		return ai.NewPIMC(rng, 100, rollout, runtime.GOMAXPROCS(0)), nil
 	default:
 		return nil, fmt.Errorf(
 			"%w: unknown ai_type: %q", session.ErrInvalidConfig, aiType,

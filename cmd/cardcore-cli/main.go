@@ -3,15 +3,25 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
 )
 
-const aiTypeRandom = "random"
+const (
+	aiTypeRandom   = "random"
+	gameNameHearts = "hearts"
+	phaseGameOver  = "game_over"
+)
+
+var errBrokenPipe = errors.New("broken pipe")
 
 // cliConfig holds all command-line flag values after parsing and
 // validation.
@@ -34,6 +44,8 @@ type cliConfig struct {
 
 // main is the entry point for the cardcore client CLI.
 func main() {
+	signal.Ignore(syscall.SIGPIPE)
+
 	cfg, err := parseFlags()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -41,6 +53,10 @@ func main() {
 	}
 
 	if err := run(cfg); err != nil {
+		if errors.Is(err, errBrokenPipe) {
+			fmt.Fprintln(os.Stderr, "broken pipe")
+			os.Exit(1)
+		}
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -158,12 +174,21 @@ func run(cfg *cliConfig) error {
 	return runPlayer(ctx, conn, script, mySeat, cfg.deleteOnExit, sc, sessionID)
 }
 
-// runObserver reads snapshots until game_over and prints final scores.
+// runObserver reads snapshots until game_over and prints each snapshot
+// in compact notation, followed by final scores.
 func runObserver(ctx context.Context, conn *client.Conn) error {
 	for {
 		snapshot, err := conn.ReadSnapshot(ctx)
 		if err != nil {
 			return fmt.Errorf("read snapshot: %w", err)
+		}
+
+		line := formatSnapshot(snapshot)
+		if _, err := fmt.Println(line); err != nil {
+			if errors.Is(err, syscall.EPIPE) {
+				return errBrokenPipe
+			}
+			return fmt.Errorf("write stdout: %w", err)
 		}
 
 		var env struct {
@@ -173,8 +198,8 @@ func runObserver(ctx context.Context, conn *client.Conn) error {
 			return fmt.Errorf("unmarshal snapshot: %w", err)
 		}
 
-		if env.Phase == "game_over" {
-			printFinalScores(snapshot)
+		if env.Phase == phaseGameOver {
+			time.Sleep(configuredExitDelay())
 			return nil
 		}
 	}
@@ -203,10 +228,13 @@ func runPlayer(
 			return fmt.Errorf("script step: %w", err)
 		}
 		if gameOver {
-			printFinalScores(snapshot)
+			if err := printFinalScores(snapshot); err != nil {
+				return err
+			}
 			if deleteOnExit {
 				deleteSession(context.Background(), sc, sessionID)
 			}
+			time.Sleep(configuredExitDelay())
 			return nil
 		}
 		if cmd.Type != "" {
@@ -224,14 +252,15 @@ func createHumanSession(
 	ctx context.Context,
 	sc *client.SessionClient,
 ) (string, string, error) {
-	pacing := 500 // default pacing for human play
+	pacing := configuredPacing()
+	aiType := configuredAIType()
 	cfg := client.Config{
-		Game: "hearts",
+		Game: gameNameHearts,
 		Seats: []client.SeatConfig{
 			{Type: "human"},
-			{Type: "ai", AIType: aiTypeRandom},
-			{Type: "ai", AIType: aiTypeRandom},
-			{Type: "ai", AIType: aiTypeRandom},
+			{Type: "ai", AIType: aiType},
+			{Type: "ai", AIType: aiType},
+			{Type: "ai", AIType: aiType},
 		},
 		PacingDelayMS: &pacing,
 	}
@@ -255,14 +284,15 @@ func createObserverSession(
 	ctx context.Context,
 	sc *client.SessionClient,
 ) (string, []client.SeatInfo, error) {
-	pacing := 500
+	pacing := configuredPacing()
+	aiType := configuredAIType()
 	cfg := client.Config{
-		Game: "hearts",
+		Game: gameNameHearts,
 		Seats: []client.SeatConfig{
-			{Type: "ai", AIType: aiTypeRandom},
-			{Type: "ai", AIType: aiTypeRandom},
-			{Type: "ai", AIType: aiTypeRandom},
-			{Type: "ai", AIType: aiTypeRandom},
+			{Type: "ai", AIType: aiType},
+			{Type: "ai", AIType: aiType},
+			{Type: "ai", AIType: aiType},
+			{Type: "ai", AIType: aiType},
 		},
 		PacingDelayMS: &pacing,
 	}
@@ -277,4 +307,37 @@ func deleteSession(ctx context.Context, sc *client.SessionClient, sessionID stri
 	if err := sc.DeleteSession(ctx, sessionID); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: delete session: %v\n", err)
 	}
+}
+
+// configuredPacing returns the pacing delay in milliseconds. It reads
+// the CARDCORE_PACING_MS environment variable; if unset or invalid, it
+// returns the default 500.
+func configuredPacing() int {
+	if v := os.Getenv("CARDCORE_PACING_MS"); v != "" {
+		if d, err := strconv.Atoi(v); err == nil && d >= 0 {
+			return d
+		}
+	}
+	return 500
+}
+
+// configuredAIType returns the AI player type. It reads the
+// CARDCORE_AI_TYPE environment variable; if unset, it returns "random".
+func configuredAIType() string {
+	if v := os.Getenv("CARDCORE_AI_TYPE"); v != "" {
+		return v
+	}
+	return aiTypeRandom
+}
+
+// configuredExitDelay returns the duration to wait after game_over before
+// closing the WebSocket connection. It reads the CARDCORE_EXIT_DELAY_MS
+// environment variable; if unset or invalid, it returns 1 second.
+func configuredExitDelay() time.Duration {
+	if v := os.Getenv("CARDCORE_EXIT_DELAY_MS"); v != "" {
+		if d, err := strconv.Atoi(v); err == nil && d >= 0 {
+			return time.Duration(d) * time.Millisecond
+		}
+	}
+	return 1 * time.Second
 }

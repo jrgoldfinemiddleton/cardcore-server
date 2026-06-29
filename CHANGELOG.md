@@ -10,8 +10,11 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- CLI compact snapshot notation with Unicode suit symbols (e.g., `seq=5 phase=passing turn=0 hand=[2♣ 3♣ 4♣]`)
+- CLI environment variables: `CARDCORE_AI_TYPE` (`random`/`heuristic`/`pimc`), `CARDCORE_PACING_MS`, `CARDCORE_EXIT_DELAY_MS`
+- Server environment variable: `CARDCORE_ADDR`
+- TUI end-to-end integration test (`TestIntegrationTUIClientFullGame`)
 - TUI phase transition views (`trick_complete`, `round_complete`, `game_over`): completed trick display with winner derived from `snap.Turn`, round score overlay with data-mismatch guards, and game-over screen with "Press Enter to exit" prompt
-- TUI end-to-end integration test (`TestIntegrationTUIClientFullGame`): full 1-human+3-AI Hearts game via real WebSocket, verifying all phases render correctly and human sends both pass and play commands
 - `heartstui` package with pure card rendering, phase views, observer mode, and command builders; card symbols, styled rendering with cursor/selected/dimmed states, passing/playing views, and seat-prefixed action IDs to prevent cross-client collisions
 - Game-agnostic TUI model with `gameClient` interface and `-game` flag for client selection; delegates all game-specific logic to adapters so the model stays protocol-only
 - TUI binary `cmd/cardcore-tui/` with Bubble Tea v2: terminal UI client with WebSocket bridge, game-agnostic model state machine, error handling with flash timers, lipgloss-based layout rendering, and 14 unit tests covering state machine, WebSocket message dispatch, and error flash behavior
@@ -46,6 +49,9 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- Server shutdown logging: `http.ErrServerClosed` from `srv.Serve(ln)` during graceful shutdown is a normal return path, not an error. The server now treats it as success instead of logging at ERROR level
+- Transport write-abort logging: `net.ErrClosed` (client closed TCP) and `context.Canceled` (transport teardown) are expected races during normal client disconnection. Reclassified from ERROR to WARN
+- Session cleanup logging: `session.ErrNotActive` on unsubscribe after `game_over` is expected because the session goroutine has already exited and cleaned up. Reclassified from ERROR to DEBUG
 - TUI silent failure on invalid snapshot data: `RenderRoundCompleteView`, `RenderObserverView`, and `submitPlay` now return explicit "ERROR" or "Invalid state" messages instead of silently displaying incorrect zeros or no-ops
 - TUI game-client decode errors silently dropped: the `gameClient` interface's `HandleSnapshot` returned nothing, so JSON unmarshal failures in the Hearts adapter were invisible to the model. Added `LastError() string` to the interface; the model now queries it after each `HandleSnapshot` call and flashes the error to the user. The Hearts adapter sets `lastErr` on envelope, player, and observer decode failures, and clears it on success
 - Flaky `TestServerShutdownPropagatesGoingAwayIntegration` (`got close status -1, want 1001`), and the same race on the observer path now covered by `TestServerShutdownPropagatesGoingAwayToObserverIntegration`: shutdown could deliver an abrupt close instead of `StatusGoingAway` under CPU contention, in two ways. (1) For already-connected clients, `Server.Shutdown` deletes active sessions, which closes each subscriber channel and made the connection's writer goroutine cancel the shared read context; that cancellation tripped `coder/websocket`'s read-timeout hook, which closes the socket directly — bypassing the close-frame path and racing the `GoingAway` frame still being written. The player and observer writers now leave the read goroutine parked during shutdown instead of cancelling it, leaving `Shutdown`'s `conn.Close(StatusGoingAway, …)` as the sole connection-teardown path. (2) A connection whose upgrade completed after `Shutdown`'s close sweep was missed entirely; the player and observer handlers now send `GoingAway` themselves when the connection registers after shutdown has begun, so every accepted connection observes `1001`

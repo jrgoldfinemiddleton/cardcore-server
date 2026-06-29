@@ -1,4 +1,4 @@
-.PHONY: test fmt vet lint lint-extra race build doc check help create-labels apply-labels
+.PHONY: test fmt vet lint lint-extra race build doc check help create-labels apply-labels clean
 
 test: ## Run all tests
 	go test ./...
@@ -35,3 +35,6 @@ create-labels: ## Provision the repository label set
 apply-labels: ## Compute and apply labels for PR=<n>
 	@if [ -z "$(PR)" ]; then echo "usage: make apply-labels PR=<pr-number>" >&2; exit 1; fi
 	./scripts/apply-labels.sh $(PR)
+
+clean: ## Remove build output directory
+	rm -rf bin/

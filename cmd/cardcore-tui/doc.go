@@ -11,7 +11,7 @@
 //
 // Usage:
 //
-//	go run ./cmd/tui -server http://localhost:8080 -session <id> -token <token> -seat 0
+//	go run ./cmd/cardcore-tui -server http://localhost:8080 -session <id> -token <token> -seat 0
 //
 // Flags:
 //

@@ -35,7 +35,7 @@ configuration, and communication channels.
           │                       │
           ▼                       ▼
        ┌───────┐            ┌──────────┐          engine
-       │ draft │───────────▶│  active   │───────▶ reports
+       │ draft │───────────▶│  active  │──-─────▶ reports
        └───────┘            └──────────┘         completion
           │                       │                  │
           │ DELETE                │ DELETE           ▼
