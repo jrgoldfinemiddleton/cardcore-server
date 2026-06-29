@@ -2,7 +2,9 @@ package transport
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -70,7 +72,11 @@ func (oc *observerConn) run(ctx context.Context) {
 
 	// Both goroutines exited. Unsubscribe and close WS.
 	if err := oc.mgr.UnsubscribeObserver(oc.sessionID, oc.subCh); err != nil {
-		oc.logger.Error("unsubscribe observer", "error", err)
+		if errors.Is(err, session.ErrNotActive) {
+			oc.logger.Debug("unsubscribe observer skipped", "reason", "session not active")
+		} else {
+			oc.logger.Error("unsubscribe observer", "error", err)
+		}
 	}
 	if oc.closing != nil && oc.closing.Load() {
 		return
@@ -119,7 +125,11 @@ func (oc *observerConn) writer(ctx context.Context, cancel context.CancelFunc) {
 			oc.logger.Debug("observer writing snapshot",
 				"session_id", oc.sessionID, "len", len(msg.Data))
 			if err := writeWSBytes(ctx, oc.ws, msg.Data); err != nil {
-				oc.logger.Error("ws write snapshot", "error", err)
+				if errors.Is(err, net.ErrClosed) || errors.Is(err, context.Canceled) {
+					oc.logger.Warn("ws write snapshot aborted", "reason", err)
+				} else {
+					oc.logger.Error("ws write snapshot", "error", err)
+				}
 				return
 			}
 

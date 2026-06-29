@@ -3,6 +3,8 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -97,5 +99,76 @@ func TestObserverWSIgnoresInboundMessagesIntegration(t *testing.T) {
 	_ = mustReadSnapshot(t, conn2, ctx)
 	if err := conn2.Close(websocket.StatusNormalClosure, ""); err != nil {
 		t.Fatalf("close conn2: %v", err)
+	}
+}
+
+// TestObserverWSSurvivesAbruptClientDisconnectIntegration reproduces the
+// benign teardown race where a client closes its TCP connection while the
+// server is mid-write. The server must survive and remain healthy.
+func TestObserverWSSurvivesAbruptClientDisconnectIntegration(t *testing.T) {
+	srv, id, token := setupTestServerWithSession(t)
+	httpSrv := mustStartTestServer(t, srv)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	obsURL := "ws" + strings.TrimPrefix(httpSrv.URL, "http") +
+		"/sessions/" + id + "/ws/observe"
+	obsConn, resp, err := websocket.Dial(ctx, obsURL, nil)
+	if err != nil {
+		t.Fatalf("dial observer: %v", err)
+	}
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		t.Fatalf("got status %d, want %d", resp.StatusCode, http.StatusSwitchingProtocols)
+	}
+
+	_ = mustReadSnapshot(t, obsConn, ctx)
+
+	// Simulate abrupt client disconnect (process kill, ctrl-c, network drop).
+	_ = obsConn.CloseNow()
+	time.Sleep(50 * time.Millisecond)
+
+	// Trigger a snapshot broadcast that will hit the dead connection.
+	playerURL := "ws" + strings.TrimPrefix(httpSrv.URL, "http") +
+		"/sessions/" + id + "/ws"
+	playerConn, _, err := websocket.Dial(ctx, playerURL, &websocket.DialOptions{
+		HTTPHeader: http.Header{"Authorization": []string{"Bearer " + token}},
+	})
+	if err != nil {
+		t.Fatalf("dial player: %v", err)
+	}
+	defer func() { _ = playerConn.Close(websocket.StatusNormalClosure, "") }()
+
+	_ = mustReadSnapshot(t, playerConn, ctx)
+
+	cmd := map[string]any{
+		"type":      "play_card",
+		"action_id": "test-disconnect-action",
+		"seq":       1,
+		"payload": map[string]any{
+			"card": map[string]any{"rank": "two", "suit": "clubs"},
+		},
+	}
+	cmdBytes, _ := json.Marshal(cmd)
+	if err := playerConn.Write(ctx, websocket.MessageText, cmdBytes); err != nil {
+		t.Fatalf("write command: %v", err)
+	}
+	_ = mustReadWSMessage(t, playerConn, ctx)
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Prove the session survived: a new observer connects successfully.
+	obsConn2, resp2, err := websocket.Dial(ctx, obsURL, nil)
+	if err != nil {
+		t.Fatalf("dial second observer: %v", err)
+	}
+	if resp2.StatusCode != http.StatusSwitchingProtocols {
+		t.Fatalf("got status %d, want %d", resp2.StatusCode, http.StatusSwitchingProtocols)
+	}
+	defer func() { _ = obsConn2.Close(websocket.StatusNormalClosure, "") }()
+
+	snap := mustReadSnapshot(t, obsConn2, ctx)
+	if snap["type"] != "snapshot" {
+		t.Errorf("got type %q, want %q", snap["type"], "snapshot")
 	}
 }

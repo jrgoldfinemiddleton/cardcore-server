@@ -4,9 +4,11 @@ import (
 	"context"
 	crand "crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -39,10 +41,11 @@ func main() {
 
 	srv := transport.NewServer(transport.Config{
 		Manager: mgr,
+		Addr:    listenAddr(),
 	})
 
 	go func() {
-		if err := srv.Start(); err != nil {
+		if err := srv.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("server start", "error", err)
 			os.Exit(1)
 		}
@@ -101,4 +104,13 @@ func logLevel() slog.Level {
 	default:
 		return slog.LevelInfo
 	}
+}
+
+// listenAddr returns the TCP address to listen on from the CARDCORE_ADDR
+// environment variable. It defaults to "127.0.0.1:8080".
+func listenAddr() string {
+	if v := os.Getenv("CARDCORE_ADDR"); v != "" {
+		return v
+	}
+	return "127.0.0.1:8080"
 }

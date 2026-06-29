@@ -26,15 +26,19 @@ cardcore-server/
 ├── cmd/
 │   ├── cardcore-server/ # Game server binary
 │   ├── cardcore-tui/    # Bubble Tea TUI client binary
+│   │   └── <game>/      # Game-specific rendering and command-builders
 │   └── cardcore-cli/    # Non-TTY CLI client binary
 └── internal/
-    ├── client/          # Shared protocol-agnostic client engine
-    │   └── hearts/      # Hearts-specific adapter and DTOs
+    ├── api/              # Shared protocol-agnostic client engine
+    │   └── games/<game>/ # Game-specific wire-format types
+    ├── client/           # Shared protocol-agnostic client engine
+    │   └── <game>/       # Game-specific adapter and DTOs
     └── server/
-        ├── transport/       # HTTP/WebSocket plumbing
-        ├── session/         # Session lifecycle and game goroutine
+        ├── session/          # Session lifecycle and game goroutine
+        │   └── games/<game>/ # Game-specific adapter for session manager 
+        ├── transport/        # HTTP/WebSocket plumbing
         └── view/
-            └── <game>/      # Seat-filtered snapshot generation
+            └── <game>/       # Seat-filtered snapshot generation
 ```
 
 ## Requirements
@@ -75,6 +79,7 @@ See [Bubble Tea's terminal docs](https://charm.land/bubbletea/docs/terminal) for
 | `make build` | Compile all packages and binaries |
 | `make doc` | Browse docs locally via [pkgsite](https://pkg.go.dev/golang.org/x/pkgsite) |
 | `make check` | Run fmt, vet, lint, and test |
+| `make clean` | Remove build output directory |
 | `make help` | Show available targets |
 
 ## License

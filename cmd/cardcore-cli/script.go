@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
+	"syscall"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
 	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
@@ -62,7 +64,7 @@ func (e *ScriptExecutor) Step(snapshot []byte) (client.Command, bool, error) {
 		return client.Command{}, false, fmt.Errorf("unmarshal snapshot envelope: %w", err)
 	}
 
-	if env.Phase == "game_over" {
+	if env.Phase == phaseGameOver {
 		return client.Command{}, true, nil
 	}
 
@@ -242,15 +244,21 @@ func parseScript(data []byte) (Script, error) {
 }
 
 // printFinalScores extracts and prints the scores from a game_over snapshot.
-func printFinalScores(snapshot []byte) {
+func printFinalScores(snapshot []byte) error {
 	var snap struct {
 		Scores []int `json:"scores"`
 	}
 	if err := json.Unmarshal(snapshot, &snap); err != nil {
 		slog.Warn("unmarshal final scores", "error", err)
-		return
+		return nil
 	}
-	fmt.Printf("Final scores: %v\n", snap.Scores)
+	if _, err := fmt.Printf("Final scores: %v\n", snap.Scores); err != nil {
+		if errors.Is(err, syscall.EPIPE) {
+			return errBrokenPipe
+		}
+		return fmt.Errorf("write stdout: %w", err)
+	}
+	return nil
 }
 
 // wsURL converts an HTTP base URL to a WebSocket URL for the given

@@ -3,7 +3,9 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -71,7 +73,11 @@ func (pc *playerConn) run(ctx context.Context) {
 
 	// Both goroutines exited. Unsubscribe and close WS.
 	if err := pc.mgr.UnsubscribePlayer(pc.sessionID, pc.seat); err != nil {
-		pc.logger.Error("unsubscribe player", "error", err)
+		if errors.Is(err, session.ErrNotActive) {
+			pc.logger.Debug("unsubscribe player skipped", "reason", "session not active")
+		} else {
+			pc.logger.Error("unsubscribe player", "error", err)
+		}
 	}
 	if pc.closing != nil && pc.closing.Load() {
 		return
@@ -184,7 +190,11 @@ func (pc *playerConn) writer(ctx context.Context, cancel context.CancelFunc) {
 				"len", len(msg.Data),
 			)
 			if err := writeWSBytes(ctx, pc.ws, msg.Data); err != nil {
-				pc.logger.Error("ws write snapshot", "error", err)
+				if errors.Is(err, net.ErrClosed) || errors.Is(err, context.Canceled) {
+					pc.logger.Warn("ws write snapshot aborted", "reason", err)
+				} else {
+					pc.logger.Error("ws write snapshot", "error", err)
+				}
 				return
 			}
 
@@ -203,7 +213,11 @@ func (pc *playerConn) writer(ctx context.Context, cancel context.CancelFunc) {
 				"len", len(msg),
 			)
 			if err := writeWSBytes(ctx, pc.ws, msg); err != nil {
-				pc.logger.Error("ws write message", "error", err)
+				if errors.Is(err, net.ErrClosed) || errors.Is(err, context.Canceled) {
+					pc.logger.Warn("ws write message aborted", "reason", err)
+				} else {
+					pc.logger.Error("ws write message", "error", err)
+				}
 				return
 			}
 
