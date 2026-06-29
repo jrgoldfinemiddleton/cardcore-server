@@ -82,7 +82,9 @@ func (oc *observerConn) run(ctx context.Context) {
 		return
 	}
 	if err := oc.ws.Close(websocket.StatusNormalClosure, ""); err != nil {
-		oc.logger.Error("ws close", "error", err)
+		if !errors.Is(err, net.ErrClosed) {
+			oc.logger.Error("ws close", "error", err)
+		}
 	}
 }
 

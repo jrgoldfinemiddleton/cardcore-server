@@ -131,17 +131,60 @@ func TestScriptExecutorNotMyTurn(t *testing.T) {
 	}
 }
 
-// TestScriptExecutorWrongPhase verifies that no command is produced when
-// the current phase has no script entry.
-func TestScriptExecutorWrongPhase(t *testing.T) {
+// TestScriptExecutorTransitionalPhase verifies that no command is produced
+// and no error occurs when the current phase has no script entry.
+// Transitional phases like trick_complete do not require scripted actions.
+func TestScriptExecutorTransitionalPhase(t *testing.T) {
 	script := Script{"playing": {Phase: "playing", Action: "play_card", Selector: "first_legal"}}
 	exec := NewScriptExecutor(script, 0, heartscli.NewBuilder())
 
 	// trick_complete has no script entry.
 	snapshot := []byte(`{"phase": "trick_complete", "seq": 5, "turn": 0}`)
+	cmd, done, err := exec.Step(snapshot)
+	if err != nil {
+		t.Fatalf("unexpected error for transitional phase: %v", err)
+	}
+	if done {
+		t.Fatal("expected done=false")
+	}
+	if cmd.Type != "" {
+		t.Errorf("expected zero command for transitional phase, got %+v", cmd)
+	}
+}
+
+// TestScriptExecutorMissingActionablePhase verifies that an actionable
+// phase missing from the script returns an error so the caller knows the
+// script is incomplete.
+func TestScriptExecutorMissingActionablePhase(t *testing.T) {
+	// Script has no entry for "passing" — this is an actionable phase.
+	script := Script{"playing": {Phase: "playing", Action: "play_card", Selector: "first_legal"}}
+	exec := NewScriptExecutor(script, 0, heartscli.NewBuilder())
+
+	snapshot := []byte(`{
+		"phase": "passing",
+		"seq": 5,
+		"turn": 0,
+		"hand": [{"rank":"two","suit":"clubs"}]
+	}`)
 	_, _, err := exec.Step(snapshot)
 	if err == nil {
-		t.Fatal("expected error for unscripted phase")
+		t.Fatal("expected error for missing actionable phase, got nil")
+	}
+}
+
+// TestHeartsBuilderTransitionalPhases verifies the builder returns the
+// expected view-only phases.
+func TestHeartsBuilderTransitionalPhases(t *testing.T) {
+	b := heartscli.NewBuilder()
+	got := b.TransitionalPhases()
+	want := []string{"trick_complete", "round_complete", "deal"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d phases, want %d", len(got), len(want))
+	}
+	for i, w := range want {
+		if got[i] != w {
+			t.Errorf("phase %d: got %q, want %q", i, got[i], w)
+		}
 	}
 }
 

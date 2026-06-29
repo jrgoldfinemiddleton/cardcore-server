@@ -202,6 +202,68 @@ func TestModelRenderMainDelegates(t *testing.T) {
 	}
 }
 
+// TestModelUpdateKeyPressEscFirstPress verifies the first Escape sets the
+// confirmation state and flashes a message.
+func TestModelUpdateKeyPressEscFirstPress(t *testing.T) {
+	m := &model{game: &fakeGame{}}
+
+	newM, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	mm, ok := newM.(*model)
+	if !ok {
+		t.Fatalf("Update returned %T, want *model", newM)
+	}
+	if !mm.escConfirm {
+		t.Error("got escConfirm=false, want true")
+	}
+	if mm.errMsg != "Press Enter to quit" {
+		t.Errorf("got errMsg %q, want Press Enter to quit", mm.errMsg)
+	}
+	isFlashTimer(t, cmd)
+}
+
+// TestModelUpdateKeyPressEscEnterQuits verifies Escape then Enter quits the
+// program.
+func TestModelUpdateKeyPressEscEnterQuits(t *testing.T) {
+	m := &model{game: &fakeGame{}, escConfirm: true}
+
+	newM, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, ok := newM.(*model)
+	if !ok {
+		t.Fatalf("Update returned %T, want *model", newM)
+	}
+	isQuitMsg(t, cmd)
+}
+
+// TestModelUpdateKeyPressEscCancelsOnOtherKey verifies that pressing a
+// non-Enter key after the first Esc cancels the quit confirmation.
+func TestModelUpdateKeyPressEscCancelsOnOtherKey(t *testing.T) {
+	m := &model{game: &fakeGame{}, escConfirm: true}
+
+	newM, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	mm, ok := newM.(*model)
+	if !ok {
+		t.Fatalf("Update returned %T, want *model", newM)
+	}
+	if mm.escConfirm {
+		t.Error("got escConfirm=true, want false after other key")
+	}
+}
+
+// TestModelFlashTimeoutClearsEscConfirm verifies the flash timeout resets
+// the quit confirmation state.
+func TestModelFlashTimeoutClearsEscConfirm(t *testing.T) {
+	m := &model{game: &fakeGame{}, escConfirm: true, errMsg: "Press Esc again to quit"}
+
+	newM, _ := m.Update(flashTimeoutMsg{})
+	mm, ok := newM.(*model)
+	if !ok {
+		t.Fatalf("Update returned %T, want *model", newM)
+	}
+	if mm.escConfirm {
+		t.Error("got escConfirm=true, want false after flash timeout")
+	}
+}
+
 // HandleSnapshot records the snapshot delegation call.
 func (f *fakeGame) HandleSnapshot(raw json.RawMessage) {
 	f.snapshotCalls++

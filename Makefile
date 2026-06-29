@@ -18,8 +18,9 @@ lint-extra: ## Run golangci-lint with the extra-strict config
 race: ## Run all tests with the race detector
 	go test -race ./...
 
-build: ## Compile all packages and binaries
-	go build ./...
+build: ## Compile all packages and binaries to bin/
+	@mkdir -p bin
+	go build -o bin/ ./cmd/...
 
 doc: ## Browse docs locally via pkgsite
 	go tool pkgsite -open .

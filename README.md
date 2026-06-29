@@ -68,6 +68,112 @@ For tmux users: set `TERM=screen-256color` or `tmux-256color`. Focus reporting i
 
 See [Bubble Tea's terminal docs](https://charm.land/bubbletea/docs/terminal) for details.
 
+## Usage
+
+### Development (go run)
+
+```bash
+go run ./cmd/cardcore-server
+go run ./cmd/cardcore-tui
+go run ./cmd/cardcore-cli -script script.json
+```
+
+### Production (make build)
+
+```bash
+make build
+```
+
+This compiles all binaries to `bin/`:
+
+```bash
+./bin/cardcore-server
+./bin/cardcore-tui
+./bin/cardcore-cli -script script.json
+```
+
+### Server
+
+```bash
+go run ./cmd/cardcore-server
+# or after make build:
+# ./bin/cardcore-server
+```
+
+The server listens on `127.0.0.1:8080` by default. It hosts WebSocket game sessions and serves the HTTP API documented in [`doc/api.md`](doc/api.md). Press `Ctrl+C` for graceful shutdown.
+
+Environment variables:
+
+- `CARDCORE_LOG_LEVEL` — set to `debug` for verbose per-component logging (`info` is default).
+
+### TUI Client
+
+```bash
+go run ./cmd/cardcore-tui
+# or after make build:
+# ./bin/cardcore-tui
+```
+
+Starts an interactive Bubble Tea session. By default it auto-creates a 1-human+3-AI Hearts game, connects as seat 0, and begins play immediately.
+
+Key commands during a game:
+
+- `←` / `→` — navigate cards in your hand
+- `Space` — select/deselect a card
+- `Enter` — confirm selection (pass 3 cards or play 1 card)
+- `Esc` — initiate quit, then `Enter` to confirm
+
+Flags:
+
+- `--observe <session-id>` — connect as an observer to an existing session
+- `--addr <host:port>` — server address (default `127.0.0.1:8080`)
+
+### CLI Client
+
+```bash
+go run ./cmd/cardcore-cli -script script.json
+# or after make build:
+# ./bin/cardcore-cli -script script.json
+```
+
+Runs a non-interactive scripted game. The script is a JSON array of phase-action entries that drive command construction automatically.
+
+Example `script.json` for Hearts:
+
+```json
+[
+  {
+    "phase": "passing",
+    "action": "pass_cards",
+    "selector": "first_n",
+    "selector_args": {"count": 3}
+  },
+  {
+    "phase": "playing",
+    "action": "play_card",
+    "selector": "first_legal"
+  }
+]
+```
+
+The CLI prints each snapshot in compact notation to stdout. Use `-observe` to watch an all-AI session without sending commands.
+
+Flags and environment variables:
+
+| Flag | Env Var | Default | Description |
+|---|---|---|---|
+| `-script` | — | *(required)* | Path to JSON script file |
+| `-addr` | `CARDCORE_ADDR` | `http://127.0.0.1:8080` | Server address |
+| `-game` | `CARDCORE_GAME` | `hearts` | Game to play |
+| `-ai-type` | `CARDCORE_AI_TYPE` | `random` | AI player type (`random` or `pimc`) |
+| `-pacing` | `CARDCORE_PACING_MS` | `500` | Pacing delay between snapshots (ms) |
+| `-exit-delay` | `CARDCORE_EXIT_DELAY_MS` | `1000` | Wait after `game_over` before exiting (ms) |
+| `-observe` | — | `false` | Create 4-AI session and observe |
+| `-session-id` | — | — | Join an existing session |
+| `-token` | — | — | Bearer token for the seat being joined |
+| `-seat` | — | `0` | Seat index to join |
+| `-delete-on-exit` | — | `false` | Delete session after game ends |
+
 ## Makefile Targets
 
 | Target | Description |

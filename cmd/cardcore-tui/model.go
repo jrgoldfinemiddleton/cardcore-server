@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"charm.land/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
 )
@@ -71,6 +71,9 @@ type model struct {
 	// disconnected is true when the WebSocket has closed. It drives the
 	// footer connection-state display.
 	disconnected bool
+	// escConfirm is true when the user has pressed Escape once and is
+	// waiting for Enter to confirm quit.
+	escConfirm bool
 }
 
 // commandSentMsg is delivered after an outgoing command send completes. A
@@ -118,6 +121,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case flashTimeoutMsg:
 		m.errMsg = ""
+		m.escConfirm = false
 		return m, nil
 	}
 
@@ -158,8 +162,9 @@ func (m *model) handleSnapshot(raw []byte) {
 	}
 }
 
-// handleKeyPress handles keyboard input. ctrl+c always quits; Enter quits in
-// game_over phase. All other keys are delegated to the gameClient.
+// handleKeyPress handles keyboard input. ctrl+c always quits; Esc then Enter
+// quits from any state; Enter quits in game_over phase. All other keys are
+// delegated to the gameClient.
 func (m *model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if msg.String() == "ctrl+c" {
 		if m.conn != nil {
@@ -167,6 +172,25 @@ func (m *model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Quit
 	}
+
+	if msg.Code == tea.KeyEscape {
+		if m.escConfirm {
+			m.escConfirm = false
+			m.errMsg = ""
+			return m, nil
+		}
+		m.escConfirm = true
+		return m, m.setErrorFlash("Press Enter to quit")
+	}
+
+	if m.escConfirm && msg.Code == tea.KeyEnter {
+		if m.conn != nil {
+			_ = m.conn.Close()
+		}
+		return m, tea.Quit
+	}
+
+	m.escConfirm = false
 
 	if m.phase == "game_over" && msg.Code == tea.KeyEnter {
 		if m.conn != nil {

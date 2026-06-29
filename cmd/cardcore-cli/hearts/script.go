@@ -16,6 +16,12 @@ func NewBuilder() *Builder {
 	return &Builder{}
 }
 
+// TransitionalPhases returns the Hearts phases that do not require a script
+// entry. These are view-only snapshots displayed between actionable phases.
+func (b *Builder) TransitionalPhases() []string {
+	return []string{"trick_complete", "round_complete", "deal"}
+}
+
 // BuildCommand creates a client.Command for the given script entry and snapshot.
 // It dispatches to the appropriate builder based on the action.
 func (b *Builder) BuildCommand(
