@@ -10,6 +10,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- TUI quit confirmation: pressing `Esc` initiates quit with a "Press Enter to quit" flash; pressing `Enter` confirms, pressing `Esc` again or any other key cancels. Four unit tests cover initiation, confirmation, cancellation, and flash timeout
 - CLI multi-game support: `-game` flag (default `hearts`) with game-agnostic `ScriptExecutor` (`GameBuilder` interface) and game-specific subpackages (`cmd/cardcore-cli/hearts/`). Added `-addr`, `-pacing`, `-ai-type`, `-exit-delay` flags with `CARDCORE_*` env-var fallback. Action IDs include seat number (`cli-{seat}-{seq}`) to prevent cross-client collisions
 - CLI compact snapshot notation with Unicode suit symbols (e.g., `seq=5 phase=passing turn=0 hand=[2♣ 3♣ 4♣]`)
 - CLI environment variables: `CARDCORE_AI_TYPE` (`random`/`heuristic`/`pimc`), `CARDCORE_PACING_MS`, `CARDCORE_EXIT_DELAY_MS`
@@ -46,10 +47,12 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- `make build` now actually compiles binaries to `bin/` (`go build -o bin/ ./cmd/...`) instead of merely verifying compilation in-place with `go build ./...`. `make clean` removes `bin/` as before
 - Bumped `cardcore` engine dependency to v0.5.0: the engine now requires an explicit `*rand.Rand` for `hearts.New()` and `Deck.Shuffle()`, making seeded games fully deterministic. The server's `NewAdapter` passes its existing RNG through to the engine
 
 ### Fixed
 
+- Script executor transitional phase error: `ScriptExecutor.Step` returned an error on `trick_complete` and `round_complete` phases, breaking real scripted games. Now silently skips unscripted transitional phases, matching the TUI client's behavior
 - Server shutdown logging: `http.ErrServerClosed` from `srv.Serve(ln)` during graceful shutdown is a normal return path, not an error. The server now treats it as success instead of logging at ERROR level
 - Transport write-abort logging: `net.ErrClosed` (client closed TCP) and `context.Canceled` (transport teardown) are expected races during normal client disconnection. Reclassified from ERROR to WARN
 - Session cleanup logging: `session.ErrNotActive` on unsubscribe after `game_over` is expected because the session goroutine has already exited and cleaned up. Reclassified from ERROR to DEBUG

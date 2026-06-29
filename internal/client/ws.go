@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -37,7 +38,7 @@ type Conn struct {
 
 // Error returns a string including the close code and reason.
 func (e *ConnectionClosedError) Error() string {
-	return fmt.Sprintf("websocket closed: code=%d reason=%s", e.Code, e.Reason)
+	return fmt.Sprintf("websocket closed: code=%d reason=%q", e.Code, e.Reason)
 }
 
 // Connect upgrades to a WebSocket connection at the given URL. If token
@@ -71,13 +72,13 @@ func (c *Conn) ReadSnapshot(ctx context.Context) (json.RawMessage, error) {
 	for {
 		typ, data, err := c.ws.Read(ctx)
 		if err != nil {
-			code := websocket.CloseStatus(err)
-			if code >= 0 {
+			var ce websocket.CloseError
+			if errors.As(err, &ce) {
 				c.logger().Warn("websocket closed",
-					"code", int(code), "reason", err.Error())
+					"code", int(ce.Code), "reason", ce.Reason)
 				return nil, &ConnectionClosedError{
-					Code:   int(code),
-					Reason: err.Error(),
+					Code:   int(ce.Code),
+					Reason: ce.Reason,
 				}
 			}
 			c.logger().Debug("websocket read error", "error", err)

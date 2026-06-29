@@ -44,6 +44,11 @@ type GameBuilder interface {
 		actionID string,
 		seq int,
 	) (client.Command, error)
+	// TransitionalPhases returns phases that do not require a script entry.
+	// The executor skips these silently; actionable phases not present in
+	// the script still produce an error so the caller knows the script is
+	// incomplete.
+	TransitionalPhases() []string
 }
 
 // ScriptExecutor evaluates incoming snapshots and produces commands
@@ -90,6 +95,9 @@ func (e *ScriptExecutor) Step(snapshot []byte) (client.Command, bool, error) {
 
 	entry, ok := e.script[env.Phase]
 	if !ok {
+		if e.isTransitional(env.Phase) {
+			return client.Command{}, false, nil
+		}
 		return client.Command{}, false, fmt.Errorf(
 			"no script entry for phase %q (script missing required phase)", env.Phase,
 		)
@@ -112,6 +120,17 @@ func (e *ScriptExecutor) Step(snapshot []byte) (client.Command, bool, error) {
 		return client.Command{}, false, fmt.Errorf("build %s command: %w", entry.Action, err)
 	}
 	return cmd, false, nil
+}
+
+// isTransitional reports whether phase is a view-only transitional phase
+// that does not require a script entry.
+func (e *ScriptExecutor) isTransitional(phase string) bool {
+	for _, p := range e.builder.TransitionalPhases() {
+		if p == phase {
+			return true
+		}
+	}
+	return false
 }
 
 // nextActionID generates a deterministic action ID for the next command.

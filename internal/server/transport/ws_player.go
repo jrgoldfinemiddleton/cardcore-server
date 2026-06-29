@@ -83,7 +83,9 @@ func (pc *playerConn) run(ctx context.Context) {
 		return
 	}
 	if err := pc.ws.Close(websocket.StatusNormalClosure, ""); err != nil {
-		pc.logger.Error("ws close", "error", err)
+		if !errors.Is(err, net.ErrClosed) {
+			pc.logger.Error("ws close", "error", err)
+		}
 	}
 }
 
@@ -100,7 +102,12 @@ func (pc *playerConn) reader(ctx context.Context, cancel context.CancelFunc) {
 				// Context cancelled (writer exited or run() closing).
 				return
 			}
-			pc.logger.Error("ws read", "error", err)
+			code := websocket.CloseStatus(err)
+			if code >= 0 {
+				pc.logger.Info("ws closed by client", "code", int(code))
+			} else {
+				pc.logger.Error("ws read", "error", err)
+			}
 			return
 		}
 
