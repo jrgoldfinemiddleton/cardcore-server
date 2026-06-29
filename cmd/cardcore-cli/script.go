@@ -9,7 +9,6 @@ import (
 	"syscall"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
-	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
 )
 
 // ScriptEntry describes a single scripted action tied to a game phase.
@@ -32,10 +31,25 @@ type ScriptEntry struct {
 // entry is reused every time the phase recurs.
 type Script map[string]ScriptEntry
 
+// GameBuilder constructs commands for a specific game from script entries.
+type GameBuilder interface {
+	// BuildCommand creates a client.Command for the given script entry and snapshot.
+	// The action and selector describe what to build; selectorArgs holds
+	// selector-specific parameters. The snapshot is the full JSON snapshot
+	// for card resolution. actionID and seq are injected into the command.
+	BuildCommand(
+		action, selector string,
+		selectorArgs json.RawMessage,
+		snapshot []byte,
+		actionID string,
+		seq int,
+	) (client.Command, error)
+}
+
 // ScriptExecutor evaluates incoming snapshots and produces commands
 // according to a script. It is game-agnostic: the core only knows
-// phases, actions, and selectors are strings. Hearts-specific payload
-// construction lives in the build methods.
+// phases, actions, and selectors are strings. Game-specific payload
+// construction is delegated to the Builder.
 type ScriptExecutor struct {
 	// script maps phase names to action specifications.
 	script Script
@@ -43,11 +57,13 @@ type ScriptExecutor struct {
 	mySeat int
 	// actionSeq is a monotonic counter for generating unique action IDs.
 	actionSeq int
+	// builder constructs game-specific commands.
+	builder GameBuilder
 }
 
-// NewScriptExecutor returns an executor for the given script and seat.
-func NewScriptExecutor(script Script, mySeat int) *ScriptExecutor {
-	return &ScriptExecutor{script: script, mySeat: mySeat}
+// NewScriptExecutor returns an executor for the given script, seat, and builder.
+func NewScriptExecutor(script Script, mySeat int, builder GameBuilder) *ScriptExecutor {
+	return &ScriptExecutor{script: script, mySeat: mySeat, builder: builder}
 }
 
 // Step evaluates a snapshot. It returns a command if the snapshot
@@ -79,7 +95,19 @@ func (e *ScriptExecutor) Step(snapshot []byte) (client.Command, bool, error) {
 		)
 	}
 
-	cmd, err := e.buildCommand(entry, snapshot)
+	actionID := e.nextActionID()
+
+	var seqEnv struct {
+		Seq int `json:"seq"`
+	}
+	if err := json.Unmarshal(snapshot, &seqEnv); err != nil {
+		return client.Command{}, false, fmt.Errorf("unmarshal seq: %w", err)
+	}
+
+	cmd, err := e.builder.BuildCommand(
+		entry.Action, entry.Selector, entry.SelectorArgs,
+		snapshot, actionID, seqEnv.Seq,
+	)
 	if err != nil {
 		return client.Command{}, false, fmt.Errorf("build %s command: %w", entry.Action, err)
 	}
@@ -87,141 +115,11 @@ func (e *ScriptExecutor) Step(snapshot []byte) (client.Command, bool, error) {
 }
 
 // nextActionID generates a deterministic action ID for the next command.
+// Includes seat number to prevent collisions between multiple CLI clients in
+// the same session.
 func (e *ScriptExecutor) nextActionID() string {
 	e.actionSeq++
-	return fmt.Sprintf("cli-%d", e.actionSeq)
-}
-
-// buildCommand dispatches to the appropriate builder based on the action.
-func (e *ScriptExecutor) buildCommand(entry ScriptEntry, snapshot []byte) (client.Command, error) {
-	actionID := e.nextActionID()
-
-	var env struct {
-		Seq int `json:"seq"`
-	}
-	if err := json.Unmarshal(snapshot, &env); err != nil {
-		return client.Command{}, fmt.Errorf("unmarshal seq: %w", err)
-	}
-
-	switch entry.Action {
-	case "pass_cards":
-		return e.buildPassCards(entry, snapshot, actionID, env.Seq)
-	case "play_card":
-		return e.buildPlayCard(entry, snapshot, actionID, env.Seq)
-	default:
-		return client.Command{}, fmt.Errorf("unknown action %q", entry.Action)
-	}
-}
-
-// buildPassCards resolves the selector against the snapshot's hand and
-// builds a pass_cards command.
-func (e *ScriptExecutor) buildPassCards(
-	entry ScriptEntry,
-	snapshot []byte,
-	actionID string,
-	seq int,
-) (client.Command, error) {
-	var snap struct {
-		Hand []heartsclient.Card `json:"hand"`
-	}
-	if err := json.Unmarshal(snapshot, &snap); err != nil {
-		return client.Command{}, fmt.Errorf("unmarshal hand: %w", err)
-	}
-
-	var cards []heartsclient.Card
-	switch entry.Selector {
-	case "first_n":
-		var args struct {
-			Count int `json:"count"`
-		}
-		if err := json.Unmarshal(entry.SelectorArgs, &args); err != nil {
-			return client.Command{}, fmt.Errorf("parse selector_args: %w", err)
-		}
-		if args.Count <= 0 {
-			return client.Command{}, fmt.Errorf("count must be > 0, got %d", args.Count)
-		}
-		if len(snap.Hand) < args.Count {
-			return client.Command{}, fmt.Errorf(
-				"hand has %d cards, need %d", len(snap.Hand), args.Count,
-			)
-		}
-		cards = snap.Hand[:args.Count]
-	case "by_index":
-		var args struct {
-			Indices []int `json:"indices"`
-		}
-		if err := json.Unmarshal(entry.SelectorArgs, &args); err != nil {
-			return client.Command{}, fmt.Errorf("parse by_index args: %w", err)
-		}
-		if len(args.Indices) == 0 {
-			return client.Command{}, fmt.Errorf("by_index requires at least one index")
-		}
-		seen := make(map[int]struct{}, len(args.Indices))
-		for _, idx := range args.Indices {
-			if idx < 0 || idx >= len(snap.Hand) {
-				return client.Command{}, fmt.Errorf(
-					"index %d out of range [0,%d)", idx, len(snap.Hand),
-				)
-			}
-			if _, ok := seen[idx]; ok {
-				return client.Command{}, fmt.Errorf("duplicate index %d", idx)
-			}
-			seen[idx] = struct{}{}
-			cards = append(cards, snap.Hand[idx])
-		}
-	default:
-		return client.Command{}, fmt.Errorf("unknown selector %q for pass_cards", entry.Selector)
-	}
-
-	return heartsclient.NewPassCardsMessage(actionID, seq, cards)
-}
-
-// buildPlayCard resolves the selector against the snapshot's legal_actions
-// and builds a play_card command.
-func (e *ScriptExecutor) buildPlayCard(
-	entry ScriptEntry,
-	snapshot []byte,
-	actionID string,
-	seq int,
-) (client.Command, error) {
-	var snap struct {
-		LegalActions []heartsclient.Card `json:"legal_actions"`
-	}
-	if err := json.Unmarshal(snapshot, &snap); err != nil {
-		return client.Command{}, fmt.Errorf("unmarshal legal_actions: %w", err)
-	}
-	if len(snap.LegalActions) == 0 {
-		return client.Command{}, fmt.Errorf("no legal actions available")
-	}
-
-	var card heartsclient.Card
-	switch entry.Selector {
-	case "first_legal":
-		card = snap.LegalActions[0]
-	case "last_legal":
-		// Not yet implemented; reserved selector.
-		return client.Command{}, fmt.Errorf("selector %q not implemented", entry.Selector)
-	case "random_legal":
-		// Not yet implemented; reserved selector.
-		return client.Command{}, fmt.Errorf("selector %q not implemented", entry.Selector)
-	case "by_index":
-		var args struct {
-			Index int `json:"index"`
-		}
-		if err := json.Unmarshal(entry.SelectorArgs, &args); err != nil {
-			return client.Command{}, fmt.Errorf("parse by_index args: %w", err)
-		}
-		if args.Index < 0 || args.Index >= len(snap.LegalActions) {
-			return client.Command{}, fmt.Errorf(
-				"index %d out of range [0,%d)", args.Index, len(snap.LegalActions),
-			)
-		}
-		card = snap.LegalActions[args.Index]
-	default:
-		return client.Command{}, fmt.Errorf("unknown selector %q for play_card", entry.Selector)
-	}
-
-	return heartsclient.NewPlayCardMessage(actionID, seq, card)
+	return fmt.Sprintf("cli-%d-%d", e.mySeat, e.actionSeq)
 }
 
 // parseScript unmarshals a JSON array of ScriptEntry values into a

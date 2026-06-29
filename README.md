@@ -28,6 +28,7 @@ cardcore-server/
 │   ├── cardcore-tui/    # Bubble Tea TUI client binary
 │   │   └── <game>/      # Game-specific rendering and command-builders
 │   └── cardcore-cli/    # Non-TTY CLI client binary
+│       └── <game>/      # Game-specific command builders and formatters
 └── internal/
     ├── api/              # Shared protocol-agnostic client engine
     │   └── games/<game>/ # Game-specific wire-format types
