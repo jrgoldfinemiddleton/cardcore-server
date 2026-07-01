@@ -70,8 +70,12 @@ func TestStartWSReaderSnapshot(t *testing.T) {
 
 // TestStartWSReaderError sends an error message and verifies it is received.
 func TestStartWSReaderError(t *testing.T) {
-	errMsg := json.RawMessage(`{"type":"error","code":"out_of_turn","message":"Not your turn"}`)
-	mock := &mockWSReader{msgs: []json.RawMessage{errMsg}}
+	serverErr := &client.ErrorMessage{
+		Type:      "error",
+		ErrorCode: "out_of_turn",
+		Message:   "Not your turn",
+	}
+	mock := &mockWSReader{err: serverErr}
 
 	var in bytes.Buffer
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)

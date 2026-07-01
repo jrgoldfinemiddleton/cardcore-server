@@ -133,6 +133,11 @@ func (c *Client) LastError() string {
 	return c.lastErr
 }
 
+// ResetSubmitted re-enables input after a recoverable server error.
+func (c *Client) ResetSubmitted() {
+	c.submitted = false
+}
+
 // handlePassingKey handles navigation, selection, and submission during the
 // passing phase. Input is ignored once the player has submitted.
 func (c *Client) handlePassingKey(key tea.KeyPressMsg) (client.Command, bool, string) {

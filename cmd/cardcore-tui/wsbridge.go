@@ -54,15 +54,14 @@ type wsCloseMsg struct {
 // Bubble Tea program via program.Send().
 //
 // This function runs in a dedicated goroutine. It reads from the WebSocket
-// in a loop, decodes messages, and sends typed tea.Msg values into the
-// Bubble Tea model via program.Send().
+// in a loop, and sends typed tea.Msg values into the Bubble Tea model via
+// program.Send().
 //
 // Key design: Conn.ReadSnapshot() owns ALL maxSeenSeq filtering (ADR-011).
 // The wsbridge trusts it — no re-filtering, no seq comparison.
-//
-// The wsbridge also decodes error messages (type: "error") before treating
-// data as snapshots. Error messages are sent as wsErrorMsg; everything else
-// is sent as wsSnapshotMsg.
+// Conn.ReadSnapshot() also returns server errors as *client.ErrorMessage,
+// which the wsbridge routes as wsErrorMsg for model-level classification.
+// Everything else is sent as wsSnapshotMsg.
 //
 // The goroutine exits when the WebSocket closes or the context is cancelled.
 func startWSReader(ctx context.Context, r WSReader, p *tea.Program) {
@@ -71,7 +70,15 @@ func startWSReader(ctx context.Context, r WSReader, p *tea.Program) {
 	for {
 		raw, err := r.ReadSnapshot(ctx)
 		if err != nil {
-			// Connection closed or error.
+			var errMsg *client.ErrorMessage
+			if errors.As(err, &errMsg) {
+				logger.Warn("server error",
+					"error_code", errMsg.ErrorCode,
+					"message", errMsg.Message)
+				p.Send(wsErrorMsg{code: errMsg.ErrorCode, message: errMsg.Message})
+				continue
+			}
+
 			var closeErr *client.ConnectionClosedError
 			if errors.As(err, &closeErr) {
 				logger.Info("websocket closed",
@@ -83,28 +90,6 @@ func startWSReader(ctx context.Context, r WSReader, p *tea.Program) {
 				p.Send(wsCloseMsg{code: 1011})
 			}
 			return
-		}
-
-		// Try to decode as error message first.
-		var envelope struct {
-			Type string `json:"type"`
-		}
-		if err := json.Unmarshal(raw, &envelope); err != nil {
-			logger.Error("unmarshal envelope", "error", err)
-			continue
-		}
-
-		if envelope.Type == "error" {
-			var errMsg struct {
-				Code    string `json:"code"`
-				Message string `json:"message"`
-			}
-			if err := json.Unmarshal(raw, &errMsg); err != nil {
-				logger.Error("unmarshal error message", "error", err)
-				continue
-			}
-			p.Send(wsErrorMsg{code: errMsg.Code, message: errMsg.Message})
-			continue
 		}
 
 		// Fresh snapshot.

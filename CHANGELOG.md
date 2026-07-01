@@ -52,6 +52,14 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- Client error recovery pipeline: all server error messages previously caused fatal client exit in both TUI and CLI. Now properly distinguishes recoverable errors (`stale_seq`, `out_of_turn`, `wrong_phase`) from fatal errors (`illegal_move`, `malformed_message`, WS close 1011) per ADR-012. TUI displays persistent modal messages requiring explicit Enter dismissal; CLI continues read loop only for `stale_seq` and exits cleanly on `game_over`
+- TUI wsbridge error routing: `startWSReader` treated all non-close `ReadSnapshot` errors as fatal. Now routes `*client.ErrorMessage` as `wsErrorMsg` to the model for classification, while `*ConnectionClosedError` remains fatal via `wsCloseMsg`. Removed dead JSON error-decoding code that was unreachable since `Conn.ReadSnapshot` already returns server errors as Go values
+- TUI `out_of_turn`/`wrong_phase` handling: previously fatal. Now recoverable with persistent continue modals (`"AI played for you — your turn has passed. Press Enter to continue."` / `"AI played for you — phase has changed. Press Enter to continue."`), resets `submitted` flag, and blocks game input until Enter is pressed
+- TUI `illegal_move`/`malformed_message` handling: previously showed auto-clearing 3-second flash. Now persistent fatal modals (`"Bug: server rejected a valid card. Press Enter to exit."` / `"Internal error: invalid command format. Press Enter to exit."`) that block all input except `ctrl+c` and Enter
+- TUI WebSocket close 1011: previously exited immediately. Now shows persistent fatal modal (`"Internal server error. Press Enter to exit."`) requiring explicit Enter dismissal
+- CLI `runPlayer`/`runObserver`: previously treated all `ReadSnapshot` errors as fatal. Now only `stale_seq` continues the read loop silently; `game_over` exits cleanly with Warn log; all other server errors exit immediately with Error log
+- `internal/client/errors.go`: `ClassifyError` was defined but never called. Now wired into both TUI (`handleWSError`) and CLI (`runPlayer`/`runObserver`) to drive recovery decisions per ADR-012
+
 - Script executor transitional phase error: `ScriptExecutor.Step` returned an error on `trick_complete` and `round_complete` phases, breaking real scripted games. Now silently skips unscripted transitional phases, matching the TUI client's behavior
 - Server shutdown logging: `http.ErrServerClosed` from `srv.Serve(ln)` during graceful shutdown is a normal return path, not an error. The server now treats it as success instead of logging at ERROR level
 - Transport write-abort logging: `net.ErrClosed` (client closed TCP) and `context.Canceled` (transport teardown) are expected races during normal client disconnection. Reclassified from ERROR to WARN

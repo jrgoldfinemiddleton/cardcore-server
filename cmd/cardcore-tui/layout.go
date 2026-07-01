@@ -101,12 +101,12 @@ func (m *model) renderMain() string {
 //
 // The footer shows one of two things:
 //
-//  1. Error flash message (red, 3 seconds)
+//  1. Error message (red, bold) — may be a transient 3-second flash or a
+//     persistent modal message that stays until Enter is pressed.
 //  2. Connection status ("Connected" / "Disconnected")
 //
-// The error flash takes priority over connection status.
+// The error message takes priority over connection status.
 func (m *model) renderFooter() string {
-	// Error flash takes priority.
 	if m.errMsg != "" {
 		return errorStyle.Render(m.errMsg)
 	}

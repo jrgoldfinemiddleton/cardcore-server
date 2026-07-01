@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"strconv"
@@ -234,6 +235,23 @@ func runObserver(
 	for {
 		snapshot, err := conn.ReadSnapshot(ctx)
 		if err != nil {
+			var serverErr *client.ErrorMessage
+			if errors.As(err, &serverErr) {
+				if serverErr.ErrorCode == client.ErrStaleSeq {
+					continue
+				}
+				if serverErr.ErrorCode == client.ErrGameOver {
+					slog.Warn("game over",
+						"error_code", serverErr.ErrorCode,
+						"message", serverErr.Message)
+					time.Sleep(time.Duration(exitDelay) * time.Millisecond)
+					return nil
+				}
+				slog.Error("server error",
+					"error_code", serverErr.ErrorCode,
+					"message", serverErr.Message)
+				return fmt.Errorf("server error %s: %s", serverErr.ErrorCode, serverErr.Message)
+			}
 			return fmt.Errorf("read snapshot: %w", err)
 		}
 
@@ -276,6 +294,29 @@ func runPlayer(
 	for {
 		snapshot, err := conn.ReadSnapshot(ctx)
 		if err != nil {
+			var serverErr *client.ErrorMessage
+			if errors.As(err, &serverErr) {
+				if serverErr.ErrorCode == client.ErrStaleSeq {
+					continue
+				}
+				if serverErr.ErrorCode == client.ErrGameOver {
+					slog.Warn("game over",
+						"error_code", serverErr.ErrorCode,
+						"message", serverErr.Message)
+					if err := printFinalScores(nil); err != nil {
+						return err
+					}
+					if deleteOnExit {
+						deleteSession(context.Background(), sc, sessionID)
+					}
+					time.Sleep(time.Duration(exitDelay) * time.Millisecond)
+					return nil
+				}
+				slog.Error("server error",
+					"error_code", serverErr.ErrorCode,
+					"message", serverErr.Message)
+				return fmt.Errorf("server error %s: %s", serverErr.ErrorCode, serverErr.Message)
+			}
 			return fmt.Errorf("read snapshot: %w", err)
 		}
 

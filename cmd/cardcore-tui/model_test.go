@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"charm.land/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
 )
@@ -41,7 +41,7 @@ func TestModelUpdateSnapshot(t *testing.T) {
 	}
 }
 
-// TestModelUpdateError verifies error messages set the flash message.
+// TestModelUpdateError verifies recoverable error messages set a continue modal.
 func TestModelUpdateError(t *testing.T) {
 	m := &model{game: &fakeGame{}}
 
@@ -50,10 +50,16 @@ func TestModelUpdateError(t *testing.T) {
 	if !ok {
 		t.Fatalf("Update returned %T, want *model", newM)
 	}
-	if mm.errMsg != "Not your turn" {
-		t.Errorf("got errMsg %q, want Not your turn", mm.errMsg)
+	wantMsg := "AI played for you — your turn has passed. Press Enter to continue."
+	if mm.errMsg != wantMsg {
+		t.Errorf("got errMsg %q, want %q", mm.errMsg, wantMsg)
 	}
-	isFlashTimer(t, cmd)
+	if !mm.modalContinue {
+		t.Errorf("modalContinue = false, want true")
+	}
+	if cmd != nil {
+		t.Errorf("expected no command for persistent modal, got %v", cmd)
+	}
 }
 
 // TestModelUpdateFlashTimeout verifies flash timeout clears the error.
@@ -284,3 +290,6 @@ func (f *fakeGame) HandleKey(key tea.KeyPressMsg) (client.Command, bool, string)
 func (f *fakeGame) Render() string {
 	return f.renderOut
 }
+
+// ResetSubmitted is a no-op for the fake game client.
+func (f *fakeGame) ResetSubmitted() {}

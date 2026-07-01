@@ -26,6 +26,9 @@ type gameClient interface {
 	HandleKey(key tea.KeyPressMsg) (cmd client.Command, send bool, status string)
 	// Render returns the main game area for the current state.
 	Render() string
+	// ResetSubmitted re-enables input after a recoverable server error so
+	// the human can retry if a fresh snapshot has not yet arrived.
+	ResetSubmitted()
 }
 
 // model is the main Bubble Tea model for the cardcore TUI.
@@ -74,6 +77,12 @@ type model struct {
 	// escConfirm is true when the user has pressed Escape once and is
 	// waiting for Enter to confirm quit.
 	escConfirm bool
+	// modalContinue is true when a recoverable server error (out_of_turn,
+	// wrong_phase) requires explicit Enter dismissal before game input resumes.
+	modalContinue bool
+	// modalFatal is true when a fatal error (illegal_move, malformed_message,
+	// WS close 1011) requires Enter to exit.
+	modalFatal bool
 }
 
 // commandSentMsg is delivered after an outgoing command send completes. A
@@ -105,7 +114,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case wsErrorMsg:
-		return m, m.handleWSError(msg)
+		m.handleWSError(msg)
+		// Return nil to avoid flashing the same error twice (once here, once in handleWSError).
+		return m, nil
 
 	case wsCloseMsg:
 		return m, m.handleWSClose(msg)
@@ -171,6 +182,24 @@ func (m *model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			_ = m.conn.Close()
 		}
 		return m, tea.Quit
+	}
+
+	if m.modalFatal {
+		if msg.Code == tea.KeyEnter {
+			if m.conn != nil {
+				_ = m.conn.Close()
+			}
+			return m, tea.Quit
+		}
+		return m, nil
+	}
+
+	if m.modalContinue {
+		if msg.Code == tea.KeyEnter {
+			m.modalContinue = false
+			m.errMsg = ""
+		}
+		return m, nil
 	}
 
 	if msg.Code == tea.KeyEscape {

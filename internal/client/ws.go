@@ -68,6 +68,11 @@ func (c *Conn) Connect(ctx context.Context, url, token string) error {
 //
 // Because this function blocks, callers on a UI thread should run it
 // in a dedicated goroutine and forward results asynchronously.
+//
+// Returns the raw JSON snapshot message or an error. If the WebSocket
+// is closed by the server, it returns a ConnectionClosedError with the
+// close code and reason.  If the server sends an error message, the second
+// return value is an *ErrorMessage with the error details.
 func (c *Conn) ReadSnapshot(ctx context.Context) (json.RawMessage, error) {
 	for {
 		typ, data, err := c.ws.Read(ctx)
