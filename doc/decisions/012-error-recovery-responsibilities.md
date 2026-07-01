@@ -1,7 +1,7 @@
 # ADR-012: Error Recovery Responsibilities
 
 **Date:** 2026-05-27
-**Status:** Accepted
+**Status:** Superseded by [ADR-013](013-error-recovery-responsibilities.md)
 
 ## Context
 
