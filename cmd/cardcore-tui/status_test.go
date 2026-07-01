@@ -6,6 +6,13 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
+const (
+	msgOutOfTurn    = "AI played for you — your turn has passed. Press Enter to continue."
+	msgWrongPhase   = "AI played for you — phase has changed. Press Enter to continue."
+	msgIllegalMove  = "Bug: server rejected a valid card. Press Enter to exit."
+	msgMalformedMsg = "Internal error: invalid command format. Press Enter to exit."
+)
+
 // TestErrorMessageForCode verifies the error code to message mapping.
 func TestErrorMessageForCode(t *testing.T) {
 	tests := []struct {
@@ -13,11 +20,13 @@ func TestErrorMessageForCode(t *testing.T) {
 		serverMsg string
 		want      string
 	}{
-		{"out_of_turn", "", "Not your turn"},
-		{"illegal_move", "Cannot play spades", "Cannot play spades"},
-		{"illegal_move", "", "Illegal move"},
-		{"wrong_phase", "", "Wrong phase"},
+		{"out_of_turn", "", msgOutOfTurn},
+		{"illegal_move", "Cannot play spades", msgIllegalMove},
+		{"illegal_move", "", msgIllegalMove},
+		{"wrong_phase", "", msgWrongPhase},
 		{"stale_seq", "", ""},
+		{"game_over", "", "Game over. Press Enter to exit."},
+		{"malformed_message", "", msgMalformedMsg},
 		{"unknown", "Something bad", "Something bad"},
 		{"unknown", "", "Error: unknown"},
 	}
@@ -41,7 +50,7 @@ func TestCloseMessageForCode(t *testing.T) {
 	}{
 		{1000, "Game ended"},
 		{1001, "Server is shutting down"},
-		{1011, "Internal server error"},
+		{1011, "Internal server error. Press Enter to exit."},
 		{9999, "Connection closed (code 9999)"},
 	}
 
@@ -53,46 +62,68 @@ func TestCloseMessageForCode(t *testing.T) {
 	}
 }
 
-// TestHandleWSError verifies that handleWSError sets the correct flash
-// message for each error code.
+// TestHandleWSError verifies that handleWSError drives the correct recovery
+// path (silent resync, continue modal, or fatal modal) per error code.
 func TestHandleWSError(t *testing.T) {
 	tests := []struct {
-		code    string
-		message string
-		wantErr string
-		wantCmd bool
+		code              string
+		message           string
+		wantErr           string
+		wantModalContinue bool
+		wantModalFatal    bool
 	}{
-		{"out_of_turn", "Not your turn", "Not your turn", true},
-		{"illegal_move", "Cannot play spades", "Cannot play spades", true},
-		{"stale_seq", "", "", false},
+		{"out_of_turn", "Not your turn", msgOutOfTurn, true, false},
+		{"wrong_phase", "Bad phase", msgWrongPhase, true, false},
+		{"illegal_move", "Cannot play spades", msgIllegalMove, false, true},
+		{"stale_seq", "", "", false, false},
+		{"game_over", "", "", false, false},
+		{"malformed_message", "Bad JSON", msgMalformedMsg, false, true},
 	}
 
 	for _, tt := range tests {
-		m := &model{}
-		cmd := m.handleWSError(wsErrorMsg{code: tt.code, message: tt.message})
+		m := &model{game: &fakeGame{}}
+		m.handleWSError(wsErrorMsg{code: tt.code, message: tt.message})
 
 		if m.errMsg != tt.wantErr {
 			t.Errorf("%s: errMsg = %q, want %q", tt.code, m.errMsg, tt.wantErr)
 		}
-		if tt.wantCmd {
-			isFlashTimer(t, cmd)
-		} else if cmd != nil {
-			t.Errorf("%s: expected no command, got %v", tt.code, cmd)
+		if m.modalContinue != tt.wantModalContinue {
+			t.Errorf("%s: modalContinue = %v, want %v",
+				tt.code, m.modalContinue, tt.wantModalContinue)
+		}
+		if m.modalFatal != tt.wantModalFatal {
+			t.Errorf("%s: modalFatal = %v, want %v",
+				tt.code, m.modalFatal, tt.wantModalFatal)
 		}
 	}
 }
 
-// TestHandleWSClose verifies that handleWSClose sets the status message and
-// returns tea.Quit.
+// TestHandleWSClose verifies that handleWSClose sets the status message.
+// 1000 returns tea.Quit; 1011 sets modalFatal and does not quit immediately.
 func TestHandleWSClose(t *testing.T) {
-	m := &model{}
+	t.Run("normal closure", func(t *testing.T) {
+		m := &model{}
+		cmd := m.handleWSClose(wsCloseMsg{code: 1000})
+		if m.statusMsg != "Game ended" {
+			t.Errorf("statusMsg = %q, want Game ended", m.statusMsg)
+		}
+		isQuitMsg(t, cmd)
+	})
 
-	cmd := m.handleWSClose(wsCloseMsg{code: 1000})
-
-	if m.statusMsg != "Game ended" {
-		t.Errorf("statusMsg = %q, want Game ended", m.statusMsg)
-	}
-	isQuitMsg(t, cmd)
+	t.Run("internal error", func(t *testing.T) {
+		m := &model{}
+		cmd := m.handleWSClose(wsCloseMsg{code: 1011})
+		wantMsg := "Internal server error. Press Enter to exit."
+		if m.statusMsg != wantMsg {
+			t.Errorf("statusMsg = %q, want %q", m.statusMsg, wantMsg)
+		}
+		if !m.modalFatal {
+			t.Errorf("modalFatal = false, want true")
+		}
+		if cmd != nil {
+			t.Errorf("expected nil cmd for 1011 modal, got %v", cmd)
+		}
+	})
 }
 
 // TestClearErrorFlash verifies that clearErrorFlash clears the error message.
