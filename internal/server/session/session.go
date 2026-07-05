@@ -1,6 +1,7 @@
 package session
 
-import "time"
+// Turn timeout resolution moved to session.turnTimeout() in goroutine.go
+// so the goroutine can use server-wide defaults instead of a hardcoded constant.
 
 // State represents a session's position in its lifecycle.
 type State string
@@ -34,10 +35,13 @@ type Config struct {
 	Game string `json:"game"`
 	// Seats defines each seat's configuration.
 	Seats []SeatConfig `json:"seats"`
-	// PacingDelayMS is the delay in milliseconds between state
-	// transitions that require UX pacing (e.g., trick completion,
-	// round completion, AI turns). Nil means use the default (500ms).
-	PacingDelayMS *int `json:"pacing_delay_ms,omitempty"`
+	// AIActionDelayMS is the delay in milliseconds between AI turns.
+	// Nil means use the default (1000ms). *0 means no delay.
+	AIActionDelayMS *int `json:"ai_action_delay_ms,omitempty"`
+	// DealDisplayDelayMS is how long to show the deal before
+	// advancing. Applied after every Deal() — initial game start and
+	// between rounds. Nil means use the default (1500ms). *0 means no delay.
+	DealDisplayDelayMS *int `json:"deal_display_delay_ms,omitempty"`
 	// TurnTimeoutMS is the maximum time in milliseconds to wait for
 	// a human player to act before auto-playing an AI move. Nil means
 	// use the default (30000ms = 30s). *0 means disabled (no timeout).
@@ -49,8 +53,10 @@ type Config struct {
 type PatchConfig struct {
 	// Seats replaces the seat configuration when non-nil.
 	Seats []SeatConfig `json:"seats,omitempty"`
-	// PacingDelayMS updates the pacing delay when non-nil.
-	PacingDelayMS *int `json:"pacing_delay_ms,omitempty"`
+	// AIActionDelayMS updates the AI action delay when non-nil.
+	AIActionDelayMS *int `json:"ai_action_delay_ms,omitempty"`
+	// DealDisplayDelayMS updates the deal display delay when non-nil.
+	DealDisplayDelayMS *int `json:"deal_display_delay_ms,omitempty"`
 	// TurnTimeoutMS updates the turn timeout when non-nil.
 	TurnTimeoutMS *int `json:"turn_timeout_ms,omitempty"`
 }
@@ -103,19 +109,11 @@ type SessionInfo struct {
 	State State `json:"state"`
 	// Seats describes each seat's configuration.
 	Seats []SeatDetail `json:"seats"`
-	// PacingDelayMS is the configured pacing delay in milliseconds.
-	PacingDelayMS int `json:"pacing_delay_ms"`
+	// AIActionDelayMS is the configured AI action delay in milliseconds.
+	AIActionDelayMS int `json:"ai_action_delay_ms"`
+	// DealDisplayDelayMS is the configured deal display delay in milliseconds.
+	DealDisplayDelayMS int `json:"deal_display_delay_ms"`
 	// TurnTimeoutMS is the configured turn timeout in milliseconds.
 	// 0 means disabled.
 	TurnTimeoutMS int `json:"turn_timeout_ms"`
-}
-
-// turnTimeout returns the turn timeout as a time.Duration. If
-// TurnTimeoutMS is nil, the default is returned. 0 or negative means
-// disabled.
-func (c Config) turnTimeout() time.Duration {
-	if c.TurnTimeoutMS != nil {
-		return time.Duration(*c.TurnTimeoutMS) * time.Millisecond
-	}
-	return defaultTurnTimeoutMS * time.Millisecond
 }

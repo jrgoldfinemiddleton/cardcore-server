@@ -41,7 +41,7 @@ func TestNewServerRegistersAllRoutes(t *testing.T) {
 		{"POST", "/sessions", `{"game":"hearts","seats":[{"type":"ai","ai_type":"random"}]}`},
 		{"GET", "/sessions", ""},
 		{"GET", "/sessions/test-id", ""},
-		{"PATCH", "/sessions/test-id", `{"pacing_delay_ms":250}`},
+		{"PATCH", "/sessions/test-id", `{"ai_action_delay_ms":250}`},
 		{"POST", "/sessions/test-id/start", ""},
 		{"DELETE", "/sessions/test-id", ""},
 	}
@@ -438,8 +438,14 @@ func TestHandleGetSession(t *testing.T) {
 		if got.State != session.Draft {
 			t.Errorf("got state %q, want %q", got.State, session.Draft)
 		}
-		if got.PacingDelayMS != 500 {
-			t.Errorf("got pacing_delay_ms %d, want 500", got.PacingDelayMS)
+		if got.AIActionDelayMS != 1000 {
+			t.Errorf("got ai_action_delay_ms %d, want 1000", got.AIActionDelayMS)
+		}
+		if got.DealDisplayDelayMS != 1500 {
+			t.Errorf("got deal_display_delay_ms %d, want 1500", got.DealDisplayDelayMS)
+		}
+		if got.TurnTimeoutMS != 30000 {
+			t.Errorf("got turn_timeout_ms %d, want 30000", got.TurnTimeoutMS)
 		}
 		if len(got.Seats) != 1 {
 			t.Errorf("got %d seats, want 1", len(got.Seats))
@@ -467,7 +473,7 @@ func TestHandlePatchSession(t *testing.T) {
 			t.Fatalf("create: %v", err)
 		}
 
-		body := []byte(`{"pacing_delay_ms":250}`)
+		body := []byte(`{"ai_action_delay_ms":250}`)
 		req := httptest.NewRequest(http.MethodPatch,
 			"/sessions/"+info.SessionID, bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -481,8 +487,60 @@ func TestHandlePatchSession(t *testing.T) {
 		if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if got.PacingDelayMS != 250 {
-			t.Errorf("got pacing_delay_ms %d, want 250", got.PacingDelayMS)
+		if got.AIActionDelayMS != 250 {
+			t.Errorf("got ai_action_delay_ms %d, want 250", got.AIActionDelayMS)
+		}
+	})
+
+	t.Run("update deal display delay", func(t *testing.T) {
+		srv, mgr := setupTestServer(t)
+		info, _, err := mgr.Create(validConfig())
+		if err != nil {
+			t.Fatalf("create: %v", err)
+		}
+
+		body := []byte(`{"deal_display_delay_ms":500}`)
+		req := httptest.NewRequest(http.MethodPatch,
+			"/sessions/"+info.SessionID, bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		srv.mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("got status %d, want %d", rec.Code, http.StatusOK)
+		}
+		var got session.SessionInfo
+		if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if got.DealDisplayDelayMS != 500 {
+			t.Errorf("got deal_display_delay_ms %d, want 500", got.DealDisplayDelayMS)
+		}
+	})
+
+	t.Run("update turn timeout", func(t *testing.T) {
+		srv, mgr := setupTestServer(t)
+		info, _, err := mgr.Create(validConfig())
+		if err != nil {
+			t.Fatalf("create: %v", err)
+		}
+
+		body := []byte(`{"turn_timeout_ms":60000}`)
+		req := httptest.NewRequest(http.MethodPatch,
+			"/sessions/"+info.SessionID, bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		srv.mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("got status %d, want %d", rec.Code, http.StatusOK)
+		}
+		var got session.SessionInfo
+		if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if got.TurnTimeoutMS != 60000 {
+			t.Errorf("got turn_timeout_ms %d, want 60000", got.TurnTimeoutMS)
 		}
 	})
 
@@ -529,7 +587,7 @@ func TestHandlePatchSession(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		srv, _ := setupTestServer(t)
-		body := []byte(`{"pacing_delay_ms":250}`)
+		body := []byte(`{"ai_action_delay_ms":250}`)
 		req := httptest.NewRequest(http.MethodPatch, "/sessions/nope", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -550,7 +608,7 @@ func TestHandlePatchSession(t *testing.T) {
 			t.Fatalf("start: %v", err)
 		}
 
-		body := []byte(`{"pacing_delay_ms":250}`)
+		body := []byte(`{"ai_action_delay_ms":250}`)
 		req := httptest.NewRequest(http.MethodPatch,
 			"/sessions/"+info.SessionID, bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -589,8 +647,8 @@ func TestHandlePatchSession(t *testing.T) {
 		if got.State != session.Draft {
 			t.Errorf("got state %q, want %q", got.State, session.Draft)
 		}
-		if got.PacingDelayMS != 500 {
-			t.Errorf("got pacing_delay_ms %d, want 500", got.PacingDelayMS)
+		if got.AIActionDelayMS != 1000 {
+			t.Errorf("got ai_action_delay_ms %d, want 1000", got.AIActionDelayMS)
 		}
 	})
 
@@ -700,7 +758,7 @@ func TestHandleStartSession(t *testing.T) {
 				return nil, fmt.Errorf("%w: unknown game: %s", session.ErrInvalidConfig, cfg.Game)
 			}
 		}
-		mgr := session.NewManager(rejectFactory)
+		mgr := session.NewManager(rejectFactory, session.DefaultServerDelays)
 		srv := NewServer(Config{Manager: mgr, Addr: ":0"})
 
 		cfg := session.Config{
@@ -1153,63 +1211,89 @@ func TestObserverWSUpgradeSessionNotActiveIntegration(t *testing.T) {
 	}
 }
 
-// TestPlayerWSNoEmptyFrameOnMarshalFailureIntegration verifies that when the
-// session goroutine produces an unmarshalable snapshot, the player
-// WebSocket connection does not receive an empty or nil text frame.
-func TestPlayerWSNoEmptyFrameOnMarshalFailureIntegration(t *testing.T) {
+// TestPlayerWSMarshalFailureRejectsConnectionIntegration verifies that
+// when the session goroutine fails to marshal the initial snapshot, the
+// session terminates immediately and subsequent WebSocket connections are
+// rejected.
+func TestPlayerWSMarshalFailureRejectsConnectionIntegration(t *testing.T) {
 	srv, id, token := setupTestServerWithUnmarshalableSession(t)
 
 	ts := httptest.NewServer(srv.mux)
 	defer ts.Close()
 
-	wsURL := fmt.Sprintf("ws%s/sessions/%s/ws", strings.TrimPrefix(ts.URL, "http"), id)
+	// Wait for the session to reach Finished so the dial races against
+	// a settled state rather than a goroutine still exiting.
+	pollURL := fmt.Sprintf("%s/sessions/%s", ts.URL, id)
+	for range 100 {
+		resp, pollErr := http.Get(pollURL)
+		if pollErr == nil && resp.StatusCode == http.StatusOK {
+			var info session.SessionInfo
+			decErr := json.NewDecoder(resp.Body).Decode(&info)
+			_ = resp.Body.Close()
+			if decErr == nil && info.State == session.Finished {
+				break
+			}
+		} else if resp != nil {
+			_ = resp.Body.Close()
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	wsURL := fmt.Sprintf("ws%s/sessions/%s/ws",
+		strings.TrimPrefix(ts.URL, "http"), id)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	headers := http.Header{}
 	headers.Set("Authorization", "Bearer "+token)
-	conn, resp, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: headers})
-	if err != nil {
-		t.Fatalf("dial failed: %v (status=%d)", err, resp.StatusCode)
-	}
-	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
-
-	// Try to read a message — should time out because the session
-	// goroutine drops unmarshalable snapshots and sends nothing.
-	ctx2, cancel2 := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel2()
-	_, _, err = conn.Read(ctx2)
+	_, resp, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: headers})
 	if err == nil {
-		t.Fatal("expected timeout (no message), but got a message — empty/nil frame was sent")
+		t.Fatal("expected dial to fail for finished session, but it succeeded")
+	}
+	if resp.StatusCode != http.StatusConflict {
+		t.Errorf("got status %d, want %d", resp.StatusCode, http.StatusConflict)
 	}
 }
 
-// TestObserverWSNoEmptyFrameOnMarshalFailureIntegration verifies that when the
-// session goroutine produces an unmarshalable snapshot, the observer
-// WebSocket connection does not receive an empty or nil text frame.
-func TestObserverWSNoEmptyFrameOnMarshalFailureIntegration(t *testing.T) {
+// TestObserverWSMarshalFailureRejectsConnectionIntegration verifies that
+// when the session goroutine fails to marshal the initial snapshot, the
+// session terminates immediately and subsequent observer WebSocket
+// connections are rejected.
+func TestObserverWSMarshalFailureRejectsConnectionIntegration(t *testing.T) {
 	srv, id, _ := setupTestServerWithUnmarshalableSession(t)
 
 	ts := httptest.NewServer(srv.mux)
 	defer ts.Close()
 
-	wsURL := fmt.Sprintf("ws%s/sessions/%s/ws/observe", strings.TrimPrefix(ts.URL, "http"), id)
+	// Wait for the session to reach Finished so the dial races against
+	// a settled state rather than a goroutine still exiting.
+	pollURL := fmt.Sprintf("%s/sessions/%s", ts.URL, id)
+	for range 100 {
+		resp, pollErr := http.Get(pollURL)
+		if pollErr == nil && resp.StatusCode == http.StatusOK {
+			var info session.SessionInfo
+			decErr := json.NewDecoder(resp.Body).Decode(&info)
+			_ = resp.Body.Close()
+			if decErr == nil && info.State == session.Finished {
+				break
+			}
+		} else if resp != nil {
+			_ = resp.Body.Close()
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	wsURL := fmt.Sprintf("ws%s/sessions/%s/ws/observe",
+		strings.TrimPrefix(ts.URL, "http"), id)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	conn, resp, err := websocket.Dial(ctx, wsURL, nil)
-	if err != nil {
-		t.Fatalf("dial failed: %v (status=%d)", err, resp.StatusCode)
-	}
-	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
-
-	// Try to read a message — should time out because the session
-	// goroutine drops unmarshalable snapshots and sends nothing.
-	ctx2, cancel2 := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel2()
-	_, _, err = conn.Read(ctx2)
+	_, resp, err := websocket.Dial(ctx, wsURL, nil)
 	if err == nil {
-		t.Fatal("expected timeout (no message), but got a message — empty/nil frame was sent")
+		t.Fatal("expected dial to fail for finished session, but it succeeded")
+	}
+	if resp.StatusCode != http.StatusConflict {
+		t.Errorf("got status %d, want %d", resp.StatusCode, http.StatusConflict)
 	}
 }
 
@@ -1351,7 +1435,7 @@ func TestServerShutdownPropagatesGoingAwayToObserverIntegration(t *testing.T) {
 func mockManager() *session.Manager {
 	return session.NewManager(func(_ session.Config) (session.Game, error) {
 		return stubGame{}, nil
-	})
+	}, session.DefaultServerDelays)
 }
 
 // validConfig returns a minimal valid session.Config for tests.
@@ -1398,6 +1482,9 @@ func (stubGame) ObserverSnapshot(seq int) any {
 	return map[string]any{"type": "snapshot", "seq": seq}
 }
 
+// DisplayDelay implements session.Game.
+func (stubGame) DisplayDelay() int { return 0 }
+
 // HandleAction implements session.Game for unmarshalableStubGame.
 func (unmarshalableStubGame) HandleAction(
 	int, *api.InboundMessage,
@@ -1427,6 +1514,9 @@ func (unmarshalableStubGame) PlayerSnapshot(int, int) any {
 func (unmarshalableStubGame) ObserverSnapshot(int) any {
 	return struct{ Ch chan int }{Ch: make(chan int)}
 }
+
+// DisplayDelay implements session.Game for unmarshalableStubGame.
+func (unmarshalableStubGame) DisplayDelay() int { return 0 }
 
 // setupTestServerWithSession creates a server and an active session with
 // 1 human + 3 AI seats. It returns the server, session ID, and the
@@ -1478,7 +1568,7 @@ func setupTestServerWithUnmarshalableSession(t *testing.T) (
 	t.Helper()
 	mgr := session.NewManager(func(_ session.Config) (session.Game, error) {
 		return unmarshalableStubGame{}, nil
-	})
+	}, session.DefaultServerDelays)
 	srv := NewServer(Config{Manager: mgr, Addr: ":0"})
 
 	cfg := session.Config{

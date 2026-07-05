@@ -11,11 +11,13 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
 )
 
-// Default timing values for session configuration.
-const (
-	defaultPacingDelayMS = 500
-	defaultTurnTimeoutMS = 30000
-)
+// DefaultServerDelays provides the built-in defaults for server-wide
+// timing values.
+var DefaultServerDelays = DefaultDelays{
+	AIActionDelayMS:    1000,
+	DealDisplayDelayMS: 1500,
+	TurnTimeoutMS:      30000,
+}
 
 // Sentinel errors returned by Manager methods.
 var (
@@ -37,6 +39,8 @@ type entry struct {
 	seats []SeatInfo
 	// sess is the running session goroutine, nil until Start.
 	sess *session
+	// defaults holds the server-wide defaults at creation time.
+	defaults DefaultDelays
 }
 
 // tokenInfo holds the session and seat associated with a bearer token.
@@ -56,15 +60,26 @@ type Manager struct {
 	tokenIndex map[string]tokenInfo
 	// factory creates Game adapters from a Config.
 	factory func(Config) (Game, error)
+	// defaultDelays holds the server-wide default delay values.
+	defaultDelays DefaultDelays
+}
+
+// DefaultDelays holds server-wide default timing values.
+type DefaultDelays struct {
+	AIActionDelayMS    int
+	DealDisplayDelayMS int
+	TurnTimeoutMS      int
 }
 
 // NewManager creates an empty session manager. The factory creates a
-// Game adapter from a Config.
-func NewManager(factory func(Config) (Game, error)) *Manager {
+// Game adapter from a Config. Defaults are applied when config fields
+// are nil.
+func NewManager(factory func(Config) (Game, error), defaults DefaultDelays) *Manager {
 	return &Manager{
-		sessions:   make(map[string]*entry),
-		tokenIndex: make(map[string]tokenInfo),
-		factory:    factory,
+		sessions:      make(map[string]*entry),
+		tokenIndex:    make(map[string]tokenInfo),
+		factory:       factory,
+		defaultDelays: defaults,
 	}
 }
 
@@ -90,9 +105,10 @@ func (m *Manager) Create(cfg Config) (*SessionInfo, []SeatInfo, error) {
 
 	m.mu.Lock()
 	m.sessions[id] = &entry{
-		state:  Draft,
-		config: cfg,
-		seats:  seats,
+		state:    Draft,
+		config:   cfg,
+		seats:    seats,
+		defaults: m.defaultDelays,
 	}
 	for i, s := range seats {
 		if s.Token != "" {
@@ -174,10 +190,11 @@ func (m *Manager) Update(
 
 	if patch.Seats != nil {
 		cfg := Config{
-			Game:          e.config.Game,
-			Seats:         patch.Seats,
-			PacingDelayMS: e.config.PacingDelayMS,
-			TurnTimeoutMS: e.config.TurnTimeoutMS,
+			Game:               e.config.Game,
+			Seats:              patch.Seats,
+			AIActionDelayMS:    e.config.AIActionDelayMS,
+			DealDisplayDelayMS: e.config.DealDisplayDelayMS,
+			TurnTimeoutMS:      e.config.TurnTimeoutMS,
 		}
 		if err := validateConfig(cfg); err != nil {
 			return nil, nil, err
@@ -202,8 +219,11 @@ func (m *Manager) Update(
 		return e.info(id), seats, nil
 	}
 
-	if patch.PacingDelayMS != nil {
-		e.config.PacingDelayMS = patch.PacingDelayMS
+	if patch.AIActionDelayMS != nil {
+		e.config.AIActionDelayMS = patch.AIActionDelayMS
+	}
+	if patch.DealDisplayDelayMS != nil {
+		e.config.DealDisplayDelayMS = patch.DealDisplayDelayMS
 	}
 	if patch.TurnTimeoutMS != nil {
 		e.config.TurnTimeoutMS = patch.TurnTimeoutMS
@@ -251,7 +271,8 @@ func (m *Manager) Start(id string) error {
 		}()
 	}
 
-	e.sess = newSession(id, game, e.config, onDone)
+	// aiActionDelay and turnTimeout using server-wide defaults.
+	e.sess = newSession(id, game, e.config, e.defaults, onDone)
 	e.state = Active
 
 	slog.With("component", "session_manager").Info("session started",
@@ -485,22 +506,32 @@ func (e *entry) info(id string) *SessionInfo {
 		}
 	}
 	return &SessionInfo{
-		SessionID:     id,
-		Game:          e.config.Game,
-		State:         e.state,
-		Seats:         details,
-		PacingDelayMS: e.delay(),
-		TurnTimeoutMS: e.turnTimeout(),
+		SessionID:          id,
+		Game:               e.config.Game,
+		State:              e.state,
+		Seats:              details,
+		AIActionDelayMS:    e.aiActionDelay(),
+		DealDisplayDelayMS: e.dealDisplayDelay(),
+		TurnTimeoutMS:      e.turnTimeout(),
 	}
 }
 
-// delay returns the resolved pacing delay in milliseconds, applying
-// the default when the config value is nil.
-func (e *entry) delay() int {
-	if e.config.PacingDelayMS != nil {
-		return *e.config.PacingDelayMS
+// aiActionDelay returns the resolved AI action delay in milliseconds,
+// applying the default when the config value is nil.
+func (e *entry) aiActionDelay() int {
+	if e.config.AIActionDelayMS != nil {
+		return *e.config.AIActionDelayMS
 	}
-	return defaultPacingDelayMS
+	return e.defaults.AIActionDelayMS
+}
+
+// dealDisplayDelay returns the resolved deal display delay in milliseconds,
+// applying the default when the config value is nil.
+func (e *entry) dealDisplayDelay() int {
+	if e.config.DealDisplayDelayMS != nil {
+		return *e.config.DealDisplayDelayMS
+	}
+	return e.defaults.DealDisplayDelayMS
 }
 
 // turnTimeout returns the resolved turn timeout in milliseconds,
@@ -509,7 +540,7 @@ func (e *entry) turnTimeout() int {
 	if e.config.TurnTimeoutMS != nil {
 		return *e.config.TurnTimeoutMS
 	}
-	return defaultTurnTimeoutMS
+	return e.defaults.TurnTimeoutMS
 }
 
 // generateSessionID returns a 32-character hex string from 16 random

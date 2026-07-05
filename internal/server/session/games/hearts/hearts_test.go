@@ -18,7 +18,7 @@ var _ session.Game = (*Adapter)(nil)
 // TestNewAdapterValid verifies that a valid 4-seat config creates an
 // adapter in the pass or play phase.
 func TestNewAdapterValid(t *testing.T) {
-	a, err := NewAdapter(validSeats(), testRNG())
+	a, err := NewAdapter(validSeats(), testRNG(), 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewAdapter: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestNewAdapterWrongSeatCount(t *testing.T) {
 		{Type: session.SeatHuman},
 		{Type: session.SeatAI, AIType: "random"},
 	}
-	_, err := NewAdapter(seats, testRNG())
+	_, err := NewAdapter(seats, testRNG(), 0, 0, 0)
 	if err == nil {
 		t.Fatal("got nil error, want seat count error")
 	}
@@ -53,7 +53,7 @@ func TestNewAdapterUnknownAIType(t *testing.T) {
 		{Type: session.SeatAI, AIType: "random"},
 		{Type: session.SeatAI, AIType: "random"},
 	}
-	_, err := NewAdapter(seats, testRNG())
+	_, err := NewAdapter(seats, testRNG(), 0, 0, 0)
 	if err == nil {
 		t.Fatal("got nil error, want unknown ai_type error")
 	}
@@ -381,6 +381,83 @@ func TestTrickCompletePauseShowsCompletedTrick(t *testing.T) {
 	}
 }
 
+// TestAdapterDisplayDelay verifies that DisplayDelay returns the correct
+// delay based on the current game phase and pause state.
+func TestAdapterDisplayDelay(t *testing.T) {
+	dealDelay := 1500
+	trickDelay := 3000
+	roundDelay := 5000
+	a, err := NewAdapter(validSeats(), testRNG(), dealDelay, trickDelay, roundDelay)
+	if err != nil {
+		t.Fatalf("NewAdapter: %v", err)
+	}
+
+	// Initial state (Round 0, no tricks) returns deal delay.
+	if got := a.DisplayDelay(); got != dealDelay {
+		t.Errorf("DisplayDelay at start: got %d, want %d", got, dealDelay)
+	}
+
+	// After passing, dealPending already consumed → returns 0.
+	for i := range hearts.NumPlayers {
+		if i%2 == 0 {
+			if _, errPlay := a.AIPlay(i); errPlay != nil {
+				t.Fatalf("AIPlay seat %d: %v", i, errPlay)
+			}
+		} else {
+			cards := firstThreeCards(a, i)
+			msg := passCardsMsg(t, cards)
+			if _, cmdErr := a.HandleAction(i, msg); cmdErr != nil {
+				t.Fatalf("pass seat %d: %v", i, cmdErr)
+			}
+		}
+	}
+	if got := a.DisplayDelay(); got != 0 {
+		t.Errorf("DisplayDelay after passing: got %d, want 0", got)
+	}
+
+	// Play 4 AI cards to complete the first trick → trick complete pause.
+	for i := 0; i < 4; i++ {
+		if _, errPlay := a.AIPlay(int(a.game.Turn)); errPlay != nil {
+			t.Fatalf("AIPlay trick card %d: %v", i, errPlay)
+		}
+	}
+	if got := a.DisplayDelay(); got != trickDelay {
+		t.Errorf("DisplayDelay after trick complete: got %d, want %d", got, trickDelay)
+	}
+
+	// Resume from trick complete clears pause, back to 0 (now in play, not initial).
+	if _, err := a.Resume(); err != nil {
+		t.Fatalf("Resume after trick: %v", err)
+	}
+	if got := a.DisplayDelay(); got != 0 {
+		t.Errorf("DisplayDelay after Resume from trick: got %d, want 0", got)
+	}
+}
+
+// TestAdapterDisplayDelayRoundComplete verifies that DisplayDelay returns
+// the round delay when the adapter is in a round-complete pause state.
+func TestAdapterDisplayDelayRoundComplete(t *testing.T) {
+	dealDelay := 1500
+	trickDelay := 3000
+	roundDelay := 5000
+	a, err := NewAdapter(validSeats(), testRNG(), dealDelay, trickDelay, roundDelay)
+	if err != nil {
+		t.Fatalf("NewAdapter: %v", err)
+	}
+
+	// Consume the initial dealPending so it doesn't shadow the pause check.
+	_ = a.DisplayDelay()
+
+	// Manually set the round-complete pause state.
+	a.paused = &pauseState{roundComplete: true}
+	if got := a.DisplayDelay(); got != roundDelay {
+		t.Errorf("DisplayDelay round complete: got %d, want %d", got, roundDelay)
+	}
+
+	// Resume from round complete is tested via the full game integration test.
+	// This unit test verifies only the DisplayDelay mapping.
+}
+
 // TestFullGameThroughAdapterIntegration plays a complete game through the adapter
 // using all-AI players, verifying that it terminates with StepFinished.
 func TestFullGameThroughAdapterIntegration(t *testing.T) {
@@ -504,7 +581,7 @@ func testRNG() *rand.Rand {
 // allAIAdapter creates an adapter with 4 AI players.
 func allAIAdapter(t *testing.T) *Adapter {
 	t.Helper()
-	a, err := NewAdapter(allAISeats(), testRNG())
+	a, err := NewAdapter(allAISeats(), testRNG(), 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewAdapter: %v", err)
 	}
@@ -516,7 +593,7 @@ func allAIAdapter(t *testing.T) *Adapter {
 // for the human seat.
 func adapterInPlayPhase(t *testing.T) *Adapter {
 	t.Helper()
-	a, err := NewAdapter(validSeats(), testRNG())
+	a, err := NewAdapter(validSeats(), testRNG(), 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewAdapter: %v", err)
 	}
@@ -528,7 +605,7 @@ func adapterInPlayPhase(t *testing.T) *Adapter {
 // pass phase. Skips the test if the deal produced a hold round.
 func adapterInPassPhase(t *testing.T) *Adapter {
 	t.Helper()
-	a, err := NewAdapter(validSeats(), testRNG())
+	a, err := NewAdapter(validSeats(), testRNG(), 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewAdapter: %v", err)
 	}

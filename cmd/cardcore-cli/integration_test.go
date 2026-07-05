@@ -31,7 +31,7 @@ func TestIntegrationScriptFullGame(t *testing.T) {
 	baseURL := "http://" + srv.Addr()
 
 	// 10ms pacing keeps the sequential read loop from falling behind
-	// the server's broadcast rate. With PacingDelayMS: 0, the server
+	// the server's broadcast rate. With AIActionDelayMS: 0, the server
 	// generates ~900 snapshots in ~100ms, faster than the player loop
 	// can consume them. Under parallel load the 64-slot subscriber
 	// buffer overflows and sendNonBlocking drops snapshots (including
@@ -46,7 +46,7 @@ func TestIntegrationScriptFullGame(t *testing.T) {
 			{Type: "ai", AIType: "random"},
 			{Type: "ai", AIType: "random"},
 		},
-		PacingDelayMS: &delay,
+		AIActionDelayMS: &delay,
 	}
 
 	sc := &client.SessionClient{BaseURL: baseURL}
@@ -196,7 +196,7 @@ func TestIntegrationObserverFullGame(t *testing.T) {
 	baseURL := "http://" + srv.Addr()
 
 	// 5ms pacing prevents the observer channel from overflowing with
-	// heuristic AI players. All-AI sessions with PacingDelayMS: 0 generate
+	// heuristic AI players. All-AI sessions with AIActionDelayMS: 0 generate
 	// snapshots faster than the WebSocket writer can drain the 64-slot
 	// subscriber buffer, causing sendNonBlocking to drop snapshots
 	// (including game_over) and making the test flaky.
@@ -209,7 +209,7 @@ func TestIntegrationObserverFullGame(t *testing.T) {
 			{Type: "ai", AIType: "random"},
 			{Type: "ai", AIType: "random"},
 		},
-		PacingDelayMS: &delay,
+		AIActionDelayMS: &delay,
 	}
 
 	sc := &client.SessionClient{BaseURL: baseURL}
@@ -299,7 +299,7 @@ func TestIntegrationObserverFullGame(t *testing.T) {
 func setupTestServer(t *testing.T) *transport.Server {
 	t.Helper()
 	factory := heartsFactory(t)
-	mgr := session.NewManager(factory)
+	mgr := session.NewManager(factory, session.DefaultServerDelays)
 	srv := transport.NewServer(transport.Config{Manager: mgr})
 	go func() {
 		_ = srv.Start()
@@ -325,7 +325,7 @@ func heartsFactory(t *testing.T) func(session.Config) (session.Game, error) {
 	seed := hashTestName(t.Name())
 	rng := rand.New(rand.NewPCG(seed, seed+1))
 	return func(cfg session.Config) (session.Game, error) {
-		return heartssession.NewAdapter(cfg.Seats, rng)
+		return heartssession.NewAdapter(cfg.Seats, rng, 0, 0, 0)
 	}
 }
 

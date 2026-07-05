@@ -18,6 +18,7 @@ func CreateHumanSession(
 	aiType string,
 	pacing int,
 ) (string, string, error) {
+	zero := 0
 	cfg := client.Config{
 		Game: gameNameHearts,
 		Seats: []client.SeatConfig{
@@ -26,7 +27,8 @@ func CreateHumanSession(
 			{Type: "ai", AIType: aiType},
 			{Type: "ai", AIType: aiType},
 		},
-		PacingDelayMS: &pacing,
+		AIActionDelayMS:    &pacing,
+		DealDisplayDelayMS: &zero,
 	}
 
 	id, seats, err := sc.CreateSession(ctx, cfg)
@@ -50,6 +52,7 @@ func CreateObserverSession(
 	aiType string,
 	pacing int,
 ) (string, []client.SeatInfo, error) {
+	zero := 0
 	cfg := client.Config{
 		Game: gameNameHearts,
 		Seats: []client.SeatConfig{
@@ -58,7 +61,8 @@ func CreateObserverSession(
 			{Type: "ai", AIType: aiType},
 			{Type: "ai", AIType: aiType},
 		},
-		PacingDelayMS: &pacing,
+		AIActionDelayMS:    &pacing,
+		DealDisplayDelayMS: &zero,
 	}
 
 	return sc.CreateSession(ctx, cfg)

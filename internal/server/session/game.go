@@ -89,6 +89,13 @@ type Game interface {
 	// given sequence number. The session goroutine calls
 	// json.Marshal on the returned value.
 	ObserverSnapshot(seq int) any
+
+	// DisplayDelay returns the number of milliseconds to wait before
+	// advancing past the current game state. Zero means advance
+	// immediately. The session goroutine calls this after broadcasting
+	// a snapshot in a pausable or initial state to give clients time
+	// to render it.
+	DisplayDelay() int
 }
 
 // Error implements the error interface.
