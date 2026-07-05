@@ -106,7 +106,8 @@ Creates a new session in `draft` state.
 |-------|------|----------|-------------|
 | `game` | string | yes | Game identifier (e.g., `"hearts"`). |
 | `seats` | array of seat config | yes | One entry per seat. |
-| `pacing_delay_ms` | integer | no | Delay in milliseconds between state transitions requiring UX pacing (trick completion, round completion, AI turns). Default: `500`. Use `0` for tests. |
+| `ai_action_delay_ms` | integer | no | Delay in milliseconds between AI turns. Default: `1000`. Use `0` for tests. |
+| `deal_display_delay_ms` | integer | no | How long to show the deal before advancing. Applied after every `Deal()` — initial game start and between rounds. Default: `1500`. Use `0` for tests. |
 | `turn_timeout_ms` | integer | no | Maximum time in milliseconds to wait for a human player to act before auto-playing an AI move. Default: `30000` (30s). Use `0` to disable. |
 
 > **UX hint:** If a human sends an action at the exact moment the timeout fires, the server may process the timeout first and reject the human action with `wrong_turn`. To minimize this race, clients should disable the play UI at least 500 ms before the configured timeout (e.g., a 30 s timeout should show a 29.5 s countdown and grey out controls at 0 s remaining).
@@ -181,7 +182,8 @@ WebSocket snapshot for that).
 | `seats[].index` | integer | Seat index. |
 | `seats[].type` | string | `"human"` or `"ai"`. |
 | `seats[].ai_type` | string | AI implementation name. Present only for AI seats. |
-| `pacing_delay_ms` | integer | Configured pacing delay in milliseconds. |
+| `ai_action_delay_ms` | integer | Configured AI action delay in milliseconds. |
+| `deal_display_delay_ms` | integer | Configured deal display delay in milliseconds. |
 | `turn_timeout_ms` | integer | Configured human turn timeout in milliseconds. `0` means disabled. |
 
 **Errors:**
@@ -205,7 +207,8 @@ Updates session configuration. Only valid in `draft` state.
 | Field | Type | Description |
 |-------|------|-------------|
 | `seats` | array of seat config | Replace seat configuration. |
-| `pacing_delay_ms` | integer | Update pacing delay in milliseconds. |
+| `ai_action_delay_ms` | integer | Update AI action delay in milliseconds. |
+| `deal_display_delay_ms` | integer | Update deal display delay in milliseconds. |
 | `turn_timeout_ms` | integer | Update human turn timeout in milliseconds. `0` disables the timeout. |
 
 **Response:** `200 OK` — returns the full session details (same shape
@@ -486,9 +489,9 @@ When it is an AI seat's turn:
 2. The server applies the AI's move to the engine.
 3. The server sends a `snapshot` to all connected clients.
 4. If the next turn is also an AI seat, the server waits at least
-   `pacing_delay_ms` milliseconds (configured per session) before
-   repeating from step 1. The delay is a floor: if the AI's compute
-   time exceeds `pacing_delay_ms`, no additional delay is added.
+   `ai_action_delay_ms` milliseconds (configured per session) before
+    repeating from step 1. The delay is a floor: if the AI's compute
+   time exceeds `ai_action_delay_ms`, no additional delay is added.
 5. This continues until it is a human seat's turn or the game ends.
 
 The client infers "AI is thinking" by checking the `turn` field in the

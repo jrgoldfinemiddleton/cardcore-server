@@ -31,7 +31,7 @@ func TestIntegrationFullLifecycle(t *testing.T) {
 	baseURL := "http://" + srv.Addr()
 
 	// 10ms pacing keeps the sequential read loop from falling behind
-	// the server's broadcast rate. With PacingDelayMS: 0, the server
+	// the server's broadcast rate. With AIActionDelayMS: 0, the server
 	// generates ~900 snapshots in ~100ms, faster than the player loop
 	// can consume them. Under parallel load the 64-slot subscriber
 	// buffer overflows and sendNonBlocking drops snapshots (including
@@ -46,7 +46,7 @@ func TestIntegrationFullLifecycle(t *testing.T) {
 			{Type: "ai", AIType: "random"},
 			{Type: "ai", AIType: "random"},
 		},
-		PacingDelayMS: &delay,
+		AIActionDelayMS: &delay,
 	}
 
 	sc := &client.SessionClient{BaseURL: baseURL}
@@ -222,7 +222,7 @@ func TestIntegrationObserverFullGame(t *testing.T) {
 	baseURL := "http://" + srv.Addr()
 
 	// A small pacing delay (10ms) prevents the server's 64-slot observer
-	// buffer from overflowing. With PacingDelayMS: 0, the server generates
+	// buffer from overflowing. With AIActionDelayMS: 0, the server generates
 	// ~900 snapshots in ~100ms, faster than the WebSocket writer can drain
 	// the buffer, causing sendNonBlocking to drop snapshots (including
 	// game_over). 10ms still completes in ~9s but gives the writer time
@@ -236,7 +236,7 @@ func TestIntegrationObserverFullGame(t *testing.T) {
 			{Type: "ai", AIType: "random"},
 			{Type: "ai", AIType: "random"},
 		},
-		PacingDelayMS: &delay,
+		AIActionDelayMS: &delay,
 	}
 
 	sc := &client.SessionClient{BaseURL: baseURL}
@@ -259,7 +259,7 @@ func TestIntegrationObserverFullGame(t *testing.T) {
 	}
 	defer func() { _ = conn.Close() }()
 
-	// With PacingDelayMS: 0, the server generates snapshots faster than a
+	// With AIActionDelayMS: 0, the server generates snapshots faster than a
 	// synchronous read loop can consume them. The server's subscriber
 	// channel has a 64-slot buffer; once full, sendNonBlocking drops
 	// snapshots and the observer may miss game_over or see stale seqs.
@@ -356,7 +356,7 @@ func TestIntegrationPlayerAndObserver(t *testing.T) {
 			{Type: "ai", AIType: "random"},
 			{Type: "ai", AIType: "random"},
 		},
-		PacingDelayMS: &delay,
+		AIActionDelayMS: &delay,
 	}
 
 	sc := &client.SessionClient{BaseURL: baseURL}
@@ -633,7 +633,7 @@ func TestIntegrationErrorResponse(t *testing.T) {
 			{Type: "ai", AIType: "random"},
 			{Type: "ai", AIType: "random"},
 		},
-		PacingDelayMS: &zero,
+		AIActionDelayMS: &zero,
 	}
 
 	sc := &client.SessionClient{BaseURL: baseURL}
@@ -725,7 +725,7 @@ func TestIntegrationErrorResponse(t *testing.T) {
 func setupTestServer(t *testing.T) *transport.Server {
 	t.Helper()
 	factory := heartsFactory(t)
-	mgr := session.NewManager(factory)
+	mgr := session.NewManager(factory, session.DefaultServerDelays)
 	srv := transport.NewServer(transport.Config{Manager: mgr})
 	go func() {
 		_ = srv.Start() // Server exited (usually on Shutdown).
@@ -755,7 +755,7 @@ func heartsFactory(t *testing.T) func(session.Config) (session.Game, error) {
 	seed := hashTestName(t.Name())
 	rng := rand.New(rand.NewPCG(seed, seed+1))
 	return func(cfg session.Config) (session.Game, error) {
-		return heartssession.NewAdapter(cfg.Seats, rng)
+		return heartssession.NewAdapter(cfg.Seats, rng, 0, 0, 0)
 	}
 }
 

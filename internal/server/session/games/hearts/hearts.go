@@ -27,6 +27,11 @@ type Adapter struct {
 	players [hearts.NumPlayers]hearts.Player
 	// paused tracks which UX pause is active. Nil when not paused.
 	paused *pauseState
+	// display delays for phase-aware pacing.
+	dealDelay, trickDelay, roundDelay int
+	// dealPending is true after a fresh Deal() and consumed by the first
+	// DisplayDelay() call in the new round.
+	dealPending bool
 	// logger is the per-component structured logger.
 	logger *slog.Logger
 }
@@ -47,6 +52,7 @@ type pauseState struct {
 // the first hand.
 func NewAdapter(
 	seats []session.SeatConfig, rng *rand.Rand,
+	dealDelay, trickDelay, roundDelay int,
 ) (*Adapter, error) {
 	if len(seats) != hearts.NumPlayers {
 		return nil, fmt.Errorf(
@@ -56,7 +62,11 @@ func NewAdapter(
 	}
 
 	a := &Adapter{
-		logger: slog.With("component", "hearts_adapter"),
+		dealDelay:   dealDelay,
+		trickDelay:  trickDelay,
+		roundDelay:  roundDelay,
+		dealPending: true,
+		logger:      slog.With("component", "hearts_adapter"),
 	}
 	for i, sc := range seats {
 		aiType := sc.AIType
@@ -195,6 +205,7 @@ func (a *Adapter) Resume() (session.StepResult, error) {
 			return session.StepResult{},
 				fmt.Errorf("deal: %w", err)
 		}
+		a.dealPending = true
 		// After Deal, Turn is not updated if PassDir != PassHold.
 		// Ensure Turn is set to a valid seat so processTurns can proceed.
 		// This applies to subsequent rounds after EndRound; the first
@@ -213,6 +224,24 @@ func (a *Adapter) Resume() (session.StepResult, error) {
 // Turn returns the seat index whose turn it is.
 func (a *Adapter) Turn() int {
 	return int(a.game.Turn)
+}
+
+// DisplayDelay returns the number of milliseconds to wait before
+// advancing past the current game state.
+func (a *Adapter) DisplayDelay() int {
+	if a.dealPending {
+		a.dealPending = false
+		return a.dealDelay
+	}
+	if a.paused != nil {
+		if a.paused.trickComplete {
+			return a.trickDelay
+		}
+		if a.paused.roundComplete {
+			return a.roundDelay
+		}
+	}
+	return 0
 }
 
 // PlayerSnapshot builds a seat-filtered snapshot for the given player.

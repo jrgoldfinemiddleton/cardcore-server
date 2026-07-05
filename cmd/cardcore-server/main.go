@@ -5,6 +5,7 @@ import (
 	crand "crypto/rand"
 	"encoding/binary"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
@@ -30,13 +31,39 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, opts))
 	slog.SetDefault(logger)
 
+	aiActionDelay := flag.Int("ai-action-delay",
+		intEnvOrDefault("CARDCORE_AI_ACTION_DELAY_MS", 1000),
+		"AI action delay in milliseconds")
+	dealDisplayDelay := flag.Int("deal-display-delay",
+		intEnvOrDefault("CARDCORE_DEAL_DISPLAY_DELAY_MS", 1500),
+		"deal display delay in milliseconds")
+	turnTimeout := flag.Int("turn-timeout",
+		intEnvOrDefault("CARDCORE_TURN_TIMEOUT_MS", 30000),
+		"human turn timeout in milliseconds")
+	heartsTrickDisplayDelay := flag.Int("hearts-trick-display-delay",
+		intEnvOrDefault("CARDCORE_SERVER_HEARTS_TRICK_DISPLAY_DELAY_MS", 3000),
+		"Hearts trick display delay in milliseconds")
+	heartsRoundDisplayDelay := flag.Int("hearts-round-display-delay",
+		intEnvOrDefault("CARDCORE_SERVER_HEARTS_ROUND_DISPLAY_DELAY_MS", 5000),
+		"Hearts round display delay in milliseconds")
+	flag.Parse()
+
 	mgr := session.NewManager(func(cfg session.Config) (session.Game, error) {
 		switch cfg.Game {
 		case "hearts":
-			return heartssession.NewAdapter(cfg.Seats, newRNG())
+			return heartssession.NewAdapter(
+				cfg.Seats, newRNG(),
+				intPtrOrDefault(cfg.DealDisplayDelayMS, *dealDisplayDelay),
+				*heartsTrickDisplayDelay,
+				*heartsRoundDisplayDelay,
+			)
 		default:
 			return nil, fmt.Errorf("%w: unknown game: %s", session.ErrInvalidConfig, cfg.Game)
 		}
+	}, session.DefaultDelays{
+		AIActionDelayMS:    *aiActionDelay,
+		DealDisplayDelayMS: *dealDisplayDelay,
+		TurnTimeoutMS:      *turnTimeout,
 	})
 
 	srv := transport.NewServer(transport.Config{
@@ -65,6 +92,26 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("shutdown complete")
+}
+
+// intEnvOrDefault returns the environment variable value parsed as an
+// int if set and valid (>= 0), otherwise the default.
+func intEnvOrDefault(envVar string, defaultValue int) int {
+	if v := os.Getenv(envVar); v != "" {
+		if d, err := strconv.Atoi(v); err == nil && d >= 0 {
+			return d
+		}
+	}
+	return defaultValue
+}
+
+// intPtrOrDefault returns the value pointed to by p, or defaultValue
+// if p is nil.
+func intPtrOrDefault(p *int, defaultValue int) int {
+	if p != nil {
+		return *p
+	}
+	return defaultValue
 }
 
 // newRNG returns a math/rand/v2.Rand seeded from crypto/rand. If

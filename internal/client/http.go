@@ -24,11 +24,13 @@ type Config struct {
 	Game string `json:"game"`
 	// Seats defines each seat's configuration.
 	Seats []SeatConfig `json:"seats"`
-	// PacingDelayMS is the delay in milliseconds between state
-	// transitions that require UX pacing (e.g., trick completion,
-	// round completion, AI turns). Zero means no delay. nil means
-	// use the server default.
-	PacingDelayMS *int `json:"pacing_delay_ms,omitempty"`
+	// AIActionDelayMS is the delay in milliseconds between AI turns.
+	// Zero means no delay. nil means use the server default.
+	AIActionDelayMS *int `json:"ai_action_delay_ms,omitempty"`
+	// DealDisplayDelayMS is how long to show the deal before
+	// advancing. Applied after every Deal(). Zero means no delay.
+	// nil means use the server default.
+	DealDisplayDelayMS *int `json:"deal_display_delay_ms,omitempty"`
 	// TurnTimeoutMS is the maximum time in milliseconds to wait for
 	// a human player to act before auto-playing an AI move. Zero means
 	// no timeout. nil means use the server default.
@@ -58,8 +60,10 @@ type SessionInfo struct {
 	State string `json:"state"`
 	// Seats describes each seat's configuration.
 	Seats []SeatDetail `json:"seats"`
-	// PacingDelayMS is the configured pacing delay in milliseconds.
-	PacingDelayMS int `json:"pacing_delay_ms"`
+	// AIActionDelayMS is the configured AI action delay in milliseconds.
+	AIActionDelayMS int `json:"ai_action_delay_ms"`
+	// DealDisplayDelayMS is the configured deal display delay in milliseconds.
+	DealDisplayDelayMS int `json:"deal_display_delay_ms"`
 	// TurnTimeoutMS is the configured turn timeout in milliseconds.
 	// 0 means disabled.
 	TurnTimeoutMS int `json:"turn_timeout_ms"`

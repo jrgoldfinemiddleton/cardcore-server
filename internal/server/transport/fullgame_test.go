@@ -47,6 +47,11 @@ func TestAllAIFullGameIntegration(t *testing.T) {
 		t.Fatal("received no snapshots")
 	}
 
+	// Verify the initial snapshot has seq == 1.
+	if snaps[0].Seq != 1 {
+		t.Fatalf("initial snapshot seq: got %d, want 1", snaps[0].Seq)
+	}
+
 	// Verify seq is strictly monotonically increasing.
 	// The session goroutine is single-threaded; all snapshots for a
 	// single subscriber flow through one FIFO channel. This test only
@@ -219,8 +224,8 @@ func TestHumanTurnTimeoutIntegration(t *testing.T) {
 			{Type: session.SeatAI, AIType: "random"},
 			{Type: session.SeatAI, AIType: "random"},
 		},
-		PacingDelayMS: &delay,
-		TurnTimeoutMS: &timeout,
+		AIActionDelayMS: &delay,
+		TurnTimeoutMS:   &timeout,
 	}
 
 	info, seats, err := mgr.Create(cfg)
@@ -299,8 +304,8 @@ func TestPassPhaseTimeoutIntegration(t *testing.T) {
 			{Type: session.SeatAI, AIType: "random"},
 			{Type: session.SeatAI, AIType: "random"},
 		},
-		PacingDelayMS: &delay,
-		TurnTimeoutMS: &timeout,
+		AIActionDelayMS: &delay,
+		TurnTimeoutMS:   &timeout,
 	}
 
 	info, seats, err := mgr.Create(cfg)
@@ -508,7 +513,7 @@ func fourHumanHeartsConfig() session.Config {
 			{Type: session.SeatHuman},
 			{Type: session.SeatHuman},
 		},
-		PacingDelayMS: &delay,
+		AIActionDelayMS: &delay,
 	}
 }
 
@@ -526,7 +531,7 @@ func heartsFactory(t *testing.T) func(session.Config) (session.Game, error) {
 	seed := hashTestName(t.Name())
 	rng := rand.New(rand.NewPCG(seed, seed+1))
 	return func(cfg session.Config) (session.Game, error) {
-		return heartssession.NewAdapter(cfg.Seats, rng)
+		return heartssession.NewAdapter(cfg.Seats, rng, 0, 0, 0)
 	}
 }
 
@@ -542,7 +547,7 @@ func allAIHeartsConfig() session.Config {
 			{Type: session.SeatAI, AIType: "random"},
 			{Type: session.SeatAI, AIType: "random"},
 		},
-		PacingDelayMS: &delay,
+		AIActionDelayMS: &delay,
 	}
 }
 
@@ -550,7 +555,7 @@ func allAIHeartsConfig() session.Config {
 func setupHeartsServer(t *testing.T) (*Server, *session.Manager) {
 	t.Helper()
 	factory := heartsFactory(t)
-	mgr := session.NewManager(factory)
+	mgr := session.NewManager(factory, session.DefaultServerDelays)
 	cfg := Config{Manager: mgr}
 	srv := NewServer(cfg)
 	return srv, mgr
@@ -569,7 +574,7 @@ func humanAIHeartsConfig() session.Config {
 			{Type: session.SeatAI, AIType: "random"},
 			{Type: session.SeatAI, AIType: "random"},
 		},
-		PacingDelayMS: &delay,
+		AIActionDelayMS: &delay,
 	}
 }
 

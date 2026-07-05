@@ -42,7 +42,7 @@ func TestIntegrationTUIClientFullGame(t *testing.T) {
 			{Type: "ai", AIType: "random"},
 			{Type: "ai", AIType: "random"},
 		},
-		PacingDelayMS: &delay,
+		AIActionDelayMS: &delay,
 	}
 
 	sc := &client.SessionClient{BaseURL: baseURL}
@@ -182,7 +182,7 @@ outer:
 func setupTestServer(t *testing.T) *transport.Server {
 	t.Helper()
 	factory := heartsFactory(t)
-	mgr := session.NewManager(factory)
+	mgr := session.NewManager(factory, session.DefaultServerDelays)
 	srv := transport.NewServer(transport.Config{Manager: mgr})
 	go func() {
 		_ = srv.Start()
@@ -208,7 +208,7 @@ func heartsFactory(t *testing.T) func(session.Config) (session.Game, error) {
 	seed := hashTestName(t.Name())
 	rng := rand.New(rand.NewPCG(seed, seed+1))
 	return func(cfg session.Config) (session.Game, error) {
-		return heartssession.NewAdapter(cfg.Seats, rng)
+		return heartssession.NewAdapter(cfg.Seats, rng, 0, 0, 0)
 	}
 }
 

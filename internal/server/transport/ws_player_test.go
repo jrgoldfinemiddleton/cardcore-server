@@ -103,7 +103,7 @@ func TestPlayerWSKickedOnSecondConnectionIntegration(t *testing.T) {
 func TestPlayerWSReceivesGameErrorIntegration(t *testing.T) {
 	mgr := session.NewManager(func(_ session.Config) (session.Game, error) {
 		return errorGame{}, nil
-	})
+	}, session.DefaultServerDelays)
 	srv := NewServer(Config{Manager: mgr, Addr: ":0"})
 
 	cfg := session.Config{
@@ -224,3 +224,6 @@ func (errorGame) PlayerSnapshot(seat, seq int) any {
 func (errorGame) ObserverSnapshot(seq int) any {
 	return map[string]any{"type": "snapshot", "seq": seq}
 }
+
+// DisplayDelay implements session.Game for errorGame.
+func (errorGame) DisplayDelay() int { return 0 }

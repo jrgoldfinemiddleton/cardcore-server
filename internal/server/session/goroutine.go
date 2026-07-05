@@ -51,6 +51,8 @@ type session struct {
 	game Game
 	// config is the session configuration (seats, delays).
 	config Config
+	// defaults for aiActionDelay and turnTimeout resolution.
+	defaults DefaultDelays
 
 	// seq is the monotonically increasing snapshot sequence number.
 	seq int
@@ -105,6 +107,27 @@ func (s *session) run() {
 
 	s.logger.Debug("session goroutine started")
 
+	// Broadcast the initial snapshot so clients see the deal before any
+	// turns are processed, then wait for the game's display delay.
+	s.broadcastSnapshot()
+	if s.finished {
+		s.drainCmds()
+		return
+	}
+	// Allow the game adapter to specify a display delay before the first
+	// turn is processed.
+	delay := s.game.DisplayDelay()
+	if delay > 0 {
+		s.logger.Debug("initial display delay", "delay_ms", delay)
+		select {
+		case <-time.After(time.Duration(delay) * time.Millisecond):
+		case <-s.cancel:
+			s.closeSubscribers()
+			s.drainCmds()
+			return
+		}
+	}
+
 	driveTurnsResult := s.driveTurns(false)
 	if driveTurnsResult == driveFinished || s.finished {
 		s.drainCmds()
@@ -124,7 +147,7 @@ func (s *session) run() {
 		// set the timeout channel to fire when the deadline is reached.
 		// If the deadline has already passed, handle the timeout
 		// immediately without waiting.
-		if s.waitingForHuman && s.config.turnTimeout() > 0 {
+		if s.waitingForHuman && s.turnTimeout() > 0 {
 			remaining := time.Until(s.turnDeadline)
 			if remaining > 0 {
 				// Deadline is in the future; set the timeout channel to fire when it expires.
@@ -336,11 +359,11 @@ func (s *session) driveTurns(fromPause bool) driveResult {
 	return status
 }
 
-// resumePauses waits for the pacing delay then calls Resume. It returns
-// a driveResult so driveTurns can loop again if the game is still in a
-// paused state.
+// resumePauses waits for the game's display delay then calls Resume. It
+// returns a driveResult so driveTurns can loop again if the game is
+// still in a paused state.
 func (s *session) resumePauses() driveResult {
-	delay := s.config.delay()
+	delay := s.game.DisplayDelay()
 	if delay > 0 {
 		s.logger.Debug("resumePauses waiting", "delay_ms", delay)
 		select {
@@ -367,6 +390,15 @@ func (s *session) resumePauses() driveResult {
 
 	switch res.Outcome {
 	case StepContinue:
+		delay = s.game.DisplayDelay()
+		if delay > 0 {
+			s.logger.Debug("post-resume display delay", "delay_ms", delay)
+			select {
+			case <-time.After(time.Duration(delay) * time.Millisecond):
+			case <-s.cancel:
+				return driveShutdown
+			}
+		}
 		return s.processTurns()
 	case StepPause:
 		return drivePaused
@@ -393,9 +425,9 @@ func (s *session) processTurns() driveResult {
 		s.logger.Debug("processTurns", "seat", seat, "human", isHuman)
 		// If human, set turn timeout and return so run() can handle it.
 		if isHuman {
-			if s.config.turnTimeout() > 0 {
+			if s.turnTimeout() > 0 {
 				s.waitingForHuman = true
-				s.turnDeadline = time.Now().Add(s.config.turnTimeout())
+				s.turnDeadline = time.Now().Add(s.turnTimeout())
 				s.logger.Debug("turn timeout scheduled", "seat", seat, "deadline", s.turnDeadline)
 			}
 			return driveHuman
@@ -403,7 +435,7 @@ func (s *session) processTurns() driveResult {
 
 		// Pace AI turns for UX readability; also process any buffered
 		// commands so late subscribers are not stranded.
-		delay := s.config.delay()
+		delay := s.aiActionDelay()
 		if delay > 0 {
 			select {
 			case <-time.After(time.Duration(delay) * time.Millisecond):
@@ -753,23 +785,38 @@ func (s *session) evictLRUActionID() {
 	delete(s.actionIDs, id)
 }
 
-// delay returns the configured delay in milliseconds.
-func (c Config) delay() int {
-	if c.PacingDelayMS != nil {
-		return *c.PacingDelayMS
+// aiActionDelay returns the configured AI action delay in milliseconds.
+// If the per-session config value is nil, the server-wide default is used.
+// so the goroutine uses server-wide defaults instead of hardcoded 1000.
+func (s *session) aiActionDelay() int {
+	if s.config.AIActionDelayMS != nil {
+		return *s.config.AIActionDelayMS
 	}
-	return 500
+	return s.defaults.AIActionDelayMS
+}
+
+// turnTimeout returns the turn timeout as a time.Duration. If the
+// per-session config value is nil, the server-wide default is used. 0
+// or negative means disabled.
+// so the goroutine uses server-wide defaults instead of hardcoded 30000.
+func (s *session) turnTimeout() time.Duration {
+	if s.config.TurnTimeoutMS != nil {
+		return time.Duration(*s.config.TurnTimeoutMS) * time.Millisecond
+	}
+	return time.Duration(s.defaults.TurnTimeoutMS) * time.Millisecond
 }
 
 // newSession creates a session and starts its goroutine.
+// per-session overrides with server-wide fallback.
 func newSession(
-	id string, g Game, cfg Config, onDone func(State),
+	id string, g Game, cfg Config, defaults DefaultDelays, onDone func(State),
 ) *session {
 	s := &session{
 		id:            id,
 		seq:           1,
 		game:          g,
 		config:        cfg,
+		defaults:      defaults,
 		actionIDs:     make(map[string][]byte),
 		actionIDList:  list.New(),
 		actionIDIndex: make(map[string]*list.Element),

@@ -46,6 +46,12 @@ type aiPlayPauseGame struct {
 	turnSeat  int
 }
 
+// delayGame is a mock Game that returns a fixed non-zero DisplayDelay for
+// verifying the goroutine sleep paths.
+type delayGame struct {
+	delay int
+}
+
 // seqSnapshotGame is a mock Game that returns snapshots embedding the
 // seq value so tests can verify the sequence number in the wire format.
 type seqSnapshotGame struct{}
@@ -77,6 +83,9 @@ func (seqSnapshotGame) PlayerSnapshot(seat, seq int) any {
 func (seqSnapshotGame) ObserverSnapshot(seq int) any {
 	return map[string]any{"seq": seq}
 }
+
+// DisplayDelay implements Game.DisplayDelay for seqSnapshotGame.
+func (seqSnapshotGame) DisplayDelay() int { return 0 }
 
 // HandleAction implements Game.HandleAction for aiPlayPauseGame.
 func (a *aiPlayPauseGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -113,6 +122,36 @@ func (a *aiPlayPauseGame) ObserverSnapshot(int) any {
 	return nil
 }
 
+// DisplayDelay implements Game.DisplayDelay for aiPlayPauseGame.
+func (a *aiPlayPauseGame) DisplayDelay() int { return 0 }
+
+// HandleAction implements Game.HandleAction for delayGame.
+func (d *delayGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
+	return StepResult{}, nil
+}
+
+// AIPlay implements Game.AIPlay for delayGame.
+func (d *delayGame) AIPlay(int) (StepResult, error) {
+	return StepResult{Outcome: StepFinished}, nil
+}
+
+// Resume implements Game.Resume for delayGame.
+func (d *delayGame) Resume() (StepResult, error) {
+	return StepResult{Outcome: StepContinue}, nil
+}
+
+// Turn implements Game.Turn for delayGame.
+func (d *delayGame) Turn() int { return 0 }
+
+// PlayerSnapshot implements Game.PlayerSnapshot for delayGame.
+func (d *delayGame) PlayerSnapshot(int, int) any { return nil }
+
+// ObserverSnapshot implements Game.ObserverSnapshot for delayGame.
+func (d *delayGame) ObserverSnapshot(int) any { return nil }
+
+// DisplayDelay implements Game.DisplayDelay for delayGame.
+func (d *delayGame) DisplayDelay() int { return d.delay }
+
 // HandleAction implements Game.HandleAction for mockGame.
 func (m *mockGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{}, nil
@@ -142,6 +181,9 @@ func (m *mockGame) PlayerSnapshot(int, int) any {
 func (m *mockGame) ObserverSnapshot(int) any {
 	return nil
 }
+
+// DisplayDelay implements Game.DisplayDelay for mockGame.
+func (m *mockGame) DisplayDelay() int { return 0 }
 
 // HandleAction implements Game.HandleAction for stepFinishedGame.
 func (s *stepFinishedGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -173,6 +215,9 @@ func (s *stepFinishedGame) ObserverSnapshot(int) any {
 	return nil
 }
 
+// DisplayDelay implements Game.DisplayDelay for stepFinishedGame.
+func (s *stepFinishedGame) DisplayDelay() int { return 0 }
+
 // HandleAction implements Game.HandleAction for unmarshalableGame.
 func (u *unmarshalableGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{}, nil
@@ -202,6 +247,9 @@ func (u *unmarshalableGame) PlayerSnapshot(int, int) any {
 func (u *unmarshalableGame) ObserverSnapshot(int) any {
 	return struct{ Ch chan int }{Ch: make(chan int)}
 }
+
+// DisplayDelay implements Game.DisplayDelay for unmarshalableGame.
+func (u *unmarshalableGame) DisplayDelay() int { return 0 }
 
 // HandleAction implements Game.HandleAction for playerSnapshotUnmarshalableGame.
 func (p *playerSnapshotUnmarshalableGame) HandleAction(
@@ -235,6 +283,9 @@ func (p *playerSnapshotUnmarshalableGame) ObserverSnapshot(int) any {
 	return map[string]any{"type": "snapshot"}
 }
 
+// DisplayDelay implements Game.DisplayDelay for playerSnapshotUnmarshalableGame.
+func (p *playerSnapshotUnmarshalableGame) DisplayDelay() int { return 0 }
+
 // HandleAction implements Game.HandleAction for timeoutGame.
 func (g *timeoutGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{Outcome: StepContinue}, nil
@@ -265,6 +316,9 @@ func (g *timeoutGame) PlayerSnapshot(int, int) any {
 func (g *timeoutGame) ObserverSnapshot(int) any {
 	return nil
 }
+
+// DisplayDelay implements Game.DisplayDelay for timeoutGame.
+func (g *timeoutGame) DisplayDelay() int { return 0 }
 
 // HandleAction implements Game.HandleAction for aiPlayFinishedGame.
 func (a *aiPlayFinishedGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -297,6 +351,9 @@ func (a *aiPlayFinishedGame) ObserverSnapshot(int) any {
 	return nil
 }
 
+// DisplayDelay implements Game.DisplayDelay for aiPlayFinishedGame.
+func (a *aiPlayFinishedGame) DisplayDelay() int { return 0 }
+
 // HandleAction implements Game.HandleAction for invalidTurnGame.
 func (i *invalidTurnGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{Outcome: StepContinue}, nil
@@ -326,6 +383,9 @@ func (i *invalidTurnGame) PlayerSnapshot(int, int) any {
 func (i *invalidTurnGame) ObserverSnapshot(int) any {
 	return nil
 }
+
+// DisplayDelay implements Game.DisplayDelay for invalidTurnGame.
+func (i *invalidTurnGame) DisplayDelay() int { return 0 }
 
 // mockGameFactory returns a game factory for tests that don't need a
 // real game engine.
@@ -361,7 +421,7 @@ func validHeartsCfg() Config {
 			{Type: SeatHuman},
 			{Type: SeatAI, AIType: "random"},
 		},
-		PacingDelayMS: &delay,
+		AIActionDelayMS: &delay,
 	}
 }
 

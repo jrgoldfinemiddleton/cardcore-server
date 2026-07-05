@@ -15,7 +15,7 @@ import (
 // increments the sequence number.
 func TestSessionHandlePlayIncrementsSeq(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
 	defer close(s.cancel)
 
 	resp := make(chan SubmitResult, 1)
@@ -40,7 +40,7 @@ func TestSessionHandlePlayIncrementsSeq(t *testing.T) {
 // seq returns a snapshot synchronously.
 func TestSessionStaleSeqReturnsSnapshot(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
 	defer close(s.cancel)
 
 	resp := make(chan SubmitResult, 1)
@@ -80,7 +80,7 @@ func TestSessionStaleSeqReturnsSnapshot(t *testing.T) {
 // broadcast on the first play.
 func TestSessionDuplicateActionIDReturnsCachedSnapshot(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
 	defer close(s.cancel)
 
 	ch := make(chan SubscriberMessage, subChanSize)
@@ -133,7 +133,7 @@ func TestSessionDuplicateActionIDReturnsCachedSnapshot(t *testing.T) {
 // player kicks the previous subscriber for that seat.
 func TestSessionSubscribePlayerKicksPrevious(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
 	defer close(s.cancel)
 
 	ch1 := make(chan SubscriberMessage, subChanSize)
@@ -160,7 +160,7 @@ func TestSessionSubscribePlayerKicksPrevious(t *testing.T) {
 // sends a snapshot with seq >= 1 on the initial subscription.
 func TestSessionInitialSnapshotSeq(t *testing.T) {
 	g := &seqSnapshotGame{}
-	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
 	defer close(s.cancel)
 
 	ch := make(chan SubscriberMessage, subChanSize)
@@ -194,7 +194,7 @@ func TestSessionInitialSnapshotSeq(t *testing.T) {
 // all subscriber channels.
 func TestSessionGameOverClosesSubscribers(t *testing.T) {
 	g := &stepFinishedGame{}
-	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
 	defer close(s.cancel)
 
 	ch := make(chan SubscriberMessage, subChanSize)
@@ -238,7 +238,7 @@ func TestSessionGameOverClosesSubscribers(t *testing.T) {
 // goroutine exits after StepFinished without requiring cancel.
 func TestSessionGoroutineExitsOnStepFinished(t *testing.T) {
 	g := &stepFinishedGame{}
-	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
 
 	resp := make(chan SubmitResult, 1)
 	s.cmds <- playCmd{
@@ -266,7 +266,7 @@ func TestSessionGoroutineExitsOnStepFinished(t *testing.T) {
 // forever.
 func TestSessionDrainCmdsClosesPendingSubscribers(t *testing.T) {
 	g := &stepFinishedGame{}
-	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
 
 	resp := make(chan SubmitResult, 1)
 	s.cmds <- playCmd{
@@ -306,7 +306,7 @@ func TestSessionDrainCmdsClosesPendingSubscribers(t *testing.T) {
 // channel causes the goroutine to exit.
 func TestSessionGoroutineExitsOnCancel(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
 
 	close(s.cancel)
 
@@ -322,7 +322,7 @@ func TestSessionGoroutineExitsOnCancel(t *testing.T) {
 // player closes their channel.
 func TestSessionUnsubscribePlayerClosesChannel(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
 	defer close(s.cancel)
 
 	ch := make(chan SubscriberMessage, subChanSize)
@@ -346,7 +346,7 @@ func TestSessionUnsubscribePlayerClosesChannel(t *testing.T) {
 // an observer closes their channel.
 func TestSessionUnsubscribeObserverClosesChannel(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
 	defer close(s.cancel)
 
 	ch := make(chan SubscriberMessage, subChanSize)
@@ -370,7 +370,7 @@ func TestSessionUnsubscribeObserverClosesChannel(t *testing.T) {
 // result on a buffered playCmd's response channel.
 func TestDrainCmdsHandlesPlayCmd(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
 	close(s.cancel)
 	<-s.done // Wait for the goroutine to exit so it does not race on s.cmds.
 
@@ -401,7 +401,7 @@ func TestDrainCmdsHandlesPlayCmd(t *testing.T) {
 // across multiple plays.
 func TestSessionSeqMonotonicity(t *testing.T) {
 	g := &mockGame{}
-	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
 	defer close(s.cancel)
 
 	for i := range 5 {
@@ -429,7 +429,7 @@ func TestSessionSeqMonotonicity(t *testing.T) {
 // error and the session terminates.
 func TestSessionStaleSeqMarshalFailure(t *testing.T) {
 	g := &playerSnapshotUnmarshalableGame{}
-	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
 	defer close(s.cancel)
 
 	resp := make(chan SubmitResult, 1)
@@ -469,41 +469,29 @@ func TestSessionStaleSeqMarshalFailure(t *testing.T) {
 // goroutine exits.
 func TestSessionMarshalFailureTerminates(t *testing.T) {
 	g := &unmarshalableGame{}
-	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
 	defer close(s.cancel)
 
-	resp := make(chan SubmitResult, 1)
-	s.cmds <- playCmd{
-		seat: 0,
-		msg: &api.InboundMessage{
-			Type:     "test",
-			ActionID: "action1",
-			Seq:      1,
-		},
-		resp: resp,
+	// Allow the goroutine to attempt the initial broadcast and exit.
+	select {
+	case <-s.done:
+	case <-time.After(time.Second):
+		t.Fatal("goroutine did not exit after initial broadcast marshal failure")
 	}
 
-	res := <-resp
-	if res.Err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if res.Err.ErrorCode != api.ErrInternal {
-		t.Errorf("got error code %q, want %q", res.Err.ErrorCode, api.ErrInternal)
-	}
 	if !s.finished {
-		t.Error("expected session to be finished after marshal failure")
-	}
-	if _, ok := s.actionIDs["action1"]; ok {
-		t.Error("action_id should not be cached after marshal failure")
+		t.Error("expected session to be finished after initial broadcast marshal failure")
 	}
 }
 
 // TestSessionMarshalFailureBroadcastsError verifies that when a
-// snapshot fails to marshal, all subscribers receive an internal_error
-// broadcast before their channels are closed.
+// snapshot fails to marshal after subscribers are present, all
+// subscribers receive a 1011 close code broadcast before their channels
+// are closed.
 func TestSessionMarshalFailureBroadcastsError(t *testing.T) {
-	g := &unmarshalableGame{}
-	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, nil)
+	g := &playerSnapshotUnmarshalableGame{}
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
+	defer close(s.cancel)
 
 	ch := make(chan SubscriberMessage, subChanSize)
 	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch}
@@ -511,17 +499,10 @@ func TestSessionMarshalFailureBroadcastsError(t *testing.T) {
 	obsCh := make(chan SubscriberMessage, subChanSize)
 	s.cmds <- subscribeObserverCmd{ch: obsCh}
 
-	resp := make(chan SubmitResult, 1)
-	s.cmds <- playCmd{
-		seat: 0,
-		msg: &api.InboundMessage{
-			Type:     "test",
-			ActionID: "action1",
-			Seq:      1,
-		},
-		resp: resp,
-	}
-	<-resp
+	// Consume the initial broadcast (observer snapshot succeeds, player
+	// snapshot fails — but handleSubscribePlayer checks for nil and calls
+	// terminateOnMarshalFailure if it fails).
+	time.Sleep(50 * time.Millisecond)
 
 	// Wait for goroutine to exit after terminateOnMarshalFailure.
 	select {
@@ -570,7 +551,7 @@ func TestSessionTurnTimeoutFires(t *testing.T) {
 			{Type: SeatAI, AIType: "random"},
 		},
 		TurnTimeoutMS: &timeout,
-	}, nil)
+	}, DefaultDelays{}, nil)
 
 	// driveTurns() is called at goroutine startup, so the first turn
 	// timeout is already set for seat 0 (human). No command needed.
@@ -598,7 +579,7 @@ func TestSessionDriveTurnsTerminatesOnInvalidTurn(t *testing.T) {
 			{Type: SeatHuman},
 			{Type: SeatAI, AIType: "random"},
 		},
-	}, nil)
+	}, DefaultDelays{}, nil)
 
 	select {
 	case <-s.done:
@@ -623,7 +604,7 @@ func TestSessionInitialTurnTimeoutFires(t *testing.T) {
 			{Type: SeatAI, AIType: "random"},
 		},
 		TurnTimeoutMS: &timeout,
-	}, nil)
+	}, DefaultDelays{}, nil)
 
 	// No command sent — the timeout should fire from the initial
 	// driveTurns() call in run().
@@ -644,12 +625,14 @@ func TestSessionInitialTurnTimeoutFires(t *testing.T) {
 // and the goroutine exits.
 func TestSessionDriveTurnsTerminatesOnFinished(t *testing.T) {
 	g := &aiPlayFinishedGame{}
+	zeroDelay := 0
 	s := newSession("test", g, Config{
 		Seats: []SeatConfig{
 			{Type: SeatHuman},
 			{Type: SeatAI, AIType: "random"},
 		},
-	}, nil)
+		AIActionDelayMS: &zeroDelay,
+	}, DefaultDelays{}, nil)
 
 	ch := make(chan SubscriberMessage, subChanSize)
 	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch}
@@ -710,8 +693,8 @@ func TestSessionDriveTurnsHandlesPause(t *testing.T) {
 			{Type: SeatHuman},
 			{Type: SeatAI, AIType: "random"},
 		},
-		PacingDelayMS: &zeroDelay,
-	}, nil)
+		AIActionDelayMS: &zeroDelay,
+	}, DefaultDelays{}, nil)
 
 	ch := make(chan SubscriberMessage, subChanSize)
 	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch}
@@ -899,5 +882,26 @@ func TestObserverSnapshotMarshal(t *testing.T) {
 	got = s.observerSnapshot()
 	if got != nil {
 		t.Errorf("observerSnapshot failure: got %v, want nil", got)
+	}
+}
+
+// TestSessionInitialDisplayDelay verifies that the goroutine sleeps for
+// the game's DisplayDelay after the initial broadcast.
+func TestSessionInitialDisplayDelay(t *testing.T) {
+	g := &delayGame{delay: 50}
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
+	defer close(s.cancel)
+
+	start := time.Now()
+	select {
+	case <-s.done:
+	case <-time.After(500 * time.Millisecond):
+	}
+	elapsed := time.Since(start)
+
+	// The goroutine should have slept at least 50ms for the display delay
+	// before AIPlay returned StepFinished and the session exited.
+	if elapsed < 50*time.Millisecond {
+		t.Errorf("goroutine did not wait for display delay: elapsed %v, want >= 50ms", elapsed)
 	}
 }

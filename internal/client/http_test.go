@@ -16,10 +16,10 @@ type roundTripperFunc func(*http.Request) (*http.Response, error)
 func TestCreateSession(t *testing.T) {
 	delay, timeout := 100, 5000
 	wantCfg := Config{
-		Game:          "hearts",
-		Seats:         []SeatConfig{{Type: "human"}, {Type: "ai", AIType: "random"}},
-		PacingDelayMS: &delay,
-		TurnTimeoutMS: &timeout,
+		Game:            "hearts",
+		Seats:           []SeatConfig{{Type: "human"}, {Type: "ai", AIType: "random"}},
+		AIActionDelayMS: &delay,
+		TurnTimeoutMS:   &timeout,
 	}
 	wantSessionID := "test-session-123"
 	wantSeats := []SeatInfo{
@@ -66,8 +66,9 @@ func TestCreateSession(t *testing.T) {
 			t.Errorf("got body.Seats[%d] %+v, want %+v", i, gotBody.Seats[i], wantCfg.Seats[i])
 		}
 	}
-	if !intPtrEqual(gotBody.PacingDelayMS, wantCfg.PacingDelayMS) {
-		t.Errorf("got body.PacingDelayMS %v, want %v", gotBody.PacingDelayMS, wantCfg.PacingDelayMS)
+	if !intPtrEqual(gotBody.AIActionDelayMS, wantCfg.AIActionDelayMS) {
+		t.Errorf("got body.AIActionDelayMS %v, want %v",
+			gotBody.AIActionDelayMS, wantCfg.AIActionDelayMS)
 	}
 	if !intPtrEqual(gotBody.TurnTimeoutMS, wantCfg.TurnTimeoutMS) {
 		t.Errorf("got body.TurnTimeoutMS %v, want %v", gotBody.TurnTimeoutMS, wantCfg.TurnTimeoutMS)
