@@ -100,3 +100,9 @@ go run ./cmd/cardcore-cli -script script.json
 - Dev tools (`golangci-lint`, `pkgsite`) are declared via Go 1.25's `tool` directive in `go.mod`.
 - Stress tests are planned but not yet implemented; when added they must be gated by a build tag so they do not run during `make check`.
 - The `internal/client` package mirrors some server DTOs intentionally; client types have JSON tags and decouple the client from server internals.
+
+## Maintainer Runbook
+If `doc/maintainer-runbook.md` exists locally, read it for release procedures, PR review workflow, repository settings reference, and recovery steps.
+
+## Implementation Plans
+If `doc/implementation-plans.md` exists locally, read it for details pertaining to ongoing implementations, including plans, guidelines, architecture details.
