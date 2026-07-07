@@ -106,3 +106,6 @@ If `doc/maintainer-runbook.md` exists locally, read it for release procedures, P
 
 ## Implementation Plans
 If `doc/implementation-plans.md` exists locally, read it for details pertaining to ongoing implementations, including plans, guidelines, architecture details.
+
+## Future Considerations
+If `doc/future-considerations.md` exists locally, read it for a list of proposed features and improvements, including triggers for when they may be relevant for further consideration or implementation.
