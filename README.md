@@ -4,7 +4,6 @@ A WebSocket game server and Bubble Tea TUI client for [Cardcore](https://github.
 
 [![CI](https://github.com/jrgoldfinemiddleton/cardcore-server/actions/workflows/main.yml/badge.svg)](https://github.com/jrgoldfinemiddleton/cardcore-server/actions/workflows/main.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/jrgoldfinemiddleton/cardcore-server.svg)](https://pkg.go.dev/github.com/jrgoldfinemiddleton/cardcore-server)
-[![Go Report Card](https://goreportcard.com/badge/github.com/jrgoldfinemiddleton/cardcore-server)](https://goreportcard.com/report/github.com/jrgoldfinemiddleton/cardcore-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## About
