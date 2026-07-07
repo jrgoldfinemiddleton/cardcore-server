@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -61,7 +62,7 @@ type cliConfig struct {
 func main() {
 	signal.Ignore(syscall.SIGPIPE)
 
-	cfg, err := parseFlags()
+	cfg, err := parseFlags(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
@@ -78,37 +79,56 @@ func main() {
 }
 
 // parseFlags parses and validates command-line flags.
-func parseFlags() (*cliConfig, error) {
+func parseFlags(args []string) (*cliConfig, error) {
 	cfg := &cliConfig{}
 
-	flag.StringVar(&cfg.script, "script", "", "path to JSON script file (required)")
-	flag.StringVar(&cfg.addr, "addr", "", "server address (e.g., 127.0.0.1:8080)")
-	flag.StringVar(&cfg.game, "game", "", "game to play (default: hearts)")
-	flag.BoolVar(&cfg.observe, "observe", false, "create 4-AI session and observe")
-	flag.StringVar(&cfg.sessionID, "session-id", "", "existing session ID to join")
-	flag.StringVar(&cfg.token, "token", "", "bearer token for the seat being joined")
-	flag.IntVar(&cfg.seat, "seat", 0, "seat index to join (0-based)")
-	flag.BoolVar(&cfg.deleteOnExit, "delete-on-exit", false, "delete session on exit")
-	flag.IntVar(&cfg.pacing, "pacing", -1, "pacing delay in milliseconds")
-	flag.StringVar(&cfg.aiType, "ai-type", "", "AI player type")
-	flag.IntVar(&cfg.exitDelay, "exit-delay", -1, "exit delay in milliseconds")
-	flag.Parse()
+	fs := flag.NewFlagSet("cardcore-cli", flag.ContinueOnError)
+	fs.StringVar(&cfg.script, "script",
+		envOrDefault("CARDCORE_CLI_SCRIPT", ""),
+		"path to JSON script file (env: CARDCORE_CLI_SCRIPT)")
+	fs.StringVar(&cfg.addr, "addr",
+		envOrDefault("CARDCORE_CLI_ADDR", "http://127.0.0.1:8080"),
+		"server address (env: CARDCORE_CLI_ADDR)")
+	fs.StringVar(&cfg.game, "game",
+		envOrDefault("CARDCORE_CLI_GAME", gameNameHearts),
+		"game to play (env: CARDCORE_CLI_GAME)")
+	fs.BoolVar(&cfg.observe, "observe",
+		boolEnvOrDefault("CARDCORE_CLI_OBSERVE", false),
+		"create 4-AI session and observe (env: CARDCORE_CLI_OBSERVE)")
+	fs.StringVar(&cfg.sessionID, "session-id",
+		envOrDefault("CARDCORE_CLI_SESSION_ID", ""),
+		"existing session ID to join (env: CARDCORE_CLI_SESSION_ID)")
+	fs.StringVar(&cfg.token, "token",
+		envOrDefault("CARDCORE_CLI_TOKEN", ""),
+		"bearer token for the seat being joined (env: CARDCORE_CLI_TOKEN)")
+	fs.IntVar(&cfg.seat, "seat",
+		intEnvOrDefault("CARDCORE_CLI_SEAT", 0),
+		"seat index to join (0-based) (env: CARDCORE_CLI_SEAT)")
+	fs.BoolVar(&cfg.deleteOnExit, "delete-on-exit",
+		boolEnvOrDefault("CARDCORE_CLI_DELETE_ON_EXIT", false),
+		"delete session on exit (env: CARDCORE_CLI_DELETE_ON_EXIT)")
+	fs.IntVar(&cfg.pacing, "pacing",
+		intEnvOrDefault("CARDCORE_CLI_PACING_MS", 500),
+		"pacing delay in milliseconds (env: CARDCORE_CLI_PACING_MS)")
+	fs.StringVar(&cfg.aiType, "ai-type",
+		envOrDefault("CARDCORE_CLI_AI_TYPE", aiTypeRandom),
+		"AI player type (env: CARDCORE_CLI_AI_TYPE)")
+	fs.IntVar(&cfg.exitDelay, "exit-delay",
+		intEnvOrDefault("CARDCORE_CLI_EXIT_DELAY_MS", 1000),
+		"exit delay in milliseconds (env: CARDCORE_CLI_EXIT_DELAY_MS)")
 
-	// Resolve env-var defaults for flags that were not explicitly set.
-	if cfg.addr == "" {
-		cfg.addr = envOrDefault("CARDCORE_ADDR", "http://127.0.0.1:8080")
+	fs.Usage = func() {
+		_, _ = fmt.Fprintf(fs.Output(), "Usage: %s [flags]\n\n", fs.Name())
+		_, _ = fmt.Fprintln(fs.Output(), "Flags:")
+		fs.PrintDefaults()
+		_, _ = fmt.Fprintln(fs.Output(), "\nAll flags can also be set via the corresponding")
+		_, _ = fmt.Fprintln(fs.Output(), "CARDCORE_CLI_* environment variable.")
+		_, _ = fmt.Fprintln(fs.Output(), "Explicit flags take precedence over environment")
+		_, _ = fmt.Fprintln(fs.Output(), "variables.")
 	}
-	if cfg.game == "" {
-		cfg.game = envOrDefault("CARDCORE_GAME", "hearts")
-	}
-	if cfg.pacing < 0 {
-		cfg.pacing = intEnvOrDefault("CARDCORE_PACING_MS", 500)
-	}
-	if cfg.aiType == "" {
-		cfg.aiType = envOrDefault("CARDCORE_AI_TYPE", aiTypeRandom)
-	}
-	if cfg.exitDelay < 0 {
-		cfg.exitDelay = intEnvOrDefault("CARDCORE_EXIT_DELAY_MS", 1000)
+
+	if err := fs.Parse(args); err != nil {
+		return nil, err
 	}
 
 	if cfg.script == "" && !cfg.observe {
@@ -125,6 +145,12 @@ func parseFlags() (*cliConfig, error) {
 	}
 	if cfg.seat < 0 {
 		return nil, fmt.Errorf("-seat must be >= 0")
+	}
+	if cfg.pacing < 0 {
+		return nil, fmt.Errorf("-pacing must be >= 0")
+	}
+	if cfg.exitDelay < 0 {
+		return nil, fmt.Errorf("-exit-delay must be >= 0")
 	}
 
 	return cfg, nil
@@ -400,6 +426,21 @@ func deleteSession(ctx context.Context, sc *client.SessionClient, sessionID stri
 	if err := sc.DeleteSession(ctx, sessionID); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: delete session: %v\n", err)
 	}
+}
+
+// boolEnvOrDefault returns true if the environment variable is set to
+// "true", "1", "yes", or "on" (case-insensitive); otherwise it returns
+// defaultValue.
+func boolEnvOrDefault(envVar string, defaultValue bool) bool {
+	if v := os.Getenv(envVar); v != "" {
+		switch strings.ToLower(v) {
+		case "true", "1", "yes", "on":
+			return true
+		default:
+			return false
+		}
+	}
+	return defaultValue
 }
 
 // envOrDefault returns the environment variable value if set and non-empty,

@@ -11,12 +11,11 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 ### Added
 
 - TUI deal phase overlay: `RenderDealView` shows a "Dealing..." message during the `deal` phase instead of falling through to the generic `Phase: deal` label. The `heartstui.Client.Render()` switch now handles `PhaseDeal`
-
 - TUI quit confirmation: pressing `Esc` initiates quit with a "Press Enter to quit" flash; pressing `Enter` confirms, pressing `Esc` again or any other key cancels. Four unit tests cover initiation, confirmation, cancellation, and flash timeout
 - CLI multi-game support: `-game` flag (default `hearts`) with game-agnostic `ScriptExecutor` (`GameBuilder` interface) and game-specific subpackages (`cmd/cardcore-cli/hearts/`). Added `-addr`, `-pacing`, `-ai-type`, `-exit-delay` flags with `CARDCORE_*` env-var fallback. Action IDs include seat number (`cli-{seat}-{seq}`) to prevent cross-client collisions
 - CLI compact snapshot notation with Unicode suit symbols (e.g., `seq=5 phase=passing turn=0 hand=[2♣ 3♣ 4♣]`)
-- CLI environment variables: `CARDCORE_AI_TYPE` (`random`/`heuristic`/`pimc`), `CARDCORE_PACING_MS`, `CARDCORE_EXIT_DELAY_MS`
-- Server environment variable: `CARDCORE_ADDR`
+- CLI environment variables: `CARDCORE_CLI_AI_TYPE` (`random`/`heuristic`/`pimc`), `CARDCORE_CLI_PACING_MS`, `CARDCORE_CLI_EXIT_DELAY_MS`
+- Server environment variable: `CARDCORE_SERVER_ADDR`
 - TUI end-to-end integration test (`TestIntegrationTUIClientFullGame`)
 - TUI phase transition views (`trick_complete`, `round_complete`, `game_over`): completed trick display with winner derived from `snap.Turn`, round score overlay with data-mismatch guards, and game-over screen with "Press Enter to exit" prompt
 - `heartstui` package with pure card rendering, phase views, observer mode, and command builders; card symbols, styled rendering with cursor/selected/dimmed states, passing/playing views, and seat-prefixed action IDs to prevent cross-client collisions
@@ -28,7 +27,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 - Full game integration tests via WebSocket: `TestAllAIFullGameIntegration` (4-AI Hearts, observer verifies phase progression and seq monotonicity) and `TestHumanAIFullGameIntegration` (1 human + 3 AI, human sends pass/play commands, game completes)
 - Generic WebSocket test helpers: `testSnapshot` for fast phase/seq observation, `mustReadTestSnapshot`, `readTestSnapshot` (goroutine-safe), `writeWSJSON`, `readSnapshotsUntil`
 - Subscription logging: structured `slog.Info` calls for player/observer subscribe and unsubscribe events
-- Graceful shutdown: `Server.Shutdown(ctx)` sends `websocket.StatusGoingAway` to all active WebSocket connections, deletes all active sessions, and shuts down the HTTP server. `cmd/cardcore-server/main.go` binary handles SIGINT/SIGTERM with a configurable timeout via `CARDCORE_SHUTDOWN_TIMEOUT` (default 10s)
+- Graceful shutdown: `Server.Shutdown(ctx)` sends `websocket.StatusGoingAway` to all active WebSocket connections, deletes all active sessions, and shuts down the HTTP server. `cmd/cardcore-server/main.go` binary handles SIGINT/SIGTERM with a configurable timeout via `CARDCORE_SERVER_SHUTDOWN_TIMEOUT` (default 10s)
 - Server binary `cmd/cardcore-server/main.go` with game adapter dispatch: currently supports `hearts`; new games can be added by extending the factory switch in `main.go`
 - Configurable human turn timeout with AI auto-play fallback: session config gains `turn_timeout_ms` (default 30s, `0` to disable); when a human player doesn't act in time, the session auto-plays an AI move and broadcasts the result while preserving the human seat configuration
 - Observer WebSocket connection: receive-only writer goroutine with `CloseRead` for ping/pong/close frame handling, context-based coordination, and automatic cleanup on disconnect
@@ -49,15 +48,14 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- Unified flag/env-var configuration across all binaries: every binary-level flag now has a corresponding `CARDCORE_SERVER_*`, `CARDCORE_CLI_*`, or `CARDCORE_TUI_*` environment variable, and vice versa. Explicit flags take precedence over environment variables, which take precedence over hardcoded defaults. Added custom `flag.Usage` output to `cmd/cardcore-server`, `cmd/cardcore-cli`, and `cmd/cardcore-tui` documenting both the flag and its env var
 - `make build` now actually compiles binaries to `bin/` (`go build -o bin/ ./cmd/...`) instead of merely verifying compilation in-place with `go build ./...`. `make clean` removes `bin/` as before
 - Bumped `cardcore` engine dependency to v0.5.0: the engine now requires an explicit `*rand.Rand` for `hearts.New()` and `Deck.Shuffle()`, making seeded games fully deterministic. The server's `NewAdapter` passes its existing RNG through to the engine
 
 ### Fixed
 
 - README TUI flag documentation: corrected to match the actual TUI flags (`-server`, `-observe`, `-session`, `-token`, `-seat`, `-game`, `-debug`) instead of the non-existent `--addr` and `--observe <session-id>` flags
-
 - TUI footer precedence: the mapped WebSocket close reason (`"Game ended"`, `"Server is shutting down"`, etc.) was being shadowed by the generic `"Disconnected"` label. `renderFooter()` now checks `statusMsg` before `disconnected`, so users see the actual close reason
-
 - Client error recovery pipeline: all server error messages previously caused fatal client exit in both TUI and CLI. Now properly distinguishes recoverable errors (`stale_seq`, `out_of_turn`, `wrong_phase`) from fatal errors (`illegal_move`, `malformed_message`, WS close 1011) per ADR-012. TUI displays persistent modal messages requiring explicit Enter dismissal; CLI continues read loop only for `stale_seq` and exits cleanly on `game_over`
 - TUI wsbridge error routing: `startWSReader` treated all non-close `ReadSnapshot` errors as fatal. Now routes `*client.ErrorMessage` as `wsErrorMsg` to the model for classification, while `*ConnectionClosedError` remains fatal via `wsCloseMsg`. Removed dead JSON error-decoding code that was unreachable since `Conn.ReadSnapshot` already returns server errors as Go values
 - TUI `out_of_turn`/`wrong_phase` handling: previously fatal. Now recoverable with persistent continue modals (`"AI played for you — your turn has passed. Press Enter to continue."` / `"AI played for you — phase has changed. Press Enter to continue."`), resets `submitted` flag, and blocks game input until Enter is pressed
@@ -65,7 +63,6 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 - TUI WebSocket close 1011: previously exited immediately. Now shows persistent fatal modal (`"Internal server error. Press Enter to exit."`) requiring explicit Enter dismissal
 - CLI `runPlayer`/`runObserver`: previously treated all `ReadSnapshot` errors as fatal. Now only `stale_seq` continues the read loop silently; `game_over` exits cleanly with Warn log; all other server errors exit immediately with Error log
 - `internal/client/errors.go`: `ClassifyError` was defined but never called. Now wired into both TUI (`handleWSError`) and CLI (`runPlayer`/`runObserver`) to drive recovery decisions per ADR-012
-
 - Script executor transitional phase error: `ScriptExecutor.Step` returned an error on `trick_complete` and `round_complete` phases, breaking real scripted games. Now silently skips unscripted transitional phases, matching the TUI client's behavior
 - Server shutdown logging: `http.ErrServerClosed` from `srv.Serve(ln)` during graceful shutdown is a normal return path, not an error. The server now treats it as success instead of logging at ERROR level
 - Transport write-abort logging: `net.ErrClosed` (client closed TCP) and `context.Canceled` (transport teardown) are expected races during normal client disconnection. Reclassified from ERROR to WARN
