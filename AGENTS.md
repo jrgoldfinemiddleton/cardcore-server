@@ -1,127 +1,102 @@
-# AI Agent Guidance (AGENTS.md)
+# PROJECT KNOWLEDGE BASE
 
-## 1. Project Summary
-Cardcore Server is a WebSocket game server and Bubble Tea TUI client for the [cardcore](https://github.com/jrgoldfinemiddleton/cardcore) engine. The server hosts card game sessions over a JSON-over-WebSocket protocol; the TUI connects as a player client. External dependencies are permitted (see `doc/dependencies.md` for the approved list).
+## OVERVIEW
+`cardcore-server` is a WebSocket game server and Bubble Tea TUI client for the `cardcore` engine. It hosts card games over a JSON-over-WebSocket protocol. Module: `github.com/jrgoldfinemiddleton/cardcore-server`. Go 1.25.9.
 
-Module: `github.com/jrgoldfinemiddleton/cardcore-server`
-
-## 2. Codebase Map
+## STRUCTURE
 ```
 cardcore-server/
 ├── cmd/
-│   ├── server/          # Game server binary
-│   ├── tui/             # Bubble Tea TUI client binary
-│   └── client/          # Non-TTY CLI client binary
-│       └── <game>/      # Game-specific command builders and formatters
+│   ├── cardcore-server/     # game server binary entry point
+│   ├── cardcore-tui/        # Bubble Tea TUI client (game-agnostic shell + hearts/)
+│   └── cardcore-cli/        # scripted non-TTY client (game-agnostic shell + hearts/)
 ├── internal/
-│   ├── api/
-│   │   ├── api.go        # Game-agnostic message envelopes and error codes
-│   │   └── games/
-│   │       └── <game>/   # Wire-format DTOs and conversion functions
-│   ├── client/          # Shared protocol-agnostic client engine
-│   │   └── hearts/      # Hearts-specific adapter and DTOs
+│   ├── api/                 # wire-format envelopes and error codes
+│   ├── client/              # shared HTTP/WebSocket client engine
 │   └── server/
-│       ├── transport/   # HTTP/WebSocket plumbing
-│       ├── session/     # Session lifecycle and game goroutine
-│       └── view/
-│           └── <game>/  # Seat-filtered snapshot generation
+│       ├── transport/       # HTTP/WebSocket server and route handlers
+│       ├── session/         # session lifecycle and game goroutine
+│       └── view/            # seat-filtered snapshot generation
 ├── doc/
-│   ├── api.md           # Protocol specification
-│   ├── dependencies.md  # Approved external dependencies
-│   └── decisions/       # ADRs — read these before making architectural changes
-├── .github/
-│   ├── PULL_REQUEST_TEMPLATE.md
-│   ├── ISSUE_TEMPLATE/
-│   │   ├── bug_report.yml
-│   │   └── config.yml   # Redirects features/questions to Discussions
-│   └── workflows/
-│       ├── pr.yml             # PR validation: title check, make check
-│       ├── pr-changelog.yml   # PR events: changelog update reminder
-│       ├── main.yml           # Push to main: make check
-│       ├── release.yml        # Tag push: validate, test, create GitHub Release
-│       ├── labels-sync.yml    # Push to main: provision repository label set
-│       └── labels-apply.yml   # PR events: auto-apply scope/state labels
-├── scripts/
-│   ├── sync-labels.sh   # Source of truth for the repository label set
-│   └── apply-labels.sh  # Compute and apply labels for a PR
-├── CONTRIBUTING.md      # Contribution guidelines
-├── SECURITY.md          # Vulnerability reporting
-├── Makefile             # Build/test/lint targets
-├── .golangci.yml        # Linter config
-└── README.md            # Project overview
+│   ├── api.md               # protocol spec
+│   ├── decisions/           # ADRs (architecture decision records)
+│   └── dependencies.md      # approved external dependencies
+├── .github/workflows/       # CI/CD (first-party actions only)
+├── scripts/                 # label sync/apply and repo configuration
+├── Makefile                 # build/test/lint targets
+└── .golangci.yml            # lint config
 ```
 
-## 3. Always Do
-- Run `make check` before considering any change complete
-- Add or update tests whenever you add or change code
-- Write Go doc comments on all exported symbols
-- Read the relevant ADRs in `doc/decisions/` before making architectural decisions
-- Read `doc/api.md` before modifying protocol behavior
-- Follow existing naming conventions: exported types are PascalCase, unexported are camelCase
-- Keep the Go version in `go.mod` aligned with the minimum version stated in `README.md`
-- Read `CONTRIBUTING.md` for general project conventions before making changes
-- Within any file, all type/var/const declarations must precede all function declarations
-- In tests, name expected-value variables `want` (and corresponding actual-value variables `got`)
-- Test failure messages use `"got X, want Y"` form — no colon after `got`
-- Match test layer to the package: transport tests use `httptest`, session tests use test channels, view tests assert snapshot correctness, integration tests use real server + WebSocket
-- Integration tests must spin up a real server on `:0` and connect via WebSocket — no mocking the transport boundary
-- Protocol conformance tests are table-driven: one row per message type × expected response
-- **PR Details section format**: Use functional/component breakdown (e.g., "Reader goroutine", "Writer goroutine", "Deferred bug fixes") rather than per-file bullet points. Only mention files when the change is specifically about that file's structure or when the file name itself conveys important information
-- **PR descriptions**: Follow `.github/PULL_REQUEST_TEMPLATE.md`. Omit checklist items that do not apply (e.g., skip `CHANGELOG.md` `[Unreleased]` section updated (if user-facing change) if the change is not user-facing). Keep the exact text of retained items.
+## WHERE TO LOOK
+| Task | Location | Notes |
+|------|----------|-------|
+| Add a game | `internal/server/session/games/<game>/`, `internal/api/games/<game>/`, `internal/server/view/<game>/`, `internal/client/<game>/`, `cmd/cardcore-tui/<game>/`, `cmd/cardcore-cli/<game>/` | Follow the Hearts vertical slice; wire the factory in `cmd/cardcore-server/main.go` |
+| Change HTTP/WS routes or handlers | `internal/server/transport/` | `Server` registers routes; `http_sessions.go` for REST, `ws_player.go`/`ws_observer.go` for WebSockets |
+| Change session lifecycle | `internal/server/session/` | `Manager` is the mutex-protected registry; `session.run()` is the single goroutine |
+| Change protocol messages | `internal/api/api.go` | `InboundMessage`, `ErrorMessage`, and error codes are shared across server and clients |
+| Change client engine | `internal/client/` | `SessionClient` (HTTP), `Conn` (WebSocket), `messages.go` (Command envelope) |
+| Change TUI rendering | `cmd/cardcore-tui/hearts/` | Pure render functions; `Client` holds cursor/selection state |
+| Change CLI formatting | `cmd/cardcore-cli/hearts/` | `Formatter` (compact output), `Builder` (script actions), `session.go` (create helpers) |
+| Read architecture policy | `doc/decisions/` | ADRs-004, 006, 007, 008 are the critical ones |
 
-## 4. Never Do
-- Never add dependencies not listed in `doc/dependencies.md` without explicit approval
-- Never use third-party GitHub Actions — first-party (`actions/*`) are acceptable
-- Never commit with failing tests or lint errors
-- Never edit the substantive content of an ADR file after its initial commit — write a new one instead (Status line is the exception)
-- Never use `//nolint` directives to silence lint errors — fix the code instead
-- Never tag a v1.0.0 or higher release
-- Never write multi-line commit messages — use a one-line subject only and put all detail in the PR description in accordance with `.github/PULL_REQUEST_TEMPLATE.md`, excluding checkbox items that are not relevant to the PR
-- Never cite `AGENTS.md` as the source of a rule from any other file in the repo
-- Never manually apply `scope:*` labels to PRs — they are computed automatically from changed paths by `scripts/apply-labels.sh`. Edit the script's path rules if a label is wrong.
+## CODE MAP
+| Symbol | Type | Location | Refs | Role |
+|--------|------|----------|------|------|
+| `Manager` | Struct | `internal/server/session/manager.go:53` | 21 | Thread-safe session registry |
+| `Server` | Struct | `internal/server/transport/server.go:22` | 24 | HTTP/WebSocket server |
+| `InboundMessage` | Struct | `internal/api/api.go:20` | 60+ | Client-to-server message envelope |
+| `ErrorMessage` | Struct | `internal/api/api.go:28` | 15 | Server-to-client error envelope |
+| `Game` | Interface | `internal/server/session/game.go` | 10+ | Bridge between session goroutine and game implementations |
+| `SessionClient` | Struct | `internal/client/http.go` | 20+ | HTTP client for session lifecycle |
+| `Conn` | Struct | `internal/client/ws.go` | 15+ | WebSocket client connection |
+| `Command` | Struct | `internal/client/messages.go` | 15+ | Client command envelope |
+| `DefaultDelays` | Struct | `internal/server/session/manager.go:68` | 10+ | Server-wide timing defaults |
 
-## 5. Development Workflow
-1. Make a change
-2. Run `make check` and `make race` — must pass clean
-3. If lint errors appear, fix the code (do not suppress with `//nolint`)
-4. Commit only when all checks pass
-5. Write commit messages following [Conventional Commits](https://www.conventionalcommits.org/)
-   - Format: `<type>(<scope>): <description>`
-   - Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
-   - Example: `feat(session): implement WebSocket player connection`
+## CONVENTIONS
+- `make check` is the local gate before any change; CI also runs `make race`.
+- Run `go vet ./...`, `go test ./...`, and `golangci-lint` via `go tool` (declared in `go.mod`).
+- Add or update tests for every code change; integration tests use a real server on `:0` and a real WebSocket.
+- Exported symbols must have doc comments starting with the symbol name; declarations must precede functions.
+- Test helpers must call `t.Helper()`; expected values are named `want`, actual values `got`; failure messages use `"got X, want Y"`.
+- All state lives in structs passed explicitly; no global variables.
+- Use `log/slog` with a `"component"` key for per-component log prefixes.
+- PR descriptions follow the template in `.github/PULL_REQUEST_TEMPLATE.md` and use functional/component breakdowns, not per-file lists.
+- PR titles must follow Conventional Commits with a space after the colon: `^(feat|fix|docs|test|refactor|chore)(\(.+\))?!?:[[:space:]].+`.
 
-## 6. Key Conventions
-- **Error handling**: functions return `error` as the last return value; callers must check it
-- **No global state**: all state is in structs passed explicitly
-- **Logging**: use `log/slog` with per-component prefixes
-- **Testing**: use standard `testing` package; test files are `*_test.go` in the same package
-- **Test layers**: unit (per package), integration (real server + WS), protocol conformance (table-driven), game protocol (game-specific commands + snapshots), TUI model, stress (all-AI at volume)
-- **Stress tests**: run full games with all-AI sessions; gated behind a build tag so they don't run during `make check`
-- **Benchmarks**: stdlib `testing.B` only; share fixtures via `*_helpers_test.go`; place `Benchmark*` after `Test*`
-- **Formatting**: `gofmt` is enforced by `make check`
-- **Function ordering**: follow the conventions in [CONTRIBUTING.md](CONTRIBUTING.md#code-conventions)
-- **Import grouping**: stdlib, then third-party, then local (enforced by `gci` via `make lint`)
+## ANTI-PATTERNS (THIS PROJECT)
+- Never add a dependency not listed in `doc/dependencies.md` without explicit approval.
+- Never use third-party GitHub Actions; only `actions/*` are allowed.
+- Never commit with failing tests or lint errors.
+- Never edit the substantive content of an ADR after its initial commit; write a new ADR instead (Status is the only mutable field).
+- Never use `//nolint` to silence lint errors; fix the code. `convention_test.go` enforces this.
+- Never tag a v1.0.0 or higher release.
+- Never write multi-line commit messages; use a one-line subject and put detail in the PR description.
+- Never cite `AGENTS.md` as the source of a rule from any other file in the repo.
+- Never manually apply `scope:*` labels to PRs; `scripts/apply-labels.sh` computes them from changed paths.
 
-## 7. Architecture Decisions
-Read `doc/decisions/` for the rationale behind key choices. Important ADRs:
-- ADR-003: Repo scope — what lives here vs separate repos
-- ADR-004: Strict transport boundary — no in-process shortcuts
-- ADR-006: Session ownership — one goroutine per session, no locks
-- ADR-007: State sync — full snapshots, no incremental diffs
-- ADR-008: Authentication — capability-based seat tokens
+## UNIQUE STYLES
+- **Vertical slice per game**: Hearts-specific code is split across `internal/api/games/hearts/`, `internal/server/session/games/hearts/`, `internal/server/view/hearts/`, `internal/client/hearts/`, `cmd/cardcore-tui/hearts/`, and `cmd/cardcore-cli/hearts/`. Each layer owns its game-specific concerns.
+- **Strict transport boundary**: All integration tests use a real HTTP/WebSocket server; no in-process shortcuts (ADR-004).
+- **One goroutine per session**: `session.run()` is the sole goroutine that touches game state; the `Manager` is mutex-protected, not a goroutine (ADR-006).
+- **Full snapshots only**: Every state change broadcasts a complete snapshot; no incremental diffs (ADR-007).
+- **Capability-based auth**: Seat tokens are bearer credentials surfaced only on session creation/update; `Get`/`List` never return tokens (ADR-008).
+- **AST convention enforcement**: `convention_test.go` walks the module to enforce function ordering, doc comments, no `//nolint`, and `doc.go` presence.
 
-## 8. When to Check In With the Human
-- Before making any architectural change not covered by an ADR
-- Before adding any dependency not listed in `doc/dependencies.md`
-- Before writing or modifying any file, propose the change and wait for explicit approval
-- Before installing any dev tool
-- Before running ANY git or GitHub write/delete command.  Previous authorization does not constitute current approval.  Authorization must be explicit.
+## COMMANDS
+```bash
+make check        # fmt + vet + lint + test (local gate)
+make race         # run all tests with -race
+make build        # compile binaries to bin/
+make lint-extra   # extra-strict lint config
+go test ./...     # run all tests
+go test -race ./...   # run tests with race detector
+go run ./cmd/cardcore-server
+go run ./cmd/cardcore-tui
+go run ./cmd/cardcore-cli -script script.json
+```
 
-## 9. Maintainer Runbook
-If `doc/maintainer-runbook.md` exists locally, read it for release procedures, PR review workflow, repository settings reference, and recovery steps.
-
-## 10. Implementation Plans
-If `doc/implementation-plans.md` exists locally, read it for details pertaining to ongoing implementations, including plans, guidelines, architecture details.
-
-## 11. Future Considerations
-If `doc/future-considerations.md` exists locally, read it for a list of proposed features and improvements, including triggers for when they may be relevant for further consideration or implementation.
+## NOTES
+- `make check` does not run the race detector; `make race` does.
+- Dev tools (`golangci-lint`, `pkgsite`) are declared via Go 1.25's `tool` directive in `go.mod`.
+- Stress tests are planned but not yet implemented; when added they must be gated by a build tag so they do not run during `make check`.
+- The `internal/client` package mirrors some server DTOs intentionally; client types have JSON tags and decouple the client from server internals.
