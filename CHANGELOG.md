@@ -10,6 +10,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- TUI deal phase overlay: `RenderDealView` shows a "Dealing..." message during the `deal` phase instead of falling through to the generic `Phase: deal` label. The `heartstui.Client.Render()` switch now handles `PhaseDeal`
+
 - TUI quit confirmation: pressing `Esc` initiates quit with a "Press Enter to quit" flash; pressing `Enter` confirms, pressing `Esc` again or any other key cancels. Four unit tests cover initiation, confirmation, cancellation, and flash timeout
 - CLI multi-game support: `-game` flag (default `hearts`) with game-agnostic `ScriptExecutor` (`GameBuilder` interface) and game-specific subpackages (`cmd/cardcore-cli/hearts/`). Added `-addr`, `-pacing`, `-ai-type`, `-exit-delay` flags with `CARDCORE_*` env-var fallback. Action IDs include seat number (`cli-{seat}-{seq}`) to prevent cross-client collisions
 - CLI compact snapshot notation with Unicode suit symbols (e.g., `seq=5 phase=passing turn=0 hand=[2♣ 3♣ 4♣]`)
@@ -51,6 +53,10 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 - Bumped `cardcore` engine dependency to v0.5.0: the engine now requires an explicit `*rand.Rand` for `hearts.New()` and `Deck.Shuffle()`, making seeded games fully deterministic. The server's `NewAdapter` passes its existing RNG through to the engine
 
 ### Fixed
+
+- README TUI flag documentation: corrected to match the actual TUI flags (`-server`, `-observe`, `-session`, `-token`, `-seat`, `-game`, `-debug`) instead of the non-existent `--addr` and `--observe <session-id>` flags
+
+- TUI footer precedence: the mapped WebSocket close reason (`"Game ended"`, `"Server is shutting down"`, etc.) was being shadowed by the generic `"Disconnected"` label. `renderFooter()` now checks `statusMsg` before `disconnected`, so users see the actual close reason
 
 - Client error recovery pipeline: all server error messages previously caused fatal client exit in both TUI and CLI. Now properly distinguishes recoverable errors (`stale_seq`, `out_of_turn`, `wrong_phase`) from fatal errors (`illegal_move`, `malformed_message`, WS close 1011) per ADR-012. TUI displays persistent modal messages requiring explicit Enter dismissal; CLI continues read loop only for `stale_seq` and exits cleanly on `game_over`
 - TUI wsbridge error routing: `startWSReader` treated all non-close `ReadSnapshot` errors as fatal. Now routes `*client.ErrorMessage` as `wsErrorMsg` to the model for classification, while `*ConnectionClosedError` remains fatal via `wsCloseMsg`. Removed dead JSON error-decoding code that was unreachable since `Conn.ReadSnapshot` already returns server errors as Go values

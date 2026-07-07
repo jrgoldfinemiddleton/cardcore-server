@@ -2,6 +2,7 @@ package heartsclient
 
 // Phase constants for the Hearts game.
 const (
+	PhaseDeal          = "deal"
 	PhasePassing       = "passing"
 	PhasePlaying       = "playing"
 	PhaseTrickComplete = "trick_complete"
