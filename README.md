@@ -125,8 +125,13 @@ Key commands during a game:
 
 Flags:
 
-- `--observe <session-id>` — connect as an observer to an existing session
-- `--addr <host:port>` — server address (default `127.0.0.1:8080`)
+- `-server <host:port>` — server base URL (default `http://127.0.0.1:8080`)
+- `-observe` — connect as an observer to an existing session (requires `-session`)
+- `-session <session-id>` — session ID to join (required for observer mode and when joining as a player)
+- `-token <bearer-token>` — bearer token for the seat being joined
+- `-seat <index>` — seat index to join (default `0`)
+- `-game <game>` — game to play (default `hearts`)
+- `-debug` — enable debug logging to `tui.log`
 
 ### CLI Client
 

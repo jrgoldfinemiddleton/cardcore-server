@@ -112,6 +112,8 @@ func (c *Client) Render() string {
 		return RenderObserverView(c.observerSnap)
 	}
 	switch c.phase {
+	case heartsclient.PhaseDeal:
+		return RenderDealView()
 	case heartsclient.PhasePassing:
 		return RenderPassingView(c.playerSnap, c.seat, c.cursor, c.selected)
 	case heartsclient.PhasePlaying:

@@ -99,24 +99,28 @@ func (m *model) renderMain() string {
 
 // renderFooter renders the status bar (error messages, connection status).
 //
-// The footer shows one of two things:
+// The footer shows one of the following, in priority order:
 //
 //  1. Error message (red, bold) — may be a transient 3-second flash or a
 //     persistent modal message that stays until Enter is pressed.
-//  2. Connection status ("Connected" / "Disconnected")
+//  2. Persistent status message (e.g., the mapped WebSocket close reason).
+//  3. Connection status ("Connected" / "Disconnected")
 //
-// The error message takes priority over connection status.
+// The status message takes priority over the generic "Disconnected" label
+// so that the user sees the reason the connection closed ("Game ended",
+// "Server is shutting down", etc.) rather than a plain label.
 func (m *model) renderFooter() string {
 	if m.errMsg != "" {
 		return errorStyle.Render(m.errMsg)
 	}
 
+	if m.statusMsg != "" {
+		return footerStyle.Render(m.statusMsg)
+	}
+
 	// Connection status.
 	if m.disconnected {
 		return footerStyle.Render("Disconnected")
-	}
-	if m.statusMsg != "" {
-		return footerStyle.Render(m.statusMsg)
 	}
 
 	// Default: show connected status.

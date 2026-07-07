@@ -126,6 +126,11 @@ func RenderGameOverView(snap heartsclient.PlayerSnapshot) string {
 	return joinLines(lines)
 }
 
+// RenderDealView renders a brief overlay shown while the deck is being dealt.
+func RenderDealView() string {
+	return "Dealing..."
+}
+
 // joinLines joins lines with newlines for multi-line view output.
 func joinLines(lines []string) string {
 	return strings.Join(lines, "\n")
