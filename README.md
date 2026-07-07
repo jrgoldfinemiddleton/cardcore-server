@@ -70,48 +70,42 @@ See [Bubble Tea's terminal docs](https://charm.land/bubbletea/docs/terminal) for
 
 ## Usage
 
-### Development (go run)
+This project is intended for two different audiences. Use the **binary usage** instructions when running released or locally-built artifacts. Use the **development usage** instructions when iterating on the source code between releases or commits.
 
-```bash
-go run ./cmd/cardcore-server
-go run ./cmd/cardcore-tui
-go run ./cmd/cardcore-cli -script script.json
-```
+### End-user binary usage
 
-### Production (make build)
+Build the binaries once with `make build`, then run them from `bin/`:
 
 ```bash
 make build
-```
-
-This compiles all binaries to `bin/`:
-
-```bash
 ./bin/cardcore-server
 ./bin/cardcore-tui
 ./bin/cardcore-cli -script script.json
 ```
 
-### Server
+#### Server
 
 ```bash
-go run ./cmd/cardcore-server
-# or after make build:
-# ./bin/cardcore-server
+./bin/cardcore-server
 ```
 
 The server listens on `127.0.0.1:8080` by default. It hosts WebSocket game sessions and serves the HTTP API documented in [`doc/api.md`](doc/api.md). Press `Ctrl+C` for graceful shutdown.
 
-Environment variables:
+| Flag | Env Var | Default | Description |
+|---|---|---|---|
+| `-addr` | `CARDCORE_SERVER_ADDR` | `127.0.0.1:8080` | Listen address |
+| `-log-level` | `CARDCORE_SERVER_LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error` |
+| `-shutdown-timeout` | `CARDCORE_SERVER_SHUTDOWN_TIMEOUT` | `10` | Graceful shutdown timeout in seconds |
+| `-ai-action-delay` | `CARDCORE_SERVER_AI_ACTION_DELAY_MS` | `1000` | AI action delay in milliseconds |
+| `-deal-display-delay` | `CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS` | `1500` | Deal display delay in milliseconds |
+| `-turn-timeout` | `CARDCORE_SERVER_TURN_TIMEOUT_MS` | `30000` | Human turn timeout in milliseconds |
+| `-hearts-trick-display-delay` | `CARDCORE_SERVER_HEARTS_TRICK_DISPLAY_DELAY_MS` | `3000` | Hearts trick display delay in milliseconds |
+| `-hearts-round-display-delay` | `CARDCORE_SERVER_HEARTS_ROUND_DISPLAY_DELAY_MS` | `5000` | Hearts round display delay in milliseconds |
 
-- `CARDCORE_LOG_LEVEL` — set to `debug` for verbose per-component logging (`info` is default).
-
-### TUI Client
+#### TUI Client
 
 ```bash
-go run ./cmd/cardcore-tui
-# or after make build:
-# ./bin/cardcore-tui
+./bin/cardcore-tui
 ```
 
 Starts an interactive Bubble Tea session. By default it auto-creates a 1-human+3-AI Hearts game, connects as seat 0, and begins play immediately.
@@ -123,22 +117,20 @@ Key commands during a game:
 - `Enter` — confirm selection (pass 3 cards or play 1 card)
 - `Esc` — initiate quit, then `Enter` to confirm
 
-Flags:
+| Flag | Env Var | Default | Description |
+|---|---|---|---|
+| `-server` | `CARDCORE_TUI_SERVER` | `http://127.0.0.1:8080` | Server base URL |
+| `-game` | `CARDCORE_TUI_GAME` | `hearts` | Game to play |
+| `-session` | `CARDCORE_TUI_SESSION` | — | Session ID to join |
+| `-token` | `CARDCORE_TUI_TOKEN` | — | Bearer token for the seat being joined |
+| `-seat` | `CARDCORE_TUI_SEAT` | `0` | Seat index to join |
+| `-observe` | `CARDCORE_TUI_OBSERVE` | `false` | Observer mode (receive-only) |
+| `-debug` | `CARDCORE_TUI_DEBUG` | `false` | Enable debug logging to `tui.log` |
 
-- `-server <host:port>` — server base URL (default `http://127.0.0.1:8080`)
-- `-observe` — connect as an observer to an existing session (requires `-session`)
-- `-session <session-id>` — session ID to join (required for observer mode and when joining as a player)
-- `-token <bearer-token>` — bearer token for the seat being joined
-- `-seat <index>` — seat index to join (default `0`)
-- `-game <game>` — game to play (default `hearts`)
-- `-debug` — enable debug logging to `tui.log`
-
-### CLI Client
+#### CLI Client
 
 ```bash
-go run ./cmd/cardcore-cli -script script.json
-# or after make build:
-# ./bin/cardcore-cli -script script.json
+./bin/cardcore-cli -script script.json
 ```
 
 Runs a non-interactive scripted game. The script is a JSON array of phase-action entries that drive command construction automatically.
@@ -163,21 +155,31 @@ Example `script.json` for Hearts:
 
 The CLI prints each snapshot in compact notation to stdout. Use `-observe` to watch an all-AI session without sending commands.
 
-Flags and environment variables:
-
 | Flag | Env Var | Default | Description |
 |---|---|---|---|
-| `-script` | — | *(required)* | Path to JSON script file |
-| `-addr` | `CARDCORE_ADDR` | `http://127.0.0.1:8080` | Server address |
-| `-game` | `CARDCORE_GAME` | `hearts` | Game to play |
-| `-ai-type` | `CARDCORE_AI_TYPE` | `random` | AI player type (`random` or `pimc`) |
-| `-pacing` | `CARDCORE_PACING_MS` | `500` | Pacing delay between snapshots (ms) |
-| `-exit-delay` | `CARDCORE_EXIT_DELAY_MS` | `1000` | Wait after `game_over` before exiting (ms) |
-| `-observe` | — | `false` | Create 4-AI session and observe |
-| `-session-id` | — | — | Join an existing session |
-| `-token` | — | — | Bearer token for the seat being joined |
-| `-seat` | — | `0` | Seat index to join |
-| `-delete-on-exit` | — | `false` | Delete session after game ends |
+| `-script` | `CARDCORE_CLI_SCRIPT` | — | Path to JSON script file |
+| `-addr` | `CARDCORE_CLI_ADDR` | `http://127.0.0.1:8080` | Server address |
+| `-game` | `CARDCORE_CLI_GAME` | `hearts` | Game to play |
+| `-ai-type` | `CARDCORE_CLI_AI_TYPE` | `random` | AI player type (`random` or `pimc`) |
+| `-pacing` | `CARDCORE_CLI_PACING_MS` | `500` | Pacing delay between snapshots (ms) |
+| `-exit-delay` | `CARDCORE_CLI_EXIT_DELAY_MS` | `1000` | Wait after `game_over` before exiting (ms) |
+| `-observe` | `CARDCORE_CLI_OBSERVE` | `false` | Create 4-AI session and observe |
+| `-session-id` | `CARDCORE_CLI_SESSION_ID` | — | Join an existing session |
+| `-token` | `CARDCORE_CLI_TOKEN` | — | Bearer token for the seat being joined |
+| `-seat` | `CARDCORE_CLI_SEAT` | `0` | Seat index to join |
+| `-delete-on-exit` | `CARDCORE_CLI_DELETE_ON_EXIT` | `false` | Delete session after game ends |
+
+### Development usage
+
+Use these commands when testing changes between releases or commits. They compile the source on every run, so they are slower than running pre-built binaries.
+
+```bash
+go run ./cmd/cardcore-server
+go run ./cmd/cardcore-tui
+go run ./cmd/cardcore-cli -script script.json
+```
+
+All flags and environment variables described in the binary usage sections above apply equally to `go run`; only the binary path changes.
 
 ## Makefile Targets
 

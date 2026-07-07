@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -54,7 +55,7 @@ type tuiConfig struct {
 // in the TUI state machine. By connecting first, we can fail fast with a
 // clear error message on the terminal.
 func main() {
-	cfg, err := parseFlags()
+	cfg, err := parseFlags(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
@@ -73,17 +74,45 @@ func main() {
 //	-observer requires -session (you can't observe without a session).
 //	-seat must be >= 0 (the server validates the upper bound).
 //	-token requires -session (a token without a session is meaningless).
-func parseFlags() (*tuiConfig, error) {
+func parseFlags(args []string) (*tuiConfig, error) {
 	cfg := &tuiConfig{}
 
-	flag.StringVar(&cfg.server, "server", "http://localhost:8080", "server base URL")
-	flag.StringVar(&cfg.game, "game", "hearts", "game to play")
-	flag.StringVar(&cfg.session, "session", "", "session ID to join")
-	flag.StringVar(&cfg.token, "token", "", "seat bearer token")
-	flag.IntVar(&cfg.seat, "seat", 0, "seat index (game-dependent)")
-	flag.BoolVar(&cfg.observer, "observe", false, "observer mode (receive-only)")
-	flag.BoolVar(&cfg.debug, "debug", false, "enable debug logging")
-	flag.Parse()
+	fs := flag.NewFlagSet("cardcore-tui", flag.ContinueOnError)
+	fs.StringVar(&cfg.server, "server",
+		envOrDefault("CARDCORE_TUI_SERVER", "http://localhost:8080"),
+		"server base URL (env: CARDCORE_TUI_SERVER)")
+	fs.StringVar(&cfg.game, "game",
+		envOrDefault("CARDCORE_TUI_GAME", "hearts"),
+		"game to play (env: CARDCORE_TUI_GAME)")
+	fs.StringVar(&cfg.session, "session",
+		envOrDefault("CARDCORE_TUI_SESSION", ""),
+		"session ID to join (env: CARDCORE_TUI_SESSION)")
+	fs.StringVar(&cfg.token, "token",
+		envOrDefault("CARDCORE_TUI_TOKEN", ""),
+		"seat bearer token (env: CARDCORE_TUI_TOKEN)")
+	fs.IntVar(&cfg.seat, "seat",
+		intEnvOrDefault("CARDCORE_TUI_SEAT", 0),
+		"seat index (game-dependent) (env: CARDCORE_TUI_SEAT)")
+	fs.BoolVar(&cfg.observer, "observe",
+		boolEnvOrDefault("CARDCORE_TUI_OBSERVE", false),
+		"observer mode (receive-only) (env: CARDCORE_TUI_OBSERVE)")
+	fs.BoolVar(&cfg.debug, "debug",
+		boolEnvOrDefault("CARDCORE_TUI_DEBUG", false),
+		"enable debug logging (env: CARDCORE_TUI_DEBUG)")
+
+	fs.Usage = func() {
+		_, _ = fmt.Fprintf(fs.Output(), "Usage: %s [flags]\n\n", fs.Name())
+		_, _ = fmt.Fprintln(fs.Output(), "Flags:")
+		fs.PrintDefaults()
+		_, _ = fmt.Fprintln(fs.Output(), "\nAll flags can also be set via the corresponding")
+		_, _ = fmt.Fprintln(fs.Output(), "CARDCORE_TUI_* environment variable.")
+		_, _ = fmt.Fprintln(fs.Output(), "Explicit flags take precedence over environment")
+		_, _ = fmt.Fprintln(fs.Output(), "variables.")
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return nil, err
+	}
 
 	if cfg.observer && cfg.session == "" {
 		return nil, fmt.Errorf("-session is required with -observe")
@@ -236,4 +265,39 @@ func wsURL(baseURL, sessionID, path string) string {
 	u = strings.Replace(u, "http://", "ws://", 1)
 	u = strings.Replace(u, "https://", "wss://", 1)
 	return fmt.Sprintf("%s/sessions/%s%s", u, sessionID, path)
+}
+
+// boolEnvOrDefault returns true if the environment variable is set to
+// "true", "1", "yes", or "on" (case-insensitive); otherwise it returns
+// defaultValue.
+func boolEnvOrDefault(envVar string, defaultValue bool) bool {
+	if v := os.Getenv(envVar); v != "" {
+		switch strings.ToLower(v) {
+		case "true", "1", "yes", "on":
+			return true
+		default:
+			return false
+		}
+	}
+	return defaultValue
+}
+
+// envOrDefault returns the environment variable value if set and non-empty,
+// otherwise the default.
+func envOrDefault(envVar, defaultValue string) string {
+	if v := os.Getenv(envVar); v != "" {
+		return v
+	}
+	return defaultValue
+}
+
+// intEnvOrDefault returns the environment variable value parsed as an int if
+// set and valid (>= 0), otherwise the default.
+func intEnvOrDefault(envVar string, defaultValue int) int {
+	if v := os.Getenv(envVar); v != "" {
+		if d, err := strconv.Atoi(v); err == nil && d >= 0 {
+			return d
+		}
+	}
+	return defaultValue
 }
