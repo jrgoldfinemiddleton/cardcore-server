@@ -311,6 +311,85 @@ func TestClientLastErrorClearedOnSuccess(t *testing.T) {
 	}
 }
 
+// TestClientIsHumanTurnPlayingYourTurn verifies IsHumanTurn returns true when
+// the player is in the playing phase and it is their turn.
+func TestClientIsHumanTurnPlayingYourTurn(t *testing.T) {
+	c := NewClient(0, false)
+	c.HandleSnapshot(mustMarshal(t, heartsclient.PlayerSnapshot{
+		Phase: heartsclient.PhasePlaying,
+		Turn:  0,
+	}))
+
+	if !c.IsHumanTurn() {
+		t.Errorf("got IsHumanTurn false, want true")
+	}
+}
+
+// TestClientIsHumanTurnPassingYourTurn verifies IsHumanTurn returns true when
+// the player is in the passing phase and it is their turn.
+func TestClientIsHumanTurnPassingYourTurn(t *testing.T) {
+	c := NewClient(0, false)
+	c.HandleSnapshot(mustMarshal(t, heartsclient.PlayerSnapshot{
+		Phase: heartsclient.PhasePassing,
+		Turn:  0,
+	}))
+
+	if !c.IsHumanTurn() {
+		t.Errorf("got IsHumanTurn false, want true")
+	}
+}
+
+// TestClientIsHumanTurnPlayingNotYourTurn verifies IsHumanTurn returns false
+// when the playing phase is active but another seat holds the turn.
+func TestClientIsHumanTurnPlayingNotYourTurn(t *testing.T) {
+	c := NewClient(0, false)
+	c.HandleSnapshot(mustMarshal(t, heartsclient.PlayerSnapshot{
+		Phase: heartsclient.PhasePlaying,
+		Turn:  2,
+	}))
+
+	if c.IsHumanTurn() {
+		t.Errorf("got IsHumanTurn true, want false")
+	}
+}
+
+// TestClientIsHumanTurnObserver verifies IsHumanTurn returns false for an
+// observer even when the snapshot indicates their seat holds the turn.
+func TestClientIsHumanTurnObserver(t *testing.T) {
+	c := NewClient(0, true)
+	c.HandleSnapshot(mustMarshal(t, heartsclient.ObserverSnapshot{
+		Phase: heartsclient.PhasePlaying,
+		Turn:  0,
+	}))
+
+	if c.IsHumanTurn() {
+		t.Errorf("got IsHumanTurn true, want false")
+	}
+}
+
+// TestClientIsHumanTurnNonActionablePhase verifies IsHumanTurn returns false
+// for non-actionable phases even when Turn matches the player's seat.
+func TestClientIsHumanTurnNonActionablePhase(t *testing.T) {
+	for _, phase := range []string{
+		heartsclient.PhaseDeal,
+		heartsclient.PhaseTrickComplete,
+		heartsclient.PhaseRoundComplete,
+		heartsclient.PhaseGameOver,
+	} {
+		t.Run(phase, func(t *testing.T) {
+			c := NewClient(0, false)
+			c.HandleSnapshot(mustMarshal(t, heartsclient.PlayerSnapshot{
+				Phase: phase,
+				Turn:  0,
+			}))
+
+			if c.IsHumanTurn() {
+				t.Errorf("got IsHumanTurn true in phase %q, want false", phase)
+			}
+		})
+	}
+}
+
 // newPassingClient returns a player client with a four-card hand in the
 // passing phase, ready for navigation and selection tests.
 func newPassingClient(t *testing.T) *Client {

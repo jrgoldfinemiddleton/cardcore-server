@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 
-	"charm.land/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
 	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
@@ -40,12 +40,20 @@ type Client struct {
 	// lastErr holds the most recent game-specific decode or validation
 	// error. It is cleared at the start of each HandleSnapshot call.
 	lastErr string
+	// inputDisabled indicates whether the UI should ignore human input (e.g., timeout).
+	inputDisabled bool
 }
 
 // NewClient returns a Hearts adapter for the given seat. When observer is true,
 // the client renders the omniscient observer view and ignores input.
 func NewClient(seat int, observer bool) *Client {
 	return &Client{seat: seat, observer: observer}
+}
+
+// SetInputDisabled toggles human input for the client. When true, the UI should
+// render the hand dimmed and ignore key presses until the timeout is cleared.
+func (c *Client) SetInputDisabled(disabled bool) {
+	c.inputDisabled = disabled
 }
 
 // HandleSnapshot decodes the snapshot into the player or observer view and
@@ -115,9 +123,9 @@ func (c *Client) Render() string {
 	case heartsclient.PhaseDeal:
 		return RenderDealView()
 	case heartsclient.PhasePassing:
-		return RenderPassingView(c.playerSnap, c.seat, c.cursor, c.selected)
+		return RenderPassingView(c.playerSnap, c.seat, c.cursor, c.selected, c.inputDisabled)
 	case heartsclient.PhasePlaying:
-		return RenderPlayingView(c.playerSnap, c.seat, c.cursor)
+		return RenderPlayingView(c.playerSnap, c.seat, c.cursor, c.inputDisabled)
 	case heartsclient.PhaseTrickComplete:
 		return RenderTrickCompleteView(c.playerSnap, c.seat)
 	case heartsclient.PhaseRoundComplete:
@@ -138,6 +146,18 @@ func (c *Client) LastError() string {
 // ResetSubmitted re-enables input after a recoverable server error.
 func (c *Client) ResetSubmitted() {
 	c.submitted = false
+}
+
+// IsHumanTurn reports whether the local player may act right now: not an
+// observer, in an actionable phase, and it is this player's turn.
+func (c *Client) IsHumanTurn() bool {
+	if c.observer {
+		return false
+	}
+	if c.phase != heartsclient.PhasePassing && c.phase != heartsclient.PhasePlaying {
+		return false
+	}
+	return c.playerSnap.Turn == c.seat
 }
 
 // handlePassingKey handles navigation, selection, and submission during the

@@ -10,6 +10,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- TUI turn timeout UI: countdown footer (`Your turn (Xs)`), client-side input lock at T-1s before the server auto-play deadline, dimmed hand, and status messages `"Timeout - AI playing"` / `"AI played for you (timeout)"`. The TUI fetches `turn_timeout_ms` via the new `GetSession` HTTP client method and uses the Hearts TUI client's `IsHumanTurn()` and `SetInputDisabled()` to drive the display
+- TUI `-debug` flag: writes debug logs to `tui.log` in the working directory, otherwise discards all `slog` output to keep the terminal clean
 - TUI deal phase overlay: `RenderDealView` shows a "Dealing..." message during the `deal` phase instead of falling through to the generic `Phase: deal` label. The `heartstui.Client.Render()` switch now handles `PhaseDeal`
 - TUI quit confirmation: pressing `Esc` initiates quit with a "Press Enter to quit" flash; pressing `Enter` confirms, pressing `Esc` again or any other key cancels. Four unit tests cover initiation, confirmation, cancellation, and flash timeout
 - CLI multi-game support: `-game` flag (default `hearts`) with game-agnostic `ScriptExecutor` (`GameBuilder` interface) and game-specific subpackages (`cmd/cardcore-cli/hearts/`). Added `-addr`, `-pacing`, `-ai-type`, `-exit-delay` flags with `CARDCORE_*` env-var fallback. Action IDs include seat number (`cli-{seat}-{seq}`) to prevent cross-client collisions
@@ -54,6 +56,9 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- TUI 10-second disconnect bug: `run()` now uses a separate long-lived context for the WebSocket read loop instead of reusing the 10-second connection timeout context
+- TUI main-area width regression: restored the 80-column layout width
+- TUI patchy hand background: fixed uneven card background rendering in the Hearts hand view
 - README TUI flag documentation: corrected to match the actual TUI flags (`-server`, `-observe`, `-session`, `-token`, `-seat`, `-game`, `-debug`) instead of the non-existent `--addr` and `--observe <session-id>` flags
 - TUI footer precedence: the mapped WebSocket close reason (`"Game ended"`, `"Server is shutting down"`, etc.) was being shadowed by the generic `"Disconnected"` label. `renderFooter()` now checks `statusMsg` before `disconnected`, so users see the actual close reason
 - Client error recovery pipeline: all server error messages previously caused fatal client exit in both TUI and CLI. Now properly distinguishes recoverable errors (`stale_seq`, `out_of_turn`, `wrong_phase`) from fatal errors (`illegal_move`, `malformed_message`, WS close 1011) per ADR-012. TUI displays persistent modal messages requiring explicit Enter dismissal; CLI continues read loop only for `stale_seq` and exits cleanly on `game_over`

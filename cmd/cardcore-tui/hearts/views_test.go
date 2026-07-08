@@ -25,7 +25,7 @@ func TestRenderPassingViewThreeSelected(t *testing.T) {
 		{Rank: "ace", Suit: "spades"},
 	}
 
-	got := RenderPassingView(snap, 0, 0, selected)
+	got := RenderPassingView(snap, 0, 0, selected, false)
 	want := "Press Enter to pass"
 	if !strings.Contains(got, want) {
 		t.Errorf("RenderPassingView with 3 selected = %q, want to contain %q", got, want)
@@ -48,7 +48,7 @@ func TestRenderPassingViewOneSelected(t *testing.T) {
 		{Rank: "queen", Suit: "diamonds"},
 	}
 
-	got := RenderPassingView(snap, 0, 0, selected)
+	got := RenderPassingView(snap, 0, 0, selected, false)
 	want := "Select 2 more card(s) to pass"
 	if !strings.Contains(got, want) {
 		t.Errorf("RenderPassingView with 1 selected = %q, want to contain %q", got, want)
@@ -66,7 +66,7 @@ func TestRenderPlayingViewYourTurn(t *testing.T) {
 		LegalActions: []heartsclient.Card{{Rank: "ace", Suit: "spades"}},
 	}
 
-	got := RenderPlayingView(snap, 0, 0)
+	got := RenderPlayingView(snap, 0, 0, false)
 	want := "Your turn"
 	if !strings.Contains(got, want) {
 		t.Errorf("RenderPlayingView(your turn) = %q, want to contain %q", got, want)
@@ -84,7 +84,7 @@ func TestRenderPlayingViewWaiting(t *testing.T) {
 		LegalActions: []heartsclient.Card{},
 	}
 
-	got := RenderPlayingView(snap, 0, 0)
+	got := RenderPlayingView(snap, 0, 0, false)
 	want := "Waiting for seat 2"
 	if !strings.Contains(got, want) {
 		t.Errorf("RenderPlayingView(waiting) = %q, want to contain %q", got, want)

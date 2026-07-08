@@ -37,10 +37,11 @@ func RenderPassingView(
 	snap heartsclient.PlayerSnapshot,
 	seat, cursor int,
 	selected []heartsclient.Card,
+	inputDisabled bool,
 ) string {
 	dir := formatPassDirection(snap.PassDirection)
 	header := fmt.Sprintf("Round %d — %s", snap.RoundNumber, dir)
-	hand := RenderHand(snap.Hand, cursor, selected, nil)
+	hand := RenderHand(snap.Hand, cursor, selected, nil, inputDisabled)
 
 	remaining := max(3-len(selected), 0)
 
@@ -58,9 +59,13 @@ func RenderPassingView(
 //
 // It shows the current trick on top, the player's hand (with illegal cards
 // dimmed), and a status line indicating whose turn it is.
-func RenderPlayingView(snap heartsclient.PlayerSnapshot, seat, cursor int) string {
+func RenderPlayingView(
+	snap heartsclient.PlayerSnapshot,
+	seat, cursor int,
+	inputDisabled bool,
+) string {
 	trick := RenderTrick(snap.Trick)
-	hand := RenderHand(snap.Hand, cursor, nil, snap.LegalActions)
+	hand := RenderHand(snap.Hand, cursor, nil, snap.LegalActions, inputDisabled)
 
 	var status string
 	if snap.Turn == seat {
