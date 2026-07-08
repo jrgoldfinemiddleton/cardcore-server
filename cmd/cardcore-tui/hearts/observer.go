@@ -18,7 +18,8 @@ func RenderObserverView(snap heartsclient.ObserverSnapshot) string {
 
 	handLines := make([]string, 0, len(snap.Hands))
 	for i, hand := range snap.Hands {
-		handLines = append(handLines, fmt.Sprintf("Seat %d: %s", i, RenderHand(hand, -1, nil, nil)))
+		handLines = append(handLines,
+			fmt.Sprintf("Seat %d: %s", i, RenderHand(hand, -1, nil, nil, false)))
 	}
 
 	trick := RenderTrick(snap.Trick)

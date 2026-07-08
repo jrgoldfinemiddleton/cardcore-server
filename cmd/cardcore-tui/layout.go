@@ -13,7 +13,8 @@ import (
 // layout components. This is the single source of truth for visual styling.
 var layoutStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("#FAFAFA")).
-	Background(lipgloss.Color("#1A1A2E"))
+	Background(lipgloss.Color("#1A1A2E")).
+	Width(80)
 
 // headerStyle is the style for the top header bar.
 //
@@ -114,8 +115,17 @@ func (m *model) renderFooter() string {
 		return errorStyle.Render(m.errMsg)
 	}
 
+	if m.timeoutDisabled {
+		return errorStyle.Render("Timeout - AI playing")
+	}
+
 	if m.statusMsg != "" {
 		return footerStyle.Render(m.statusMsg)
+	}
+
+	// Countdown status (if any)
+	if s := m.countdownStatus(); s != "" {
+		return footerStyle.Render(s)
 	}
 
 	// Connection status.

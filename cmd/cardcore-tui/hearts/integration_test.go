@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
 	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
@@ -174,6 +174,90 @@ outer:
 	}
 	if !gotOver {
 		t.Error("never saw game_over phase")
+	}
+}
+
+// TestTUITimeoutAutoPlayIntegration verifies the server auto-plays a human
+// turn when the client does not act within the configured turn timeout.
+func TestTUITimeoutAutoPlayIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	srv := setupTestServer(t)
+	baseURL := "http://" + srv.Addr()
+
+	timeout := 500
+	delay := 10
+	cfg := client.Config{
+		Game: "hearts",
+		Seats: []client.SeatConfig{
+			{Type: "human"},
+			{Type: "ai", AIType: "random"},
+			{Type: "ai", AIType: "random"},
+			{Type: "ai", AIType: "random"},
+		},
+		AIActionDelayMS: &delay,
+		TurnTimeoutMS:   &timeout,
+	}
+
+	sc := &client.SessionClient{BaseURL: baseURL}
+	id, seats, err := sc.CreateSession(ctx, cfg)
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	var token string
+	for _, s := range seats {
+		if s.Type == "human" {
+			token = s.Token
+			break
+		}
+	}
+	if token == "" {
+		t.Fatal("no human seat token found")
+	}
+
+	if err := sc.StartSession(ctx, id); err != nil {
+		t.Fatalf("start session: %v", err)
+	}
+
+	wsURL := "ws://" + srv.Addr() + "/sessions/" + id + "/ws"
+	conn := &client.Conn{}
+	if err := conn.Connect(ctx, wsURL, token); err != nil {
+		t.Fatalf("connect websocket: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	c := NewClient(0, false)
+	gotTimeoutAutoPlay := false
+
+	for range 5000 {
+		data, err := conn.ReadSnapshot(ctx)
+		if err != nil {
+			t.Fatalf("read snapshot: %v", err)
+		}
+
+		c.HandleSnapshot(data)
+
+		if c.phase == heartsclient.PhasePassing && c.playerSnap.Turn == 0 {
+			// Wait for timeout without sending a command.
+			gotTimeoutAutoPlay = true
+		}
+		if c.phase == heartsclient.PhasePlaying && c.playerSnap.Turn == 0 {
+			gotTimeoutAutoPlay = true
+		}
+		if c.phase == heartsclient.PhaseGameOver {
+			break
+		}
+	}
+
+	if !gotTimeoutAutoPlay {
+		t.Error("never saw a human turn that could time out")
 	}
 }
 

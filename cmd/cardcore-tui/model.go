@@ -29,6 +29,12 @@ type gameClient interface {
 	// ResetSubmitted re-enables input after a recoverable server error so
 	// the human can retry if a fresh snapshot has not yet arrived.
 	ResetSubmitted()
+	// SetInputDisabled toggles whether the game should disable human input
+	// due to a timeout or other server-driven state.
+	SetInputDisabled(disabled bool)
+	// IsHumanTurn reports whether the current turn is for the human player.
+	// This is used by the TUI to determine countdown behavior and display.
+	IsHumanTurn() bool
 }
 
 // model is the main Bubble Tea model for the cardcore TUI.
@@ -42,35 +48,41 @@ type model struct {
 	// tea.NewProgram is called so the WebSocket goroutine can send
 	// messages into the model via program.Send().
 	program *tea.Program
-
 	// conn is the WebSocket connection to the server.
 	conn *client.Conn
-
 	// game handles all game-specific decoding, input, and rendering.
 	game gameClient
-
+	// turn timeout support (server-provided configuration)
+	turnTimeoutMS int
+	// turnDeadline is the server-side auto-play deadline for the current human
+	// turn (derived from the session's turn_timeout_ms). The client-side cutoff
+	// is enforced one second earlier in handleTurnTick.
+	turnDeadline time.Time
+	// timeoutDisabled becomes true during the final second of a human turn,
+	// right before the server-side auto-play fires. Input is blocked while
+	// true so the user cannot race the server's timeout action.
+	timeoutDisabled bool
+	// humanTurn tracks whether the last snapshot indicated it's the human's turn
+	humanTurn bool
+	// pendingHumanAction is true after the human sends a command and until the
+	// next snapshot arrives; used to detect AI auto-play timeout behavior.
+	pendingHumanAction bool
 	// snapshot is the raw JSON of the most recent snapshot. It is retained
 	// to detect whether any game state has arrived yet.
 	snapshot json.RawMessage
-
 	// phase is the current game phase, decoded from the generic snapshot
 	// envelope. It drives the header and connection-state decisions.
 	phase string
-
 	// roundNumber is the current round number (1-based), from the envelope.
 	roundNumber int
-
 	// scores is the cumulative scores per seat, decoded from the snapshot
 	// envelope. It is used to render the header score summary.
 	scores []int
-
 	// errMsg is the current error flash message. It is displayed in the
 	// status bar for 3 seconds, then cleared.
 	errMsg string
-
 	// statusMsg is a persistent status message (e.g., a close reason).
 	statusMsg string
-
 	// disconnected is true when the WebSocket has closed. It drives the
 	// footer connection-state display.
 	disconnected bool
@@ -110,8 +122,10 @@ func (m *model) Init() tea.Cmd {
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case wsSnapshotMsg:
-		m.handleSnapshot(msg.raw)
-		return m, nil
+		return m, m.handleSnapshot(msg.raw)
+
+	case turnTickMsg:
+		return m, m.handleTurnTick()
 
 	case wsErrorMsg:
 		m.handleWSError(msg)
@@ -152,7 +166,7 @@ func (m *model) View() tea.View {
 
 // handleSnapshot decodes the generic snapshot envelope for the header/footer
 // and delegates the full snapshot to the gameClient for game-specific decoding.
-func (m *model) handleSnapshot(raw []byte) {
+func (m *model) handleSnapshot(raw []byte) tea.Cmd {
 	var envelope struct {
 		Phase       string `json:"phase"`
 		RoundNumber int    `json:"round_number"`
@@ -160,9 +174,11 @@ func (m *model) handleSnapshot(raw []byte) {
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		m.errMsg = "Failed to decode snapshot"
-		return
+		return nil
 	}
 
+	// Phase change handling with a hook to clear status on any phase transition.
+	phaseChanged := envelope.Phase != m.phase
 	m.phase = envelope.Phase
 	m.roundNumber = envelope.RoundNumber
 	m.scores = envelope.Scores
@@ -171,6 +187,34 @@ func (m *model) handleSnapshot(raw []byte) {
 	if errMsg := m.game.LastError(); errMsg != "" {
 		m.errMsg = errMsg
 	}
+
+	// Detect AI auto-play timeout: the previous snapshot was our turn, we did
+	// not submit an action, and the new snapshot is no longer our turn.
+	wasHuman := m.humanTurn
+	m.humanTurn = m.game.IsHumanTurn()
+	if wasHuman && !m.humanTurn && !m.pendingHumanAction {
+		m.statusMsg = "AI played for you (timeout)"
+	}
+	m.pendingHumanAction = false
+
+	// Clear any status on phase transition.
+	if phaseChanged {
+		m.statusMsg = ""
+	}
+
+	// Start/stop the per-turn countdown logic if appropriate.
+	if m.humanTurn && m.turnTimeoutMS > 0 {
+		m.turnDeadline = time.Now().Add(time.Duration(m.turnTimeoutMS) * time.Millisecond)
+		m.timeoutDisabled = false
+		m.statusMsg = ""
+		m.game.SetInputDisabled(false)
+		return startTurnTick()
+	}
+	// No turn active countdown; make sure input is re-enabled for rendering.
+	m.turnDeadline = time.Time{}
+	m.timeoutDisabled = false
+	m.game.SetInputDisabled(false)
+	return nil
 }
 
 // handleKeyPress handles keyboard input. ctrl+c always quits; Esc then Enter
@@ -197,7 +241,7 @@ func (m *model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.modalContinue {
 		if msg.Code == tea.KeyEnter {
 			m.modalContinue = false
-			m.errMsg = ""
+			m.clearErrorFlash()
 		}
 		return m, nil
 	}
@@ -228,11 +272,21 @@ func (m *model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
+	// Input is disabled during the client-side timeout window to avoid
+	// racing the server's auto-play.
+	if m.timeoutDisabled {
+		return m, nil
+	}
+
 	cmd, send, status := m.game.HandleKey(msg)
 	if status != "" {
 		return m, m.setErrorFlash(status)
 	}
 	if send {
+		m.pendingHumanAction = true
+		m.turnDeadline = time.Time{}
+		m.timeoutDisabled = false
+		m.game.SetInputDisabled(false)
 		return m, m.sendCommandCmd(cmd)
 	}
 	return m, nil

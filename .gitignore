@@ -7,6 +7,9 @@
 *.so
 *.dylib
 
+# Log files
+tui.log
+
 # Test cache / coverage
 *.test
 *.out

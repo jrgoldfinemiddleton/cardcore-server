@@ -33,6 +33,11 @@ const lightSuitHex = "#FAFAFA"
 // dimColorHex is the muted hex color for dimmed cards.
 const dimColorHex = "#555555"
 
+// handBgHex is the dark background color for the hand line. It matches
+// layoutStyle's background so cards and separator spaces render with a
+// consistent fill instead of a patchy appearance.
+const handBgHex = "#1A1A2E"
+
 // selectedMarker is the checkmark appended to selected cards.
 const selectedMarker = "✓"
 
@@ -106,16 +111,30 @@ func CardLabel(c heartsclient.Card) string {
 func RenderCard(c heartsclient.Card, state CardState) string {
 	label := CardLabel(c)
 	color := suitColor(c.Suit)
+	bg := lipgloss.Color(handBgHex)
 
 	switch state {
 	case CardDimmed:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(dimColorHex)).Render(label)
+		return lipgloss.NewStyle().
+			Foreground(lipgloss.Color(dimColorHex)).
+			Background(bg).
+			Render(label)
 	case CardCursor:
-		return lipgloss.NewStyle().Foreground(color).Bold(true).Render("[" + label + "]")
+		return lipgloss.NewStyle().
+			Foreground(color).
+			Background(bg).
+			Bold(true).
+			Render("[" + label + "]")
 	case CardSelected:
-		return lipgloss.NewStyle().Foreground(color).Render(label + selectedMarker)
+		return lipgloss.NewStyle().
+			Foreground(color).
+			Background(bg).
+			Render(label + selectedMarker)
 	default:
-		return lipgloss.NewStyle().Foreground(color).Render(label)
+		return lipgloss.NewStyle().
+			Foreground(color).
+			Background(bg).
+			Render(label)
 	}
 }
 
@@ -133,9 +152,24 @@ func RenderHand(
 	cursor int,
 	selected []heartsclient.Card,
 	legal []heartsclient.Card,
+	inputDisabled bool,
 ) string {
 	if len(hand) == 0 {
 		return ""
+	}
+
+	// If input is disabled (timeout), render all cards as dimmed to reflect
+	// that no user interaction is allowed.
+	if inputDisabled {
+		if len(hand) == 0 {
+			return ""
+		}
+		parts := make([]string, len(hand))
+		sep := lipgloss.NewStyle().Background(lipgloss.Color(handBgHex)).Render(" ")
+		for i := range hand {
+			parts[i] = RenderCard(hand[i], CardDimmed)
+		}
+		return strings.Join(parts, sep)
 	}
 
 	selectedSet := cardSet(selected)
@@ -148,7 +182,8 @@ func RenderHand(
 		parts[i] = RenderCard(c, state)
 	}
 
-	return strings.Join(parts, " ")
+	sep := lipgloss.NewStyle().Background(lipgloss.Color(handBgHex)).Render(" ")
+	return strings.Join(parts, sep)
 }
 
 // cardStateFor determines the CardState for a card at index i in the hand.

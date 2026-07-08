@@ -4,6 +4,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -127,6 +129,27 @@ func parseFlags(args []string) (*tuiConfig, error) {
 	return cfg, nil
 }
 
+// configureLogging sets up the default slog logger so server and wsbridge
+// log output never corrupts the terminal.
+//
+// When debug is true, logs are written to tui.log in the working directory.
+// When false, logs are discarded entirely. This must be called before any
+// goroutine that uses slog (notably startWSReader and client.Conn) is started.
+func configureLogging(debug bool) {
+	var w io.Writer
+	if debug {
+		f, err := os.Create("tui.log")
+		if err != nil {
+			w = io.Discard
+		} else {
+			w = f
+		}
+	} else {
+		w = io.Discard
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(w, nil)))
+}
+
 // run executes the TUI lifecycle.
 //
 // Step 1: Create WebSocket connection.
@@ -166,6 +189,8 @@ func parseFlags(args []string) (*tuiConfig, error) {
 //	p.Run() blocks until the user exits (ctrl+c, game over, etc.).
 //	Cleanup is handled by defer on the connection.
 func run(cfg *tuiConfig) error {
+	configureLogging(cfg.debug)
+
 	// Step 1: Create WebSocket connection.
 	//
 	// Conn is created but not connected yet. The Connect method establishes
@@ -176,8 +201,12 @@ func run(cfg *tuiConfig) error {
 	//
 	// Construct the WebSocket URL from the base URL, session ID, and path.
 	// The wsURL helper converts http:// to ws:// and appends the session path.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	//
+	// The connect context has a 10-second timeout so a hanging dial fails
+	// fast. The read loop uses a separate long-lived context (readCtx) so
+	// the WebSocket reader does not cancel after 10 seconds.
+	connectCtx, connectCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer connectCancel()
 
 	var wsPath string
 	if cfg.observer {
@@ -187,10 +216,28 @@ func run(cfg *tuiConfig) error {
 	}
 	url := wsURL(cfg.server, cfg.session, wsPath)
 
-	if err := conn.Connect(ctx, url, cfg.token); err != nil {
+	// Try to fetch session config (TurnTimeoutMS) before building the model.
+	// This uses the same connectCtx so that we fail fast if the server is unreachable.
+	turnTimeoutMS := 0
+	if !cfg.observer && cfg.session != "" {
+		sc := &client.SessionClient{BaseURL: cfg.server}
+		if info, err := sc.GetSession(connectCtx, cfg.session); err == nil {
+			turnTimeoutMS = info.TurnTimeoutMS
+		} else {
+			slog.Warn("failed to fetch session timeout config; disabling countdown",
+				"session", cfg.session, "error", err)
+		}
+	}
+
+	if err := conn.Connect(connectCtx, url, cfg.token); err != nil {
 		return fmt.Errorf("websocket connect: %w", err)
 	}
 	defer func() { _ = conn.Close() }()
+
+	// readCtx is the long-lived context for the WebSocket read loop. It
+	// cancels when run() returns (program exit), stopping the reader.
+	readCtx, readCancel := context.WithCancel(context.Background())
+	defer readCancel()
 
 	// Step 3: Create model with pointer receiver.
 	//
@@ -212,9 +259,10 @@ func run(cfg *tuiConfig) error {
 		return err
 	}
 	m := &model{
-		conn:  conn,
-		game:  game,
-		phase: "connecting",
+		conn:          conn,
+		game:          game,
+		phase:         "connecting",
+		turnTimeoutMS: turnTimeoutMS,
 	}
 
 	// Step 4: Create program.
@@ -231,7 +279,7 @@ func run(cfg *tuiConfig) error {
 	// The goroutine reads from the WebSocket and sends messages into the
 	// model via program.Send(). This is safe because Program.Send() is
 	// thread-safe — it can be called from any goroutine.
-	go startWSReader(ctx, conn, p)
+	go startWSReader(readCtx, conn, p)
 
 	// Step 7: Run.
 	//

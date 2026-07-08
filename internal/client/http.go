@@ -193,6 +193,33 @@ func (c *SessionClient) DeleteSession(ctx context.Context, sessionID string) err
 	return nil
 }
 
+// GetSession fetches the current session info for the given session ID.
+func (c *SessionClient) GetSession(ctx context.Context, sessionID string) (SessionInfo, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/sessions/"+sessionID, nil)
+	if err != nil {
+		c.logger().Error("get session request", "session_id", sessionID, "error", err)
+		return SessionInfo{}, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		he := readError(resp)
+		c.logger().Warn("get session failed",
+			"session_id", sessionID,
+			"status_code", he.StatusCode,
+			"error", he.Message)
+		return SessionInfo{}, he
+	}
+
+	var info SessionInfo
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		c.logger().Error("decode get session response", "session_id", sessionID, "error", err)
+		return SessionInfo{}, err
+	}
+	c.logger().Info("session fetched", "session_id", sessionID, "state", info.State)
+	return info, nil
+}
+
 // logger returns the configured logger or [slog.Default] if nil.
 func (c *SessionClient) logger() *slog.Logger {
 	if c.Logger != nil {

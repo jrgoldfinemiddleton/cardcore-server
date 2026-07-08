@@ -55,8 +55,8 @@ func TestRenderHandCursor(t *testing.T) {
 		{Rank: "ace", Suit: "spades"},
 	}
 
-	withCursor := RenderHand(hand, 0, nil, nil)
-	withoutCursor := RenderHand(hand, -1, nil, nil)
+	withCursor := RenderHand(hand, 0, nil, nil, false)
+	withoutCursor := RenderHand(hand, -1, nil, nil, false)
 
 	if withCursor == withoutCursor {
 		t.Errorf("cursor in range produced same output as cursor=-1, want different")
@@ -72,8 +72,8 @@ func TestRenderHandSelected(t *testing.T) {
 	}
 	selected := []heartsclient.Card{{Rank: "ace", Suit: "spades"}}
 
-	withSelected := RenderHand(hand, -1, selected, nil)
-	withoutSelected := RenderHand(hand, -1, nil, nil)
+	withSelected := RenderHand(hand, -1, selected, nil, false)
+	withoutSelected := RenderHand(hand, -1, nil, nil, false)
 
 	if withSelected == withoutSelected {
 		t.Errorf("selected card produced same output as unselected, want different")
@@ -90,8 +90,8 @@ func TestRenderHandLegalDimming(t *testing.T) {
 	}
 	legal := []heartsclient.Card{{Rank: "ace", Suit: "spades"}}
 
-	withLegal := RenderHand(hand, -1, nil, legal)
-	withoutLegal := RenderHand(hand, -1, nil, nil)
+	withLegal := RenderHand(hand, -1, nil, legal, false)
+	withoutLegal := RenderHand(hand, -1, nil, nil, false)
 
 	if withLegal == withoutLegal {
 		t.Errorf("legal dimming produced same output as legal=nil, want different")
@@ -105,7 +105,7 @@ func TestRenderHandCursorNegative(t *testing.T) {
 		{Rank: "ace", Suit: "spades"},
 	}
 
-	got := RenderHand(hand, -1, nil, nil)
+	got := RenderHand(hand, -1, nil, nil, false)
 	if got == "" {
 		t.Errorf("RenderHand with cursor=-1 returned empty string, want non-empty")
 	}
