@@ -57,3 +57,45 @@ func TestRenderFooterConnected(t *testing.T) {
 		t.Errorf("renderFooter = %q, want to contain %q", got, "Connected")
 	}
 }
+
+// TestRenderLayoutBlankLines verifies that the layout includes blank lines
+// between the header, main area, and footer.
+func TestRenderLayoutBlankLines(t *testing.T) {
+	m := &model{}
+
+	got := m.renderLayout()
+	lines := strings.Split(got, "\n")
+
+	// Expect header, blank, main, blank, footer.
+	if len(lines) < 5 {
+		t.Fatalf("renderLayout has %d lines, want at least 5", len(lines))
+	}
+	stripped1 := stripANSILayout(lines[1])
+	if stripped1 != "" && stripped1 != strings.Repeat(" ", 80) {
+		t.Errorf("renderLayout blank line after header not blank: %q", lines[1])
+	}
+	stripped3 := stripANSILayout(lines[3])
+	if stripped3 != "" && stripped3 != strings.Repeat(" ", 80) {
+		t.Errorf("renderLayout blank line before footer not blank: %q", lines[3])
+	}
+}
+
+// stripANSILayout removes ANSI escape sequences from s.
+func stripANSILayout(s string) string {
+	var b strings.Builder
+	inEscape := false
+	for _, r := range s {
+		if r == '\u001b' {
+			inEscape = true
+			continue
+		}
+		if inEscape {
+			if r == 'm' {
+				inEscape = false
+			}
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}

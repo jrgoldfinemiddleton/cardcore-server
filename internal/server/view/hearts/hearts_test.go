@@ -10,6 +10,12 @@ import (
 	heartsapi "github.com/jrgoldfinemiddleton/cardcore-server/internal/api/games/hearts"
 )
 
+// play records a single seat/card pair for test setup.
+type play struct {
+	seat hearts.Seat
+	card cardcore.Card
+}
+
 // TestPlayerViewMasking verifies that PlayerView exposes only the requesting
 // seat's own hand, with no card appearing in two different seats' snapshots.
 func TestPlayerViewMasking(t *testing.T) {
@@ -200,6 +206,89 @@ func TestObserverViewAllHands(t *testing.T) {
 	}
 }
 
+// TestPlayerViewTrickCompleteUsesHistory verifies that when the server sets
+// TrickComplete, the snapshot renders the completed trick from TrickHistory
+// instead of the empty g.Trick that the engine has already reset.
+func TestPlayerViewTrickCompleteUsesHistory(t *testing.T) {
+	g := newGameInPlayPhase(t)
+
+	plays := make([]play, 0, hearts.NumPlayers)
+	twoOfClubs := cardcore.Card{Rank: cardcore.Two, Suit: cardcore.Clubs}
+	leader := g.Turn
+	plays = append(plays, play{seat: leader, card: twoOfClubs})
+	if err := g.PlayCard(leader, twoOfClubs); err != nil {
+		t.Fatalf("PlayCard 2♣: %v", err)
+	}
+	for range hearts.NumPlayers - 1 {
+		seat := g.Turn
+		moves, err := g.LegalMoves(seat)
+		if err != nil || len(moves) == 0 {
+			t.Fatal("no legal moves")
+		}
+		plays = append(plays, play{seat: seat, card: moves[0]})
+		if err := g.PlayCard(seat, moves[0]); err != nil {
+			t.Fatalf("PlayCard: %v", err)
+		}
+	}
+
+	vs := ViewState{Game: g, TrickComplete: true}
+	snap := PlayerView(vs, leader, 0)
+
+	if got, want := len(snap.Trick), hearts.NumPlayers; got != want {
+		t.Fatalf("trick entry count: got %d, want %d", got, want)
+	}
+	for i, p := range plays {
+		if got, want := snap.Trick[i].Seat, int(p.seat); got != want {
+			t.Errorf("Trick[%d].Seat: got %d, want %d", i, got, want)
+		}
+		wantCard := heartsapi.CardFromEngine(p.card)
+		if got := snap.Trick[i].Card; got != wantCard {
+			t.Errorf("Trick[%d].Card: got %v, want %v", i, got, wantCard)
+		}
+	}
+}
+
+// TestObserverViewTrickCompleteUsesHistory verifies the observer view also uses
+// the last TrickHistory entry when the server flags a completed trick.
+func TestObserverViewTrickCompleteUsesHistory(t *testing.T) {
+	g := newGameInPlayPhase(t)
+
+	plays := make([]play, 0, hearts.NumPlayers)
+	twoOfClubs := cardcore.Card{Rank: cardcore.Two, Suit: cardcore.Clubs}
+	leader := g.Turn
+	plays = append(plays, play{seat: leader, card: twoOfClubs})
+	if err := g.PlayCard(leader, twoOfClubs); err != nil {
+		t.Fatalf("PlayCard 2♣: %v", err)
+	}
+	for range hearts.NumPlayers - 1 {
+		seat := g.Turn
+		moves, err := g.LegalMoves(seat)
+		if err != nil || len(moves) == 0 {
+			t.Fatal("no legal moves")
+		}
+		plays = append(plays, play{seat: seat, card: moves[0]})
+		if err := g.PlayCard(seat, moves[0]); err != nil {
+			t.Fatalf("PlayCard: %v", err)
+		}
+	}
+
+	vs := ViewState{Game: g, TrickComplete: true}
+	snap := ObserverView(vs, 0)
+
+	if got, want := len(snap.Trick), hearts.NumPlayers; got != want {
+		t.Fatalf("trick entry count: got %d, want %d", got, want)
+	}
+	for i, p := range plays {
+		if got, want := snap.Trick[i].Seat, int(p.seat); got != want {
+			t.Errorf("Trick[%d].Seat: got %d, want %d", i, got, want)
+		}
+		wantCard := heartsapi.CardFromEngine(p.card)
+		if got := snap.Trick[i].Card; got != wantCard {
+			t.Errorf("Trick[%d].Card: got %v, want %v", i, got, wantCard)
+		}
+	}
+}
+
 // TestObserverViewTrickHistory verifies that after completing a trick the
 // trick_history in an ObserverSnapshot contains the correct seats and cards
 // in leader order.
@@ -207,10 +296,6 @@ func TestObserverViewTrickHistory(t *testing.T) {
 	g := newGameInPlayPhase(t)
 	vs := ViewState{Game: g}
 
-	type play struct {
-		seat hearts.Seat
-		card cardcore.Card
-	}
 	plays := make([]play, 0, hearts.NumPlayers)
 
 	twoOfClubs := cardcore.Card{Rank: cardcore.Two, Suit: cardcore.Clubs}

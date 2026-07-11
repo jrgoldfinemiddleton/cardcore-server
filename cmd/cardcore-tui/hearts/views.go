@@ -52,7 +52,7 @@ func RenderPassingView(
 		status = fmt.Sprintf("Select %d more card(s) to pass", remaining)
 	}
 
-	return joinLines([]string{header, hand, status})
+	return joinLines([]string{header, "", hand, "", status})
 }
 
 // RenderPlayingView renders the playing phase view for a seated player.
@@ -74,7 +74,7 @@ func RenderPlayingView(
 		status = fmt.Sprintf("Waiting for seat %d…", snap.Turn)
 	}
 
-	return joinLines([]string{trick, hand, status})
+	return joinLines([]string{trick, "", hand, "", status})
 }
 
 // RenderTrickCompleteView renders the view shown when a trick is complete.
@@ -93,7 +93,7 @@ func RenderTrickCompleteView(snap heartsclient.PlayerSnapshot, seat int) string 
 		status = "Trick complete"
 	}
 
-	return joinLines([]string{trick, status})
+	return joinLines([]string{trick, "", status})
 }
 
 // RenderRoundCompleteView renders the round scores overlay.

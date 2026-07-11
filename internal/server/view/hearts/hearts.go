@@ -34,7 +34,7 @@ func PlayerView(vs ViewState, seat hearts.Seat, seq int) *heartsapi.PlayerSnapsh
 		HeartsBroken:  g.HeartsBroken,
 		Scores:        g.Scores[:],
 		RoundPoints:   g.RoundPts[:],
-		Trick:         buildTrick(g.Trick),
+		Trick:         buildTrick(snapshotTrick(vs, g)),
 		LegalActions:  buildLegalActions(g, seat),
 	}
 
@@ -73,7 +73,7 @@ func ObserverView(vs ViewState, seq int) *heartsapi.ObserverSnapshot {
 		HeartsBroken:  g.HeartsBroken,
 		Scores:        g.Scores[:],
 		RoundPoints:   g.RoundPts[:],
-		Trick:         buildTrick(g.Trick),
+		Trick:         buildTrick(snapshotTrick(vs, g)),
 		TrickHistory:  buildTrickHistory(g.TrickHistory),
 		LegalActions:  buildLegalActions(g, g.Turn),
 	}
@@ -99,6 +99,23 @@ func ObserverView(vs ViewState, seq int) *heartsapi.ObserverSnapshot {
 	}
 
 	return snap
+}
+
+// snapshotTrick returns the trick to render in a snapshot.
+//
+// This is a workaround: the engine resolves the trick inside the same PlayCard
+// call that plays the fourth card, so by the time the session goroutine
+// broadcasts the trick_complete snapshot, g.Trick has already been cleared and
+// reset for the next trick. The completed trick is preserved as the last entry
+// in g.TrickHistory, so we render that instead.
+//
+// The proper long-term fix is to separate playing the fourth card from
+// resolving the trick in the engine.
+func snapshotTrick(vs ViewState, g *hearts.Game) hearts.Trick {
+	if vs.TrickComplete && len(g.TrickHistory) > 0 {
+		return g.TrickHistory[len(g.TrickHistory)-1]
+	}
+	return g.Trick
 }
 
 // buildPhase maps ViewState flags and engine phase to the wire-format phase string.

@@ -62,10 +62,14 @@ func (m *model) renderLayout() string {
 	// Join vertically with lipgloss.
 	// The header is bold, the main area is the game state, and the footer
 	// is the status bar.
+	blank := layoutStyle.Render("")
+
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		header,
+		blank,
 		main,
+		blank,
 		footer,
 	)
 }

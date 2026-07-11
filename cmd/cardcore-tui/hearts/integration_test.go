@@ -177,6 +177,61 @@ outer:
 	}
 }
 
+// TestIntegrationTUIClientAutoCreateSession verifies that the Hearts session
+// helper creates and starts a session, and that the returned token connects to
+// the first snapshot.
+func TestIntegrationTUIClientAutoCreateSession(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	srv := setupTestServer(t)
+	baseURL := "http://" + srv.Addr()
+
+	delay := 10
+	sc := &client.SessionClient{BaseURL: baseURL}
+	id, token, seat, err := CreateSession(
+		ctx, sc, "random", false, &delay, &delay,
+	)
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	if id == "" {
+		t.Fatal("CreateSession returned empty session ID")
+	}
+	if token == "" {
+		t.Fatal("CreateSession returned empty token")
+	}
+	if seat != 0 {
+		t.Errorf("seat got %d, want 0", seat)
+	}
+
+	wsURL := "ws://" + srv.Addr() + "/sessions/" + id + "/ws"
+	conn := &client.Conn{}
+	if err := conn.Connect(ctx, wsURL, token); err != nil {
+		t.Fatalf("connect websocket: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	data, err := conn.ReadSnapshot(ctx)
+	if err != nil {
+		t.Fatalf("read snapshot: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatal("first snapshot was empty")
+	}
+
+	c := NewClient(0, false)
+	c.HandleSnapshot(data)
+	if c.phase == "" {
+		t.Error("snapshot did not produce a phase")
+	}
+}
+
 // TestTUITimeoutAutoPlayIntegration verifies the server auto-plays a human
 // turn when the client does not act within the configured turn timeout.
 func TestTUITimeoutAutoPlayIntegration(t *testing.T) {

@@ -202,3 +202,59 @@ func TestRenderGameOverView(t *testing.T) {
 		t.Errorf("RenderGameOverView = %q, want exit prompt", got)
 	}
 }
+
+// TestRenderPassingViewBlankLines verifies blank lines between the header,
+// hand, and status sections.
+func TestRenderPassingViewBlankLines(t *testing.T) {
+	snap := heartsclient.PlayerSnapshot{
+		RoundNumber:   1,
+		PassDirection: "left",
+		Hand:          []heartsclient.Card{{Rank: "ace", Suit: "spades"}},
+	}
+	got := RenderPassingView(snap, 0, -1, nil, false)
+	lines := strings.Split(got, "\n")
+	if len(lines) < 5 {
+		t.Fatalf("RenderPassingView has %d lines, want at least 5", len(lines))
+	}
+	if lines[1] != "" || lines[3] != "" {
+		t.Errorf("RenderPassingView blank lines missing: %q", got)
+	}
+}
+
+// TestRenderPlayingViewBlankLines verifies blank lines between the trick,
+// hand, and status sections.
+func TestRenderPlayingViewBlankLines(t *testing.T) {
+	snap := heartsclient.PlayerSnapshot{
+		Phase:        "playing",
+		Turn:         0,
+		Hand:         []heartsclient.Card{{Rank: "ace", Suit: "spades"}},
+		Trick:        []heartsclient.TrickEntry{},
+		LegalActions: []heartsclient.Card{{Rank: "ace", Suit: "spades"}},
+	}
+	got := RenderPlayingView(snap, 0, 0, false)
+	lines := strings.Split(got, "\n")
+	if len(lines) < 5 {
+		t.Fatalf("RenderPlayingView has %d lines, want at least 5", len(lines))
+	}
+	if lines[1] != "" || lines[3] != "" {
+		t.Errorf("RenderPlayingView blank lines missing: %q", got)
+	}
+}
+
+// TestRenderTrickCompleteViewBlankLines verifies a blank line between the
+// trick and the status.
+func TestRenderTrickCompleteViewBlankLines(t *testing.T) {
+	snap := heartsclient.PlayerSnapshot{
+		Trick: []heartsclient.TrickEntry{
+			{Seat: 0, Card: heartsclient.Card{Rank: "two", Suit: "clubs"}},
+		},
+	}
+	got := RenderTrickCompleteView(snap, 0)
+	lines := strings.Split(got, "\n")
+	if len(lines) < 3 {
+		t.Fatalf("RenderTrickCompleteView has %d lines, want at least 3", len(lines))
+	}
+	if lines[1] != "" {
+		t.Errorf("RenderTrickCompleteView blank line missing: %q", got)
+	}
+}
