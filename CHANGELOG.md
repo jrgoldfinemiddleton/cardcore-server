@@ -10,6 +10,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- TUI auto-create session helper: `CreateSession` in `cmd/cardcore-tui/hearts/session.go` creates a 1-human + 3-AI Hearts session, starts it, and returns the seat-0 token so the binary can be launched without `-session`/`-token`. The new `-ai-type` flag (and `CARDCORE_TUI_AI_TYPE` env var) chooses `random`, `heuristic`, or `pimc` AI for the three bot seats
+- TUI hand layout spacing: `RenderHand` now renders a checkmark in the gap immediately after a selected card and a cursor bracket two positions after the card label, so both markers are visible when a card is both selected and under the cursor. Passing/playing views include blank lines between the trick/header and the hand/status
 - TUI turn timeout UI: countdown footer (`Your turn (Xs)`), client-side input lock at T-1s before the server auto-play deadline, dimmed hand, and status messages `"Timeout - AI playing"` / `"AI played for you (timeout)"`. The TUI fetches `turn_timeout_ms` via the new `GetSession` HTTP client method and uses the Hearts TUI client's `IsHumanTurn()` and `SetInputDisabled()` to drive the display
 - TUI `-debug` flag: writes debug logs to `tui.log` in the working directory, otherwise discards all `slog` output to keep the terminal clean
 - TUI deal phase overlay: `RenderDealView` shows a "Dealing..." message during the `deal` phase instead of falling through to the generic `Phase: deal` label. The `heartstui.Client.Render()` switch now handles `PhaseDeal`
@@ -56,6 +58,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- TUI `trick_complete` view showed an empty trick because the engine resolves the trick before the snapshot is generated. The server-side Hearts view now populates `snap.Trick` from the last `TrickHistory` entry when in the `trick_complete` phase, so completed tricks display correctly in the TUI
 - TUI 10-second disconnect bug: `run()` now uses a separate long-lived context for the WebSocket read loop instead of reusing the 10-second connection timeout context
 - TUI main-area width regression: restored the 80-column layout width
 - TUI patchy hand background: fixed uneven card background rendering in the Hearts hand view

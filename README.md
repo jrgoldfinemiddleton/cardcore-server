@@ -124,6 +124,7 @@ Key commands during a game:
 | `-token` | `CARDCORE_TUI_TOKEN` | — | Bearer token for the seat being joined |
 | `-seat` | `CARDCORE_TUI_SEAT` | `0` | Seat index to join |
 | `-observe` | `CARDCORE_TUI_OBSERVE` | `false` | Observer mode (receive-only) |
+| `-ai-type` | `CARDCORE_TUI_AI_TYPE` | `random` | AI type for auto-created sessions: `random`, `heuristic`, or `pimc` |
 | `-debug` | `CARDCORE_TUI_DEBUG` | `false` | Enable debug logging to `tui.log` |
 
 #### CLI Client

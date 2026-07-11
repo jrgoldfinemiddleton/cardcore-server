@@ -41,6 +41,17 @@ const handBgHex = "#1A1A2E"
 // selectedMarker is the checkmark appended to selected cards.
 const selectedMarker = "✓"
 
+// handGapWidth is the number of visible spaces between adjacent cards in the
+// hand. The first two positions hold markers for the card on the left
+// (selection checkmark at position 0, cursor closing bracket at position 1),
+// and the last position holds the cursor opening bracket for the card on the
+// right. Card labels stay at fixed positions regardless of cursor or selection.
+const handGapWidth = 4
+
+// firstCardMargin is the single space before the first card in the hand. When
+// the cursor is on the first card this space becomes the opening bracket.
+const firstCardMargin = 1
+
 // RankSymbol maps a rank string to its display symbol.
 //
 // Known ranks: "two".."ten", "jack", "queen", "king", "ace".
@@ -106,8 +117,9 @@ func CardLabel(c heartsclient.Card) string {
 
 // RenderCard returns a styled string for a single card with the given visual
 // state. Hearts and diamonds are colored red; clubs and spades are colored
-// light gray/white. CardCursor adds brackets and bold. CardSelected appends a
-// checkmark. CardDimmed renders the card in a muted gray.
+// light gray/white. CardCursor renders the label bold. CardSelected renders the
+// label normally (the selection marker is placed in the hand gap). CardDimmed
+// renders the card in a muted gray.
 func RenderCard(c heartsclient.Card, state CardState) string {
 	label := CardLabel(c)
 	color := suitColor(c.Suit)
@@ -124,12 +136,12 @@ func RenderCard(c heartsclient.Card, state CardState) string {
 			Foreground(color).
 			Background(bg).
 			Bold(true).
-			Render("[" + label + "]")
+			Render(label)
 	case CardSelected:
 		return lipgloss.NewStyle().
 			Foreground(color).
 			Background(bg).
-			Render(label + selectedMarker)
+			Render(label)
 	default:
 		return lipgloss.NewStyle().
 			Foreground(color).
@@ -139,7 +151,7 @@ func RenderCard(c heartsclient.Card, state CardState) string {
 }
 
 // RenderHand renders a hand of cards as a horizontal spread separated by
-// spaces, fitting within 80 columns.
+// handGapWidth spaces, fitting within 80 columns.
 //
 // The cursor index highlights the card under the cursor. If cursor is negative
 // or out of range, no cursor highlight is drawn. A card whose value is in
@@ -147,6 +159,10 @@ func RenderCard(c heartsclient.Card, state CardState) string {
 // in legal gets CardDimmed; if legal is nil/empty, nothing is dimmed. The
 // cursor highlight composes with and is visible over other states. Card
 // equality is by value (Rank AND Suit both match).
+//
+// Cursor brackets and the selection checkmark are placed in the separator gaps
+// so that the visible position of each card label does not shift when the
+// cursor moves or a card is selected.
 func RenderHand(
 	hand []heartsclient.Card,
 	cursor int,
@@ -158,32 +174,101 @@ func RenderHand(
 		return ""
 	}
 
+	gapStyle := lipgloss.NewStyle().Background(lipgloss.Color(handBgHex))
+	selectedSet := cardSet(selected)
+
 	// If input is disabled (timeout), render all cards as dimmed to reflect
 	// that no user interaction is allowed.
 	if inputDisabled {
-		if len(hand) == 0 {
-			return ""
-		}
-		parts := make([]string, len(hand))
-		sep := lipgloss.NewStyle().Background(lipgloss.Color(handBgHex)).Render(" ")
+		parts := make([]string, 0, 2*len(hand)+1)
+		parts = append(parts, gapStyle.Render(strings.Repeat(" ", firstCardMargin)))
 		for i := range hand {
-			parts[i] = RenderCard(hand[i], CardDimmed)
+			parts = append(parts, RenderCard(hand[i], CardDimmed))
+			if i < len(hand)-1 {
+				parts = append(parts, gapStyle.Render(strings.Repeat(" ", handGapWidth)))
+			}
 		}
-		return strings.Join(parts, sep)
+		return strings.Join(parts, "")
 	}
 
-	selectedSet := cardSet(selected)
 	legalSet := cardSet(legal)
 	hasLegal := len(legal) > 0
 
-	parts := make([]string, len(hand))
+	parts := make([]string, 0, 2*len(hand)+1)
 	for i, c := range hand {
+		parts = append(parts, renderHandPrefix(i, hand, cursor, selectedSet, gapStyle))
 		state := cardStateFor(i, c, cursor, selectedSet, legalSet, hasLegal)
-		parts[i] = RenderCard(c, state)
+		parts = append(parts, RenderCard(c, state))
+	}
+	parts = append(parts, renderHandSuffix(len(hand)-1, hand, cursor, selectedSet, gapStyle))
+	return strings.Join(parts, "")
+}
+
+// renderHandPrefix returns the separator before the card at index i. The first
+// card gets a single-character margin; subsequent cards get a handGapWidth
+// separator. The separator's first two characters hold the selection checkmark
+// and cursor closing bracket for the previous card, and its last character is
+// the opening bracket for the current card.
+func renderHandPrefix(
+	i int,
+	hand []heartsclient.Card,
+	cursor int,
+	selectedSet map[heartsclient.Card]bool,
+	gapStyle lipgloss.Style,
+) string {
+	if i == 0 {
+		marker := " "
+		if cursor == 0 {
+			marker = "["
+		}
+		return gapStyle.Render(marker)
 	}
 
-	sep := lipgloss.NewStyle().Background(lipgloss.Color(handBgHex)).Render(" ")
-	return strings.Join(parts, sep)
+	previous := hand[i-1]
+	width := handGapWidth
+	chars := make([]rune, width)
+	for j := range chars {
+		chars[j] = ' '
+	}
+
+	if selectedSet[previous] {
+		chars[0] = '✓'
+	}
+	if cursor == i-1 {
+		chars[1] = ']'
+	}
+	if cursor == i {
+		chars[width-1] = '['
+	}
+
+	return gapStyle.Render(string(chars))
+}
+
+// renderHandSuffix returns the trailing marker for the last card. The first two
+// positions hold the selection checkmark and cursor closing bracket for the
+// last card. If neither marker is needed, an empty string is returned so the
+// hand does not extend past the last card.
+func renderHandSuffix(
+	last int,
+	hand []heartsclient.Card,
+	cursor int,
+	selectedSet map[heartsclient.Card]bool,
+	gapStyle lipgloss.Style,
+) string {
+	lastCard := hand[last]
+	selected := selectedSet[lastCard]
+	underCursor := cursor == last
+
+	if selected && underCursor {
+		return gapStyle.Render("✓]")
+	}
+	if underCursor {
+		return gapStyle.Render(" ]")
+	}
+	if selected {
+		return gapStyle.Render(selectedMarker)
+	}
+	return ""
 }
 
 // cardStateFor determines the CardState for a card at index i in the hand.

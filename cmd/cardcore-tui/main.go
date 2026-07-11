@@ -36,6 +36,8 @@ type tuiConfig struct {
 	observer bool
 	// debug enables logging to a file (tui.log) for troubleshooting.
 	debug bool
+	// aiType selects the AI player type for auto-created sessions.
+	aiType string
 }
 
 // main is the entry point for the cardcore TUI client.
@@ -73,9 +75,17 @@ func main() {
 //
 // Validation rules:
 //
-//	-observer requires -session (you can't observe without a session).
-//	-seat must be >= 0 (the server validates the upper bound).
+//	-observe and -session are mutually exclusive.
+//	-session requires -token (a session without a token is meaningless).
 //	-token requires -session (a token without a session is meaningless).
+//	-seat must be >= 0 (the server validates the upper bound).
+//
+// The -ai-type value is passed through to the game-specific session helper,
+// which validates it against the supported types for the selected game. This
+// keeps the top-level TUI binary game-agnostic.
+//
+// When neither -session nor -observe is provided, the TUI auto-creates a
+// session: 1 human + 3 AI for player mode, or 4 AI for observer mode.
 func parseFlags(args []string) (*tuiConfig, error) {
 	cfg := &tuiConfig{}
 
@@ -101,6 +111,9 @@ func parseFlags(args []string) (*tuiConfig, error) {
 	fs.BoolVar(&cfg.debug, "debug",
 		boolEnvOrDefault("CARDCORE_TUI_DEBUG", false),
 		"enable debug logging (env: CARDCORE_TUI_DEBUG)")
+	fs.StringVar(&cfg.aiType, "ai-type",
+		envOrDefault("CARDCORE_TUI_AI_TYPE", "random"),
+		"AI player type (env: CARDCORE_TUI_AI_TYPE)")
 
 	fs.Usage = func() {
 		_, _ = fmt.Fprintf(fs.Output(), "Usage: %s [flags]\n\n", fs.Name())
@@ -116,8 +129,11 @@ func parseFlags(args []string) (*tuiConfig, error) {
 		return nil, err
 	}
 
-	if cfg.observer && cfg.session == "" {
-		return nil, fmt.Errorf("-session is required with -observe")
+	if cfg.observer && cfg.session != "" {
+		return nil, fmt.Errorf("-observe and -session are mutually exclusive")
+	}
+	if cfg.session != "" && cfg.token == "" {
+		return nil, fmt.Errorf("-token is required when -session is set")
 	}
 	if cfg.token != "" && cfg.session == "" {
 		return nil, fmt.Errorf("-session is required when -token is set")
@@ -152,62 +168,91 @@ func configureLogging(debug bool) {
 
 // run executes the TUI lifecycle.
 //
-// Step 1: Create WebSocket connection.
+// Step 1: Create HTTP session client and connect context.
 //
-//	Conn wraps the WebSocket and handles message framing, maxSeenSeq
-//	filtering (per ADR-011), and command sending.
+//	SessionClient is used for both auto-creating a session when none
+//	was provided and for fetching the turn timeout config. The connect
+//	context has a 10-second timeout so a hanging dial fails fast.
 //
-// Step 2: Connect.
+// Step 2: Auto-create session if needed.
+//
+//	When cfg.session is empty, create a Hearts session via the helper.
+//	Player mode gets 1 human + 3 AI; observer mode gets 4 AI.
+//
+// Step 3: Create WebSocket connection.
+//
+//	Conn is created but not connected yet. The Connect method establishes
+//	the WebSocket handshake and returns the initial snapshot.
+//
+// Step 4: Connect.
 //
 //	The connection is established before the TUI program starts. This
 //	allows us to fail fast on connection errors with a clean terminal
 //	message instead of a complex TUI error state.
 //
-// Step 3: Create model with pointer receiver.
+// Step 5: Create model with pointer receiver.
 //
 //	The model must be a pointer (*model) so that m.program = p works.
 //	See the detailed comment below for why this matters.
 //
-// Step 4: Create program.
+// Step 6: Create program.
 //
 //	tea.NewProgram takes tea.Model (an interface). When passed a *model,
 //	it stores the pointer internally. Any later modification to the
 //	underlying struct (like setting m.program) is visible to the program.
 //
-// Step 5: Set model.program.
+// Step 7: Set model.program.
 //
 //	Now that the program exists, we set the model's program reference.
 //	The WebSocket reader goroutine will use this to call program.Send().
 //
-// Step 6: Start WebSocket reader.
+// Step 8: Start WebSocket reader.
 //
 //	The goroutine reads snapshots from the WebSocket and injects them
 //	into the model via program.Send().
 //
-// Step 7: Run.
+// Step 9: Run.
 //
 //	p.Run() blocks until the user exits (ctrl+c, game over, etc.).
 //	Cleanup is handled by defer on the connection.
 func run(cfg *tuiConfig) error {
 	configureLogging(cfg.debug)
 
-	// Step 1: Create WebSocket connection.
-	//
-	// Conn is created but not connected yet. The Connect method establishes
-	// the WebSocket handshake and returns the initial snapshot.
-	conn := &client.Conn{}
-
-	// Step 2: Connect.
-	//
-	// Construct the WebSocket URL from the base URL, session ID, and path.
-	// The wsURL helper converts http:// to ws:// and appends the session path.
-	//
 	// The connect context has a 10-second timeout so a hanging dial fails
 	// fast. The read loop uses a separate long-lived context (readCtx) so
 	// the WebSocket reader does not cancel after 10 seconds.
 	connectCtx, connectCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer connectCancel()
 
+	// SessionClient is used for both auto-creating a session when none
+	// was provided and for fetching the turn timeout config.
+	sc := &client.SessionClient{BaseURL: cfg.server}
+
+	// Auto-create a Hearts session when no session ID was provided.
+	// Player mode gets 1 human + 3 AI; observer mode gets 4 AI. The helper
+	// uses server delay defaults (nil overrides).
+	if cfg.session == "" {
+		sessionID, token, seat, err := heartstui.CreateSession(
+			connectCtx, sc, cfg.aiType, cfg.observer, nil, nil,
+		)
+		if err != nil {
+			return fmt.Errorf("auto-create session: %w", err)
+		}
+		cfg.session = sessionID
+		cfg.token = token
+		cfg.seat = seat
+	}
+
+	// Step 3: Create WebSocket connection.
+	//
+	// Conn is created but not connected yet. The Connect method establishes
+	// the WebSocket handshake and returns the initial snapshot.
+	conn := &client.Conn{}
+
+	// Step 4: Connect.
+	//
+	// Construct the WebSocket URL from the base URL, session ID, and path.
+	// The wsURL helper converts http:// to ws:// and appends the session path.
 	var wsPath string
 	if cfg.observer {
 		wsPath = "/ws/observe"
@@ -218,9 +263,9 @@ func run(cfg *tuiConfig) error {
 
 	// Try to fetch session config (TurnTimeoutMS) before building the model.
 	// This uses the same connectCtx so that we fail fast if the server is unreachable.
+	// Observers don't need the turn timeout since they don't act.
 	turnTimeoutMS := 0
 	if !cfg.observer && cfg.session != "" {
-		sc := &client.SessionClient{BaseURL: cfg.server}
 		if info, err := sc.GetSession(connectCtx, cfg.session); err == nil {
 			turnTimeoutMS = info.TurnTimeoutMS
 		} else {
@@ -239,7 +284,7 @@ func run(cfg *tuiConfig) error {
 	readCtx, readCancel := context.WithCancel(context.Background())
 	defer readCancel()
 
-	// Step 3: Create model with pointer receiver.
+	// Step 5: Create model with pointer receiver.
 	//
 	// CRITICAL: The model must be a pointer (*model).
 	//
@@ -265,23 +310,23 @@ func run(cfg *tuiConfig) error {
 		turnTimeoutMS: turnTimeoutMS,
 	}
 
-	// Step 4: Create program.
+	// Step 6: Create program.
 	p := tea.NewProgram(m)
 
-	// Step 5: Set model.program.
+	// Step 7: Set model.program.
 	//
 	// Now that p exists, store the reference in the model. Because m is a
 	// pointer, this modification is visible to the program.
 	m.program = p
 
-	// Step 6: Start WebSocket reader goroutine.
+	// Step 8: Start WebSocket reader goroutine.
 	//
 	// The goroutine reads from the WebSocket and sends messages into the
 	// model via program.Send(). This is safe because Program.Send() is
 	// thread-safe — it can be called from any goroutine.
 	go startWSReader(readCtx, conn, p)
 
-	// Step 7: Run.
+	// Step 9: Run.
 	//
 	// p.Run() blocks until the user exits. The model's Update() handles
 	// all messages (snapshots, errors, keypresses, timers).
