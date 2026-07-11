@@ -51,6 +51,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- Client engine cleanup: removed the unused `heartsclient.Adapter` struct and moved the duplicated `wsURL()` helper from both frontends into a new shared `client.WebSocketURL()` function in `internal/client/url.go`. Phase constants remain in a new `internal/client/hearts/phases.go`
 - TUI turn deadline sync: replaced the connect-time `turn_timeout_ms` fetch with a per-snapshot `turn_deadline_ms` field. The server now computes the authoritative Unix-millisecond deadline when a human turn starts and includes it in every Hearts snapshot; the TUI countdown reads `turn_deadline_ms` directly, making the display accurate even when connecting mid-turn
 - Unified flag/env-var configuration across all binaries: every binary-level flag now has a corresponding `CARDCORE_SERVER_*`, `CARDCORE_CLI_*`, or `CARDCORE_TUI_*` environment variable, and vice versa. Explicit flags take precedence over environment variables, which take precedence over hardcoded defaults. Added custom `flag.Usage` output to `cmd/cardcore-server`, `cmd/cardcore-cli`, and `cmd/cardcore-tui` documenting both the flag and its env var
 - `make build` now actually compiles binaries to `bin/` (`go build -o bin/ ./cmd/...`) instead of merely verifying compilation in-place with `go build ./...`. `make clean` removes `bin/` as before
