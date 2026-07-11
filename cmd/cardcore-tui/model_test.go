@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -274,12 +275,14 @@ func TestModelFlashTimeoutClearsEscConfirm(t *testing.T) {
 }
 
 // TestModelCountdownStartsOnHumanTurn verifies a snapshot that yields a human
-// turn starts the countdown timer and sets a deadline.
+// turn with a server deadline starts the countdown timer and sets the deadline.
 func TestModelCountdownStartsOnHumanTurn(t *testing.T) {
 	f := &fakeGame{humanTurn: true}
-	m := &model{game: f, turnTimeoutMS: 30000}
+	m := &model{game: f}
+	deadline := time.Now().Add(30 * time.Second).UnixMilli()
+	raw := fmt.Sprintf(`{"phase":"playing","turn_deadline_ms":%d}`, deadline)
 
-	newM, cmd := m.Update(wsSnapshotMsg{raw: []byte(`{"phase":"playing"}`)})
+	newM, cmd := m.Update(wsSnapshotMsg{raw: []byte(raw)})
 	mm, ok := newM.(*model)
 	if !ok {
 		t.Fatalf("Update returned %T, want *model", newM)
@@ -290,6 +293,9 @@ func TestModelCountdownStartsOnHumanTurn(t *testing.T) {
 	if mm.turnDeadline.IsZero() {
 		t.Errorf("turnDeadline zero, want set")
 	}
+	if mm.turnDeadline.UnixMilli() != deadline {
+		t.Errorf("turnDeadline = %d, want %d", mm.turnDeadline.UnixMilli(), deadline)
+	}
 	if mm.timeoutDisabled {
 		t.Errorf("timeoutDisabled = true, want false")
 	}
@@ -298,11 +304,11 @@ func TestModelCountdownStartsOnHumanTurn(t *testing.T) {
 	}
 }
 
-// TestModelCountdownDisabledWhenTimeoutZero verifies the countdown feature is
-// off when turnTimeoutMS is zero.
-func TestModelCountdownDisabledWhenTimeoutZero(t *testing.T) {
+// TestModelCountdownDisabledWhenNoDeadline verifies the countdown feature is
+// off when the snapshot carries no turn deadline.
+func TestModelCountdownDisabledWhenNoDeadline(t *testing.T) {
 	f := &fakeGame{humanTurn: true}
-	m := &model{game: f, turnTimeoutMS: 0}
+	m := &model{game: f}
 
 	newM, cmd := m.Update(wsSnapshotMsg{raw: []byte(`{"phase":"playing"}`)})
 	mm, ok := newM.(*model)
@@ -321,7 +327,7 @@ func TestModelCountdownDisabledWhenTimeoutZero(t *testing.T) {
 // human's turn clears the deadline.
 func TestModelCountdownStopsOnNonHumanTurn(t *testing.T) {
 	f := &fakeGame{humanTurn: false}
-	m := &model{game: f, turnTimeoutMS: 30000, turnDeadline: time.Now().Add(time.Minute)}
+	m := &model{game: f, turnDeadline: time.Now().Add(time.Minute)}
 
 	newM, cmd := m.Update(wsSnapshotMsg{raw: []byte(`{"phase":"playing"}`)})
 	mm, ok := newM.(*model)
@@ -340,7 +346,7 @@ func TestModelCountdownStopsOnNonHumanTurn(t *testing.T) {
 // is within one second disables input and re-arms the timer.
 func TestModelTurnTickDisablesInputAtOneSecond(t *testing.T) {
 	f := &fakeGame{humanTurn: true}
-	m := &model{game: f, turnTimeoutMS: 30000, turnDeadline: time.Now().Add(500 * time.Millisecond)}
+	m := &model{game: f, turnDeadline: time.Now().Add(500 * time.Millisecond)}
 
 	cmd := m.handleTurnTick()
 	if !m.timeoutDisabled {
@@ -358,7 +364,7 @@ func TestModelTurnTickDisablesInputAtOneSecond(t *testing.T) {
 // stops the countdown and disables input.
 func TestModelTurnTickStopsWhenExpired(t *testing.T) {
 	f := &fakeGame{humanTurn: true}
-	m := &model{game: f, turnTimeoutMS: 30000, turnDeadline: time.Now().Add(-time.Millisecond)}
+	m := &model{game: f, turnDeadline: time.Now().Add(-time.Millisecond)}
 
 	cmd := m.handleTurnTick()
 	if !m.timeoutDisabled {
@@ -391,7 +397,7 @@ func TestModelKeyPressIgnoredWhenTimeoutDisabled(t *testing.T) {
 // deadline and marks a human action as pending.
 func TestModelKeyPressSetsPendingHumanAction(t *testing.T) {
 	f := &fakeGame{keySend: true}
-	m := &model{game: f, turnTimeoutMS: 30000, turnDeadline: time.Now().Add(time.Minute)}
+	m := &model{game: f, turnDeadline: time.Now().Add(time.Minute)}
 
 	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if !m.pendingHumanAction {
@@ -409,7 +415,7 @@ func TestModelKeyPressSetsPendingHumanAction(t *testing.T) {
 // turn to non-human turn without a pending action sets the AI-played status.
 func TestModelTimeoutDetectedWhenNoHumanAction(t *testing.T) {
 	f := &fakeGame{humanTurn: false}
-	m := &model{game: f, turnTimeoutMS: 30000, phase: "playing", humanTurn: true}
+	m := &model{game: f, phase: "playing", humanTurn: true}
 
 	m.Update(wsSnapshotMsg{raw: []byte(`{"phase":"playing"}`)})
 	if m.statusMsg != "AI played for you (timeout)" {
@@ -422,7 +428,7 @@ func TestModelTimeoutDetectedWhenNoHumanAction(t *testing.T) {
 func TestModelTimeoutNotDetectedWhenPending(t *testing.T) {
 	f := &fakeGame{humanTurn: false}
 	m := &model{
-		game: f, turnTimeoutMS: 30000, phase: "playing", humanTurn: true,
+		game: f, phase: "playing", humanTurn: true,
 		pendingHumanAction: true,
 	}
 
@@ -440,7 +446,7 @@ func TestModelTimeoutNotDetectedWhenPending(t *testing.T) {
 func TestModelPhaseChangeClearsStatus(t *testing.T) {
 	f := &fakeGame{humanTurn: false}
 	m := &model{
-		game: f, turnTimeoutMS: 30000, phase: "playing", humanTurn: true, statusMsg: "previous",
+		game: f, phase: "playing", humanTurn: true, statusMsg: "previous",
 	}
 
 	m.Update(wsSnapshotMsg{raw: []byte(`{"phase":"trick_complete"}`)})
@@ -453,7 +459,7 @@ func TestModelPhaseChangeClearsStatus(t *testing.T) {
 // until the client-side cutoff, which is one second before the server-side
 // deadline.
 func TestModelCountdownStatus(t *testing.T) {
-	m := &model{turnTimeoutMS: 30000, turnDeadline: time.Now().Add(5500 * time.Millisecond)}
+	m := &model{turnDeadline: time.Now().Add(5500 * time.Millisecond)}
 	got := m.countdownStatus()
 	want := "Your turn (5s)"
 	if got != want {
@@ -464,7 +470,7 @@ func TestModelCountdownStatus(t *testing.T) {
 // TestModelCountdownStatusExpired verifies the countdown status is clamped to
 // zero when the deadline has passed.
 func TestModelCountdownStatusExpired(t *testing.T) {
-	m := &model{turnTimeoutMS: 30000, turnDeadline: time.Now().Add(-time.Millisecond)}
+	m := &model{turnDeadline: time.Now().Add(-time.Millisecond)}
 	got := m.countdownStatus()
 	want := "Your turn (0s)"
 	if got != want {

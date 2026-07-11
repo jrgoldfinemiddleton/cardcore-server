@@ -81,6 +81,7 @@ game-specific fields for Hearts:
 | `scores` | array of integers | Cumulative scores per seat across all completed rounds. During an active round, this reflects the total as of the last completed round. |
 | `round_points` | array of integers | Penalty points accumulated this round per seat. Resets to zero at the start of each round. |
 | `legal_actions` | array of card objects | Cards the player may legally play or pass. Empty if it is not the player's turn. |
+| `turn_deadline_ms` | integer | Server-side deadline for the current human turn, as Unix milliseconds since epoch. `0` when no deadline is active (e.g., AI turn, paused state, or timeout disabled). Clients should use this to render an accurate countdown instead of computing a deadline from the session's `turn_timeout_ms`. |
 
 Each trick entry (ordered by play sequence, not by seat index):
 
@@ -132,6 +133,7 @@ differences:
 | `hand` | Replaced by `hands`: array of arrays, indexed by seat. All cards visible. |
 | `trick_history` | Added: array of completed tricks this round. Each trick is an array of trick entries in play order. |
 | `legal_actions` | Shows legal actions for the seat indicated by `turn`. |
+| `turn_deadline_ms` | Same semantics as the player snapshot field: active human turn deadline, or `0` when none. |
 
 ---
 
@@ -181,7 +183,8 @@ Player view, seat 0, round 1, trick 3:
   "legal_actions": [
     { "rank": "seven", "suit": "diamonds" },
     { "rank": "queen", "suit": "diamonds" }
-  ]
+  ],
+  "turn_deadline_ms": 1728451200000
 }
 ```
 

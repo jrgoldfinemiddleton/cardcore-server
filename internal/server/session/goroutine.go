@@ -289,10 +289,12 @@ func (s *session) handlePlay(c playCmd) {
 		return
 	}
 
-	// Action accepted. Increment seq, broadcast the new state to all
-	// subscribers, and cache the snapshot for idempotent replay. Skip
-	// caching if the snapshot fails to marshal so the cache never
-	// contains nil entries that would break duplicate action_id replay.
+	// Action accepted. Clear the human turn deadline, increment seq,
+	// broadcast the new state to all subscribers, and cache the snapshot
+	// for idempotent replay. Skip caching if the snapshot fails to marshal
+	// so the cache never contains nil entries that would break duplicate
+	// action_id replay.
+	s.game.SetTurnDeadline(time.Time{})
 	s.seq++
 	s.broadcastSnapshot()
 	if s.finished {
@@ -381,6 +383,7 @@ func (s *session) resumePauses() driveResult {
 		s.logger.Error("Resume failed", "error", err)
 		return driveFatal
 	}
+	s.game.SetTurnDeadline(time.Time{})
 	s.seq++
 	s.logger.Debug("Resume succeeded", "outcome", res.Outcome)
 	s.broadcastSnapshot()
@@ -428,6 +431,7 @@ func (s *session) processTurns() driveResult {
 			if s.turnTimeout() > 0 {
 				s.waitingForHuman = true
 				s.turnDeadline = time.Now().Add(s.turnTimeout())
+				s.game.SetTurnDeadline(s.turnDeadline)
 				s.logger.Debug("turn timeout scheduled", "seat", seat, "deadline", s.turnDeadline)
 			}
 			return driveHuman
@@ -499,6 +503,7 @@ func (s *session) handleTurnTimeout() {
 	}
 
 	s.logger.Info("turn timeout, playing AI move", "seat", seat)
+	s.game.SetTurnDeadline(time.Time{})
 	res, err := s.game.AIPlay(seat)
 	if err != nil {
 		s.logger.Error("AIPlay on timeout failed", "seat", seat, "error", err)

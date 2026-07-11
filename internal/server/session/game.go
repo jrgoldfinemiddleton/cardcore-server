@@ -1,6 +1,10 @@
 package session
 
-import "github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
+import (
+	"time"
+
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
+)
 
 // StepOutcome describes what the session goroutine should do after a
 // game mutation.
@@ -96,6 +100,16 @@ type Game interface {
 	// a snapshot in a pausable or initial state to give clients time
 	// to render it.
 	DisplayDelay() int
+
+	// SetTurnDeadline stores the authoritative turn deadline for the
+	// current human turn. The session goroutine calls this whenever a
+	// human turn deadline is set or cleared. A zero value means no
+	// deadline is active.
+	SetTurnDeadline(deadline time.Time)
+
+	// TurnDeadline returns the last deadline passed to SetTurnDeadline,
+	// or a zero time.Time if no deadline is active.
+	TurnDeadline() time.Time
 }
 
 // Error implements the error interface.

@@ -87,6 +87,12 @@ func (seqSnapshotGame) ObserverSnapshot(seq int) any {
 // DisplayDelay implements Game.DisplayDelay for seqSnapshotGame.
 func (seqSnapshotGame) DisplayDelay() int { return 0 }
 
+// SetTurnDeadline implements Game.SetTurnDeadline for seqSnapshotGame.
+func (seqSnapshotGame) SetTurnDeadline(time.Time) {}
+
+// TurnDeadline implements Game.TurnDeadline for seqSnapshotGame.
+func (seqSnapshotGame) TurnDeadline() time.Time { return time.Time{} }
+
 // HandleAction implements Game.HandleAction for aiPlayPauseGame.
 func (a *aiPlayPauseGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	a.turnSeat = 1
@@ -125,6 +131,12 @@ func (a *aiPlayPauseGame) ObserverSnapshot(int) any {
 // DisplayDelay implements Game.DisplayDelay for aiPlayPauseGame.
 func (a *aiPlayPauseGame) DisplayDelay() int { return 0 }
 
+// SetTurnDeadline implements Game.SetTurnDeadline for aiPlayPauseGame.
+func (a *aiPlayPauseGame) SetTurnDeadline(time.Time) {}
+
+// TurnDeadline implements Game.TurnDeadline for aiPlayPauseGame.
+func (a *aiPlayPauseGame) TurnDeadline() time.Time { return time.Time{} }
+
 // HandleAction implements Game.HandleAction for delayGame.
 func (d *delayGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{}, nil
@@ -151,6 +163,12 @@ func (d *delayGame) ObserverSnapshot(int) any { return nil }
 
 // DisplayDelay implements Game.DisplayDelay for delayGame.
 func (d *delayGame) DisplayDelay() int { return d.delay }
+
+// SetTurnDeadline implements Game.SetTurnDeadline for delayGame.
+func (d *delayGame) SetTurnDeadline(time.Time) {}
+
+// TurnDeadline implements Game.TurnDeadline for delayGame.
+func (d *delayGame) TurnDeadline() time.Time { return time.Time{} }
 
 // HandleAction implements Game.HandleAction for mockGame.
 func (m *mockGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -185,6 +203,12 @@ func (m *mockGame) ObserverSnapshot(int) any {
 // DisplayDelay implements Game.DisplayDelay for mockGame.
 func (m *mockGame) DisplayDelay() int { return 0 }
 
+// SetTurnDeadline implements Game.SetTurnDeadline for mockGame.
+func (m *mockGame) SetTurnDeadline(time.Time) {}
+
+// TurnDeadline implements Game.TurnDeadline for mockGame.
+func (m *mockGame) TurnDeadline() time.Time { return time.Time{} }
+
 // HandleAction implements Game.HandleAction for stepFinishedGame.
 func (s *stepFinishedGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{Outcome: StepFinished}, nil
@@ -218,6 +242,12 @@ func (s *stepFinishedGame) ObserverSnapshot(int) any {
 // DisplayDelay implements Game.DisplayDelay for stepFinishedGame.
 func (s *stepFinishedGame) DisplayDelay() int { return 0 }
 
+// SetTurnDeadline implements Game.SetTurnDeadline for stepFinishedGame.
+func (s *stepFinishedGame) SetTurnDeadline(time.Time) {}
+
+// TurnDeadline implements Game.TurnDeadline for stepFinishedGame.
+func (s *stepFinishedGame) TurnDeadline() time.Time { return time.Time{} }
+
 // HandleAction implements Game.HandleAction for unmarshalableGame.
 func (u *unmarshalableGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{}, nil
@@ -250,6 +280,12 @@ func (u *unmarshalableGame) ObserverSnapshot(int) any {
 
 // DisplayDelay implements Game.DisplayDelay for unmarshalableGame.
 func (u *unmarshalableGame) DisplayDelay() int { return 0 }
+
+// SetTurnDeadline implements Game.SetTurnDeadline for unmarshalableGame.
+func (u *unmarshalableGame) SetTurnDeadline(time.Time) {}
+
+// TurnDeadline implements Game.TurnDeadline for unmarshalableGame.
+func (u *unmarshalableGame) TurnDeadline() time.Time { return time.Time{} }
 
 // HandleAction implements Game.HandleAction for playerSnapshotUnmarshalableGame.
 func (p *playerSnapshotUnmarshalableGame) HandleAction(
@@ -286,6 +322,12 @@ func (p *playerSnapshotUnmarshalableGame) ObserverSnapshot(int) any {
 // DisplayDelay implements Game.DisplayDelay for playerSnapshotUnmarshalableGame.
 func (p *playerSnapshotUnmarshalableGame) DisplayDelay() int { return 0 }
 
+// SetTurnDeadline implements Game.SetTurnDeadline for playerSnapshotUnmarshalableGame.
+func (p *playerSnapshotUnmarshalableGame) SetTurnDeadline(time.Time) {}
+
+// TurnDeadline implements Game.TurnDeadline for playerSnapshotUnmarshalableGame.
+func (p *playerSnapshotUnmarshalableGame) TurnDeadline() time.Time { return time.Time{} }
+
 // HandleAction implements Game.HandleAction for timeoutGame.
 func (g *timeoutGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{Outcome: StepContinue}, nil
@@ -319,6 +361,12 @@ func (g *timeoutGame) ObserverSnapshot(int) any {
 
 // DisplayDelay implements Game.DisplayDelay for timeoutGame.
 func (g *timeoutGame) DisplayDelay() int { return 0 }
+
+// SetTurnDeadline implements Game.SetTurnDeadline for timeoutGame.
+func (g *timeoutGame) SetTurnDeadline(time.Time) {}
+
+// TurnDeadline implements Game.TurnDeadline for timeoutGame.
+func (g *timeoutGame) TurnDeadline() time.Time { return time.Time{} }
 
 // HandleAction implements Game.HandleAction for aiPlayFinishedGame.
 func (a *aiPlayFinishedGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -354,6 +402,12 @@ func (a *aiPlayFinishedGame) ObserverSnapshot(int) any {
 // DisplayDelay implements Game.DisplayDelay for aiPlayFinishedGame.
 func (a *aiPlayFinishedGame) DisplayDelay() int { return 0 }
 
+// SetTurnDeadline implements Game.SetTurnDeadline for aiPlayFinishedGame.
+func (a *aiPlayFinishedGame) SetTurnDeadline(time.Time) {}
+
+// TurnDeadline implements Game.TurnDeadline for aiPlayFinishedGame.
+func (a *aiPlayFinishedGame) TurnDeadline() time.Time { return time.Time{} }
+
 // HandleAction implements Game.HandleAction for invalidTurnGame.
 func (i *invalidTurnGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{Outcome: StepContinue}, nil
@@ -386,6 +440,12 @@ func (i *invalidTurnGame) ObserverSnapshot(int) any {
 
 // DisplayDelay implements Game.DisplayDelay for invalidTurnGame.
 func (i *invalidTurnGame) DisplayDelay() int { return 0 }
+
+// SetTurnDeadline implements Game.SetTurnDeadline for invalidTurnGame.
+func (i *invalidTurnGame) SetTurnDeadline(time.Time) {}
+
+// TurnDeadline implements Game.TurnDeadline for invalidTurnGame.
+func (i *invalidTurnGame) TurnDeadline() time.Time { return time.Time{} }
 
 // mockGameFactory returns a game factory for tests that don't need a
 // real game engine.

@@ -23,8 +23,8 @@ const clientCutoffBeforeServer = time.Second
 // state and disables input when appropriate. It returns a new tea.Cmd to keep
 // ticking while a countdown is active.
 func (m *model) handleTurnTick() tea.Cmd {
-	// If no active countdown or feature disabled, do nothing.
-	if m.turnDeadline.IsZero() || m.turnTimeoutMS <= 0 {
+	// If no active countdown, do nothing.
+	if m.turnDeadline.IsZero() {
 		return nil
 	}
 
@@ -51,8 +51,8 @@ func (m *model) handleTurnTick() tea.Cmd {
 
 // countdownStatus renders a human-friendly countdown string for the footer.
 func (m *model) countdownStatus() string {
-	// Disabled feature or no deadline yields no status.
-	if m.turnDeadline.IsZero() || m.turnTimeoutMS <= 0 {
+	// No deadline yields no status.
+	if m.turnDeadline.IsZero() {
 		return ""
 	}
 	// Show the remaining time until the client-side cutoff (one second before

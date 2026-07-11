@@ -3,6 +3,7 @@ package heartsview
 import (
 	"math/rand/v2"
 	"testing"
+	"time"
 
 	"github.com/jrgoldfinemiddleton/cardcore"
 	"github.com/jrgoldfinemiddleton/cardcore/games/hearts"
@@ -245,6 +246,36 @@ func TestPlayerViewTrickCompleteUsesHistory(t *testing.T) {
 		if got := snap.Trick[i].Card; got != wantCard {
 			t.Errorf("Trick[%d].Card: got %v, want %v", i, got, wantCard)
 		}
+	}
+}
+
+// TestViewTurnDeadlineMS verifies that a non-zero ViewState.TurnDeadline is
+// converted to Unix milliseconds in both player and observer snapshots, and a
+// zero deadline produces a zero field.
+func TestViewTurnDeadlineMS(t *testing.T) {
+	g := newGameInPlayPhase(t)
+
+	// No deadline: field is zero.
+	vs := ViewState{Game: g}
+	ps := PlayerView(vs, g.Turn, 0)
+	if got := ps.TurnDeadlineMS; got != 0 {
+		t.Errorf("PlayerSnapshot TurnDeadlineMS with no deadline: got %d, want 0", got)
+	}
+	os := ObserverView(vs, 0)
+	if got := os.TurnDeadlineMS; got != 0 {
+		t.Errorf("ObserverSnapshot TurnDeadlineMS with no deadline: got %d, want 0", got)
+	}
+
+	// With deadline: field is the Unix millis value.
+	deadline := time.Now().Add(30 * time.Second).Truncate(time.Millisecond)
+	vs = ViewState{Game: g, TurnDeadline: deadline}
+	ps = PlayerView(vs, g.Turn, 0)
+	if got := ps.TurnDeadlineMS; got != deadline.UnixMilli() {
+		t.Errorf("PlayerSnapshot TurnDeadlineMS: got %d, want %d", got, deadline.UnixMilli())
+	}
+	os = ObserverView(vs, 0)
+	if got := os.TurnDeadlineMS; got != deadline.UnixMilli() {
+		t.Errorf("ObserverSnapshot TurnDeadlineMS: got %d, want %d", got, deadline.UnixMilli())
 	}
 }
 

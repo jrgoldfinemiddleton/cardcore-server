@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/rand/v2"
 	"testing"
+	"time"
 
 	"github.com/jrgoldfinemiddleton/cardcore/games/hearts"
 
@@ -378,6 +379,53 @@ func TestTrickCompletePauseShowsCompletedTrick(t *testing.T) {
 	// Verify the adapter was actually paused: Resume should succeed.
 	if _, err := a.Resume(); err != nil {
 		t.Fatalf("Resume failed, adapter not paused: %v", err)
+	}
+}
+
+// TestAdapterTurnDeadlineRoundTrip verifies that SetTurnDeadline stores the
+// deadline and TurnDeadline returns it, with a zero value meaning none.
+func TestAdapterTurnDeadlineRoundTrip(t *testing.T) {
+	a := adapterInPlayPhase(t)
+
+	if !a.TurnDeadline().IsZero() {
+		t.Errorf("TurnDeadline set by default, want zero")
+	}
+
+	deadline := time.Now().Add(30 * time.Second).Truncate(time.Millisecond)
+	a.SetTurnDeadline(deadline)
+	if got := a.TurnDeadline(); !got.Equal(deadline) {
+		t.Errorf("TurnDeadline = %v, want %v", got, deadline)
+	}
+
+	a.SetTurnDeadline(time.Time{})
+	if !a.TurnDeadline().IsZero() {
+		t.Errorf("TurnDeadline not cleared, want zero")
+	}
+}
+
+// TestAdapterSnapshotCarriesTurnDeadline verifies that the deadline is forwarded
+// to the view layer and appears in both player and observer snapshots.
+func TestAdapterSnapshotCarriesTurnDeadline(t *testing.T) {
+	a := adapterInPlayPhase(t)
+	deadline := time.Now().Add(30 * time.Second).Truncate(time.Millisecond)
+	a.SetTurnDeadline(deadline)
+
+	ps := a.PlayerSnapshot(0, 1)
+	playerSnap, ok := ps.(*heartsapi.PlayerSnapshot)
+	if !ok {
+		t.Fatalf("got type %T, want *heartsapi.PlayerSnapshot", ps)
+	}
+	if got := playerSnap.TurnDeadlineMS; got != deadline.UnixMilli() {
+		t.Errorf("PlayerSnapshot TurnDeadlineMS = %d, want %d", got, deadline.UnixMilli())
+	}
+
+	os := a.ObserverSnapshot(1)
+	observerSnap, ok := os.(*heartsapi.ObserverSnapshot)
+	if !ok {
+		t.Fatalf("got type %T, want *heartsapi.ObserverSnapshot", os)
+	}
+	if got := observerSnap.TurnDeadlineMS; got != deadline.UnixMilli() {
+		t.Errorf("ObserverSnapshot TurnDeadlineMS = %d, want %d", got, deadline.UnixMilli())
 	}
 }
 

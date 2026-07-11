@@ -47,6 +47,9 @@ type PlayerSnapshot struct {
 	// LegalActions is the cards the player may legally play or pass. Empty when
 	// it is not the player's turn.
 	LegalActions []Card `json:"legal_actions"`
+	// TurnDeadlineMS is the server-side deadline for the current human turn as
+	// Unix milliseconds. It is zero when no deadline is active.
+	TurnDeadlineMS int64 `json:"turn_deadline_ms"`
 }
 
 // ObserverSnapshot is the game state snapshot sent to an observer connection.
@@ -82,6 +85,9 @@ type ObserverSnapshot struct {
 	RoundPoints []int `json:"round_points"`
 	// LegalActions shows legal actions for the seat indicated by Turn.
 	LegalActions []Card `json:"legal_actions"`
+	// TurnDeadlineMS is the server-side deadline for the current human turn as
+	// Unix milliseconds. It is zero when no deadline is active.
+	TurnDeadlineMS int64 `json:"turn_deadline_ms"`
 }
 
 // PlayCardPayload is the payload for a play_card inbound message.

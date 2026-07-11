@@ -1,6 +1,8 @@
 package heartsview
 
 import (
+	"time"
+
 	"github.com/jrgoldfinemiddleton/cardcore/games/hearts"
 
 	heartsapi "github.com/jrgoldfinemiddleton/cardcore-server/internal/api/games/hearts"
@@ -16,6 +18,9 @@ type ViewState struct {
 	TrickComplete bool
 	// RoundComplete signals a completed round before EndRound is called.
 	RoundComplete bool
+	// TurnDeadline is the authoritative deadline for the current human turn.
+	// It is zero when no deadline is active.
+	TurnDeadline time.Time
 }
 
 // PlayerView generates a seat-filtered snapshot for the given player.
@@ -36,6 +41,9 @@ func PlayerView(vs ViewState, seat hearts.Seat, seq int) *heartsapi.PlayerSnapsh
 		RoundPoints:   g.RoundPts[:],
 		Trick:         buildTrick(snapshotTrick(vs, g)),
 		LegalActions:  buildLegalActions(g, seat),
+	}
+	if !vs.TurnDeadline.IsZero() {
+		snap.TurnDeadlineMS = vs.TurnDeadline.UnixMilli()
 	}
 
 	snap.Hand = []heartsapi.Card{}
@@ -76,6 +84,9 @@ func ObserverView(vs ViewState, seq int) *heartsapi.ObserverSnapshot {
 		Trick:         buildTrick(snapshotTrick(vs, g)),
 		TrickHistory:  buildTrickHistory(g.TrickHistory),
 		LegalActions:  buildLegalActions(g, g.Turn),
+	}
+	if !vs.TurnDeadline.IsZero() {
+		snap.TurnDeadlineMS = vs.TurnDeadline.UnixMilli()
 	}
 
 	snap.Hands = make([][]heartsapi.Card, hearts.NumPlayers)

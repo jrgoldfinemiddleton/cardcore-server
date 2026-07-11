@@ -224,8 +224,9 @@ func run(cfg *tuiConfig) error {
 	connectCtx, connectCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer connectCancel()
 
-	// SessionClient is used for both auto-creating a session when none
-	// was provided and for fetching the turn timeout config.
+	// SessionClient is used for auto-creating a session when none was
+	// provided. The connect context has a 10-second timeout so a hanging
+	// dial fails fast.
 	sc := &client.SessionClient{BaseURL: cfg.server}
 
 	// Auto-create a Hearts session when no session ID was provided.
@@ -261,19 +262,6 @@ func run(cfg *tuiConfig) error {
 	}
 	url := wsURL(cfg.server, cfg.session, wsPath)
 
-	// Try to fetch session config (TurnTimeoutMS) before building the model.
-	// This uses the same connectCtx so that we fail fast if the server is unreachable.
-	// Observers don't need the turn timeout since they don't act.
-	turnTimeoutMS := 0
-	if !cfg.observer && cfg.session != "" {
-		if info, err := sc.GetSession(connectCtx, cfg.session); err == nil {
-			turnTimeoutMS = info.TurnTimeoutMS
-		} else {
-			slog.Warn("failed to fetch session timeout config; disabling countdown",
-				"session", cfg.session, "error", err)
-		}
-	}
-
 	if err := conn.Connect(connectCtx, url, cfg.token); err != nil {
 		return fmt.Errorf("websocket connect: %w", err)
 	}
@@ -304,10 +292,9 @@ func run(cfg *tuiConfig) error {
 		return err
 	}
 	m := &model{
-		conn:          conn,
-		game:          game,
-		phase:         "connecting",
-		turnTimeoutMS: turnTimeoutMS,
+		conn:  conn,
+		game:  game,
+		phase: "connecting",
 	}
 
 	// Step 6: Create program.
