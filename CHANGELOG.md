@@ -12,7 +12,6 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 - TUI auto-create session helper: `CreateSession` in `cmd/cardcore-tui/hearts/session.go` creates a 1-human + 3-AI Hearts session, starts it, and returns the seat-0 token so the binary can be launched without `-session`/`-token`. The new `-ai-type` flag (and `CARDCORE_TUI_AI_TYPE` env var) chooses `random`, `heuristic`, or `pimc` AI for the three bot seats
 - TUI hand layout spacing: `RenderHand` now renders a checkmark in the gap immediately after a selected card and a cursor bracket two positions after the card label, so both markers are visible when a card is both selected and under the cursor. Passing/playing views include blank lines between the trick/header and the hand/status
-- TUI turn timeout UI: countdown footer (`Your turn (Xs)`), client-side input lock at T-1s before the server auto-play deadline, dimmed hand, and status messages `"Timeout - AI playing"` / `"AI played for you (timeout)"`. The TUI fetches `turn_timeout_ms` via the new `GetSession` HTTP client method and uses the Hearts TUI client's `IsHumanTurn()` and `SetInputDisabled()` to drive the display
 - TUI `-debug` flag: writes debug logs to `tui.log` in the working directory, otherwise discards all `slog` output to keep the terminal clean
 - TUI deal phase overlay: `RenderDealView` shows a "Dealing..." message during the `deal` phase instead of falling through to the generic `Phase: deal` label. The `heartstui.Client.Render()` switch now handles `PhaseDeal`
 - TUI quit confirmation: pressing `Esc` initiates quit with a "Press Enter to quit" flash; pressing `Enter` confirms, pressing `Esc` again or any other key cancels. Four unit tests cover initiation, confirmation, cancellation, and flash timeout
@@ -52,6 +51,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- TUI turn deadline sync: replaced the connect-time `turn_timeout_ms` fetch with a per-snapshot `turn_deadline_ms` field. The server now computes the authoritative Unix-millisecond deadline when a human turn starts and includes it in every Hearts snapshot; the TUI countdown reads `turn_deadline_ms` directly, making the display accurate even when connecting mid-turn
 - Unified flag/env-var configuration across all binaries: every binary-level flag now has a corresponding `CARDCORE_SERVER_*`, `CARDCORE_CLI_*`, or `CARDCORE_TUI_*` environment variable, and vice versa. Explicit flags take precedence over environment variables, which take precedence over hardcoded defaults. Added custom `flag.Usage` output to `cmd/cardcore-server`, `cmd/cardcore-cli`, and `cmd/cardcore-tui` documenting both the flag and its env var
 - `make build` now actually compiles binaries to `bin/` (`go build -o bin/ ./cmd/...`) instead of merely verifying compilation in-place with `go build ./...`. `make clean` removes `bin/` as before
 - Bumped `cardcore` engine dependency to v0.5.0: the engine now requires an explicit `*rand.Rand` for `hearts.New()` and `Deck.Shuffle()`, making seeded games fully deterministic. The server's `NewAdapter` passes its existing RNG through to the engine

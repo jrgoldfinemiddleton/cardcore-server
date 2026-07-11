@@ -14,39 +14,41 @@ type TrickEntry struct {
 
 // PlayerSnapshot is the game state snapshot sent to a seated player.
 type PlayerSnapshot struct {
-	Type          string       `json:"type"`
-	Seq           int          `json:"seq"`
-	Phase         string       `json:"phase"`
-	RoundNumber   int          `json:"round_number"`
-	TrickNumber   int          `json:"trick_number"`
-	PassDirection string       `json:"pass_direction"`
-	Turn          int          `json:"turn"`
-	HeartsBroken  bool         `json:"hearts_broken"`
-	Hand          []Card       `json:"hand"`
-	HandCounts    []int        `json:"hand_counts"`
-	Trick         []TrickEntry `json:"trick"`
-	Scores        []int        `json:"scores"`
-	RoundPoints   []int        `json:"round_points"`
-	LegalActions  []Card       `json:"legal_actions"`
+	Type           string       `json:"type"`
+	Seq            int          `json:"seq"`
+	Phase          string       `json:"phase"`
+	RoundNumber    int          `json:"round_number"`
+	TrickNumber    int          `json:"trick_number"`
+	PassDirection  string       `json:"pass_direction"`
+	Turn           int          `json:"turn"`
+	HeartsBroken   bool         `json:"hearts_broken"`
+	Hand           []Card       `json:"hand"`
+	HandCounts     []int        `json:"hand_counts"`
+	Trick          []TrickEntry `json:"trick"`
+	Scores         []int        `json:"scores"`
+	RoundPoints    []int        `json:"round_points"`
+	LegalActions   []Card       `json:"legal_actions"`
+	TurnDeadlineMS int64        `json:"turn_deadline_ms"`
 }
 
 // ObserverSnapshot is the game state snapshot sent to an observer connection.
 type ObserverSnapshot struct {
-	Type          string         `json:"type"`
-	Seq           int            `json:"seq"`
-	Phase         string         `json:"phase"`
-	RoundNumber   int            `json:"round_number"`
-	TrickNumber   int            `json:"trick_number"`
-	PassDirection string         `json:"pass_direction"`
-	Turn          int            `json:"turn"`
-	HeartsBroken  bool           `json:"hearts_broken"`
-	Hands         [][]Card       `json:"hands"`
-	HandCounts    []int          `json:"hand_counts"`
-	Trick         []TrickEntry   `json:"trick"`
-	TrickHistory  [][]TrickEntry `json:"trick_history"`
-	Scores        []int          `json:"scores"`
-	RoundPoints   []int          `json:"round_points"`
-	LegalActions  []Card         `json:"legal_actions"`
+	Type           string         `json:"type"`
+	Seq            int            `json:"seq"`
+	Phase          string         `json:"phase"`
+	RoundNumber    int            `json:"round_number"`
+	TrickNumber    int            `json:"trick_number"`
+	PassDirection  string         `json:"pass_direction"`
+	Turn           int            `json:"turn"`
+	HeartsBroken   bool           `json:"hearts_broken"`
+	Hands          [][]Card       `json:"hands"`
+	HandCounts     []int          `json:"hand_counts"`
+	Trick          []TrickEntry   `json:"trick"`
+	TrickHistory   [][]TrickEntry `json:"trick_history"`
+	Scores         []int          `json:"scores"`
+	RoundPoints    []int          `json:"round_points"`
+	LegalActions   []Card         `json:"legal_actions"`
+	TurnDeadlineMS int64          `json:"turn_deadline_ms"`
 }
 
 // PlayCardPayload is the payload for a play_card inbound message.

@@ -52,11 +52,9 @@ type model struct {
 	conn *client.Conn
 	// game handles all game-specific decoding, input, and rendering.
 	game gameClient
-	// turn timeout support (server-provided configuration)
-	turnTimeoutMS int
 	// turnDeadline is the server-side auto-play deadline for the current human
-	// turn (derived from the session's turn_timeout_ms). The client-side cutoff
-	// is enforced one second earlier in handleTurnTick.
+	// turn, read from the snapshot's turn_deadline_ms field. The client-side
+	// cutoff is enforced one second earlier in handleTurnTick.
 	turnDeadline time.Time
 	// timeoutDisabled becomes true during the final second of a human turn,
 	// right before the server-side auto-play fires. Input is blocked while
@@ -168,9 +166,10 @@ func (m *model) View() tea.View {
 // and delegates the full snapshot to the gameClient for game-specific decoding.
 func (m *model) handleSnapshot(raw []byte) tea.Cmd {
 	var envelope struct {
-		Phase       string `json:"phase"`
-		RoundNumber int    `json:"round_number"`
-		Scores      []int  `json:"scores"`
+		Phase          string `json:"phase"`
+		RoundNumber    int    `json:"round_number"`
+		Scores         []int  `json:"scores"`
+		TurnDeadlineMS int64  `json:"turn_deadline_ms"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		m.errMsg = "Failed to decode snapshot"
@@ -203,8 +202,8 @@ func (m *model) handleSnapshot(raw []byte) tea.Cmd {
 	}
 
 	// Start/stop the per-turn countdown logic if appropriate.
-	if m.humanTurn && m.turnTimeoutMS > 0 {
-		m.turnDeadline = time.Now().Add(time.Duration(m.turnTimeoutMS) * time.Millisecond)
+	if m.humanTurn && envelope.TurnDeadlineMS > 0 {
+		m.turnDeadline = time.UnixMilli(envelope.TurnDeadlineMS)
 		m.timeoutDisabled = false
 		m.statusMsg = ""
 		m.game.SetInputDisabled(false)

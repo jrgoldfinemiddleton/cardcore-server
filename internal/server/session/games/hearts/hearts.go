@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"runtime"
+	"time"
 
 	"github.com/jrgoldfinemiddleton/cardcore"
 	"github.com/jrgoldfinemiddleton/cardcore/games/hearts"
@@ -34,6 +35,9 @@ type Adapter struct {
 	dealPending bool
 	// logger is the per-component structured logger.
 	logger *slog.Logger
+	// turnDeadline is the authoritative deadline for the current human
+	// turn, set by the session goroutine. It is not used by game logic.
+	turnDeadline time.Time
 }
 
 // pauseState captures the adapter state during a UX pause.
@@ -226,6 +230,17 @@ func (a *Adapter) Turn() int {
 	return int(a.game.Turn)
 }
 
+// SetTurnDeadline stores the authoritative deadline for the current
+// human turn. It is forwarded to the view layer via ViewState.
+func (a *Adapter) SetTurnDeadline(deadline time.Time) {
+	a.turnDeadline = deadline
+}
+
+// TurnDeadline returns the last deadline passed to SetTurnDeadline.
+func (a *Adapter) TurnDeadline() time.Time {
+	return a.turnDeadline
+}
+
 // DisplayDelay returns the number of milliseconds to wait before
 // advancing past the current game state.
 func (a *Adapter) DisplayDelay() int {
@@ -409,7 +424,10 @@ func (a *Adapter) advanceTurn() {
 // viewState builds the ViewState for snapshot generation, reflecting
 // the current pause state.
 func (a *Adapter) viewState() heartsview.ViewState {
-	vs := heartsview.ViewState{Game: a.game}
+	vs := heartsview.ViewState{
+		Game:         a.game,
+		TurnDeadline: a.turnDeadline,
+	}
 	if a.paused != nil {
 		vs.TrickComplete = a.paused.trickComplete
 		vs.RoundComplete = a.paused.roundComplete
