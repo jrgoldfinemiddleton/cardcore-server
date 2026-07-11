@@ -260,7 +260,7 @@ func run(cfg *tuiConfig) error {
 	} else {
 		wsPath = "/ws"
 	}
-	url := wsURL(cfg.server, cfg.session, wsPath)
+	url := client.WebSocketURL(cfg.server, cfg.session, wsPath)
 
 	if err := conn.Connect(connectCtx, url, cfg.token); err != nil {
 		return fmt.Errorf("websocket connect: %w", err)
@@ -334,17 +334,6 @@ func newGameClient(game string, seat int, observer bool) (gameClient, error) {
 	default:
 		return nil, fmt.Errorf("unsupported game: %q", game)
 	}
-}
-
-// wsURL converts an HTTP base URL to a WebSocket URL for a session.
-//
-// It replaces http:// with ws:// and https:// with wss://, then appends
-// the session path.
-func wsURL(baseURL, sessionID, path string) string {
-	u := strings.TrimSuffix(baseURL, "/")
-	u = strings.Replace(u, "http://", "ws://", 1)
-	u = strings.Replace(u, "https://", "wss://", 1)
-	return fmt.Sprintf("%s/sessions/%s%s", u, sessionID, path)
 }
 
 // boolEnvOrDefault returns true if the environment variable is set to

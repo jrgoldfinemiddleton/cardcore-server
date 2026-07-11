@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 	"syscall"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
@@ -176,13 +175,4 @@ func printFinalScores(snapshot []byte) error {
 		return fmt.Errorf("write stdout: %w", err)
 	}
 	return nil
-}
-
-// wsURL converts an HTTP base URL to a WebSocket URL for the given
-// session and path.
-func wsURL(baseURL, sessionID, path string) string {
-	u := strings.TrimSuffix(baseURL, "/")
-	u = strings.Replace(u, "http://", "ws://", 1)
-	u = strings.Replace(u, "https://", "wss://", 1)
-	return fmt.Sprintf("%s/sessions/%s%s", u, sessionID, path)
 }

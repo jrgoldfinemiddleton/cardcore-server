@@ -209,7 +209,7 @@ func run(cfg *cliConfig) error {
 	} else {
 		wsPath = "/ws"
 	}
-	url := wsURL(cfg.addr, sessionID, wsPath)
+	url := client.WebSocketURL(cfg.addr, sessionID, wsPath)
 
 	conn := &client.Conn{}
 	if err := conn.Connect(ctx, url, token); err != nil {
