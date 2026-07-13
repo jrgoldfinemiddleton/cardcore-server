@@ -85,11 +85,14 @@ func TestFormatSnapshot(t *testing.T) {
 		},
 		{
 			name: "trick_complete snapshot",
-			snapshot: `{"seq":89,"phase":"trick_complete","turn":1,"trick":` +
+			snapshot: `{"seq":89,"phase":"trick_complete","turn":3,"trick_winner":1,"trick":` +
 				`[{"seat":0,"card":{"rank":"two","suit":"clubs"}},` +
-				`{"seat":1,"card":{"rank":"ace","suit":"spades"}}],` +
+				`{"seat":1,"card":{"rank":"ace","suit":"clubs"}},` +
+				`{"seat":2,"card":{"rank":"king","suit":"clubs"}},` +
+				`{"seat":3,"card":{"rank":"queen","suit":"clubs"}}],` +
 				`"scores":[0,1,0,0]}`,
-			want: "seq=89 phase=trick_complete turn=1 trick=[2♣ A♠] scores=[0 1 0 0]",
+			want: "seq=89 phase=trick_complete turn=3 trick=[2♣ A♣ K♣ Q♣]" +
+				" trick_winner=1 scores=[0 1 0 0]",
 		},
 		{
 			name:     "malformed snapshot",

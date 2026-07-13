@@ -129,7 +129,8 @@ func TestRenderTrickCompleteViewWinner(t *testing.T) {
 			{Seat: 2, Card: heartsclient.Card{Rank: "king", Suit: "clubs"}},
 			{Seat: 3, Card: heartsclient.Card{Rank: "queen", Suit: "clubs"}},
 		},
-		Turn: 1,
+		Turn:        3,
+		TrickWinner: 1,
 	}
 	got := RenderTrickCompleteView(snap, 0)
 	if !strings.Contains(got, "Seat 1 won") {

@@ -77,3 +77,66 @@ func TestRenderObserverViewFewerHands(t *testing.T) {
 		t.Errorf("RenderObserverView with 1 hand = %q, want to contain %q", got, "Seat 0")
 	}
 }
+
+// TestRenderObserverViewTrickCompleteWinner verifies that the observer view
+// shows the winner line during the trick_complete phase.
+func TestRenderObserverViewTrickCompleteWinner(t *testing.T) {
+	snap := heartsclient.ObserverSnapshot{
+		RoundNumber:   1,
+		TrickNumber:   1,
+		PassDirection: "left",
+		Phase:         heartsclient.PhaseTrickComplete,
+		Turn:          2,
+		TrickWinner:   1,
+		Hands: [][]heartsclient.Card{
+			{{Rank: "seven", Suit: "spades"}},
+			{{Rank: "two", Suit: "hearts"}},
+			{{Rank: "three", Suit: "diamonds"}},
+			{{Rank: "four", Suit: "hearts"}},
+		},
+		Trick: []heartsclient.TrickEntry{
+			{Seat: 0, Card: heartsclient.Card{Rank: "two", Suit: "clubs"}},
+			{Seat: 1, Card: heartsclient.Card{Rank: "ace", Suit: "clubs"}},
+			{Seat: 2, Card: heartsclient.Card{Rank: "king", Suit: "clubs"}},
+			{Seat: 3, Card: heartsclient.Card{Rank: "queen", Suit: "clubs"}},
+		},
+		Scores:      []int{0, 0, 0, 0},
+		RoundPoints: []int{0, 0, 0, 0},
+	}
+
+	got := RenderObserverView(snap)
+	want := "Trick complete — Seat 1 won"
+	if !strings.Contains(got, want) {
+		t.Errorf("RenderObserverView = %q, want to contain %q", got, want)
+	}
+	if strings.Contains(got, "Seat 2's turn") {
+		t.Errorf("RenderObserverView = %q, want no turn line during trick_complete", got)
+	}
+}
+
+// TestRenderObserverViewTrickCompleteNoWinner verifies that the observer view
+// shows the turn line when the trick is complete but no winner is provided.
+func TestRenderObserverViewTrickCompleteNoWinner(t *testing.T) {
+	snap := heartsclient.ObserverSnapshot{
+		RoundNumber:   1,
+		TrickNumber:   1,
+		PassDirection: "left",
+		Phase:         heartsclient.PhaseTrickComplete,
+		Turn:          2,
+		TrickWinner:   -1,
+		Hands: [][]heartsclient.Card{
+			{{Rank: "seven", Suit: "spades"}},
+		},
+		Trick:       []heartsclient.TrickEntry{},
+		Scores:      []int{0},
+		RoundPoints: []int{0},
+	}
+
+	got := RenderObserverView(snap)
+	if strings.Contains(got, "Trick complete") {
+		t.Errorf("RenderObserverView = %q, want no winner line when TrickWinner is -1", got)
+	}
+	if !strings.Contains(got, "Seat 2's turn") {
+		t.Errorf("RenderObserverView = %q, want turn line when no winner", got)
+	}
+}

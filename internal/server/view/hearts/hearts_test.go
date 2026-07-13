@@ -207,10 +207,10 @@ func TestObserverViewAllHands(t *testing.T) {
 	}
 }
 
-// TestPlayerViewTrickCompleteUsesHistory verifies that when the server sets
-// TrickComplete, the snapshot renders the completed trick from TrickHistory
-// instead of the empty g.Trick that the engine has already reset.
-func TestPlayerViewTrickCompleteUsesHistory(t *testing.T) {
+// TestPlayerViewTrickCompleteUsesCurrentTrick verifies that when the server
+// sets TrickComplete, the snapshot renders the completed trick from the engine's
+// current g.Trick, which now holds all four cards until ResolveTrick is called.
+func TestPlayerViewTrickCompleteUsesCurrentTrick(t *testing.T) {
 	g := newGameInPlayPhase(t)
 
 	plays := make([]play, 0, hearts.NumPlayers)
@@ -247,6 +247,11 @@ func TestPlayerViewTrickCompleteUsesHistory(t *testing.T) {
 			t.Errorf("Trick[%d].Card: got %v, want %v", i, got, wantCard)
 		}
 	}
+
+	wantWinner := trickWinnerFromPlays(plays)
+	if got := snap.TrickWinner; got != wantWinner {
+		t.Errorf("TrickWinner: got %d, want %d", got, wantWinner)
+	}
 }
 
 // TestViewTurnDeadlineMS verifies that a non-zero ViewState.TurnDeadline is
@@ -279,9 +284,9 @@ func TestViewTurnDeadlineMS(t *testing.T) {
 	}
 }
 
-// TestObserverViewTrickCompleteUsesHistory verifies the observer view also uses
-// the last TrickHistory entry when the server flags a completed trick.
-func TestObserverViewTrickCompleteUsesHistory(t *testing.T) {
+// TestObserverViewTrickCompleteUsesCurrentTrick verifies the observer view also
+// renders the completed trick from g.Trick while the server flags a completed trick.
+func TestObserverViewTrickCompleteUsesCurrentTrick(t *testing.T) {
 	g := newGameInPlayPhase(t)
 
 	plays := make([]play, 0, hearts.NumPlayers)
@@ -318,6 +323,11 @@ func TestObserverViewTrickCompleteUsesHistory(t *testing.T) {
 			t.Errorf("Trick[%d].Card: got %v, want %v", i, got, wantCard)
 		}
 	}
+
+	wantWinner := trickWinnerFromPlays(plays)
+	if got := snap.TrickWinner; got != wantWinner {
+		t.Errorf("TrickWinner: got %d, want %d", got, wantWinner)
+	}
 }
 
 // TestObserverViewTrickHistory verifies that after completing a trick the
@@ -347,6 +357,10 @@ func TestObserverViewTrickHistory(t *testing.T) {
 		}
 	}
 
+	if err := g.ResolveTrick(); err != nil {
+		t.Fatalf("ResolveTrick: %v", err)
+	}
+
 	snap := ObserverView(vs, 0)
 
 	if got, want := len(snap.TrickHistory), 1; got != want {
@@ -364,6 +378,53 @@ func TestObserverViewTrickHistory(t *testing.T) {
 		if got := trick[i].Card; got != wantCard {
 			t.Errorf("TrickHistory[0][%d].Card: got %v, want %v", i, got, wantCard)
 		}
+	}
+}
+
+// TestPlayerViewPlayingPhaseShowsFourCards verifies that the snapshot for the
+// playing phase shows the full four-card trick before the server resolves it.
+func TestPlayerViewPlayingPhaseShowsFourCards(t *testing.T) {
+	g := newGameInPlayPhase(t)
+
+	plays := make([]play, 0, hearts.NumPlayers)
+	twoOfClubs := cardcore.Card{Rank: cardcore.Two, Suit: cardcore.Clubs}
+	leader := g.Turn
+	plays = append(plays, play{seat: leader, card: twoOfClubs})
+	if err := g.PlayCard(leader, twoOfClubs); err != nil {
+		t.Fatalf("PlayCard 2♣: %v", err)
+	}
+	for range hearts.NumPlayers - 1 {
+		seat := g.Turn
+		moves, err := g.LegalMoves(seat)
+		if err != nil || len(moves) == 0 {
+			t.Fatal("no legal moves")
+		}
+		plays = append(plays, play{seat: seat, card: moves[0]})
+		if err := g.PlayCard(seat, moves[0]); err != nil {
+			t.Fatalf("PlayCard: %v", err)
+		}
+	}
+
+	vs := ViewState{Game: g}
+	snap := PlayerView(vs, leader, 0)
+
+	if got, want := snap.Phase, "playing"; got != want {
+		t.Fatalf("phase: got %q, want %q", got, want)
+	}
+	if got, want := len(snap.Trick), hearts.NumPlayers; got != want {
+		t.Fatalf("trick entry count: got %d, want %d", got, want)
+	}
+	for i, p := range plays {
+		if got, want := snap.Trick[i].Seat, int(p.seat); got != want {
+			t.Errorf("Trick[%d].Seat: got %d, want %d", i, got, want)
+		}
+		wantCard := heartsapi.CardFromEngine(p.card)
+		if got := snap.Trick[i].Card; got != wantCard {
+			t.Errorf("Trick[%d].Card: got %v, want %v", i, got, wantCard)
+		}
+	}
+	if got, want := snap.TrickWinner, -1; got != want {
+		t.Errorf("TrickWinner: got %d, want %d", got, want)
 	}
 }
 
@@ -497,4 +558,23 @@ func engineHandToWire(h *cardcore.Hand) []heartsapi.Card {
 		cards = append(cards, heartsapi.CardFromEngine(c))
 	}
 	return cards
+}
+
+// trickWinnerFromPlays returns the seat with the highest card of the led suit
+// from a completed trick. It is used by tests to compute the expected winner
+// independently of the view helper.
+func trickWinnerFromPlays(plays []play) int {
+	if len(plays) == 0 {
+		return -1
+	}
+	ledSuit := plays[0].card.Suit
+	winner := plays[0].seat
+	highRank := plays[0].card.Rank
+	for _, p := range plays[1:] {
+		if p.card.Suit == ledSuit && p.card.Rank > highRank {
+			winner = p.seat
+			highRank = p.card.Rank
+		}
+	}
+	return int(winner)
 }

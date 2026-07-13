@@ -179,9 +179,13 @@ func (a *Adapter) Resume() (session.StepResult, error) {
 	}
 
 	if a.paused.trickComplete {
+		// The engine defers trick resolution until the server explicitly
+		// requests it. Resolve the completed trick before checking whether
+		// the round ended.
+		if err := a.game.ResolveTrick(); err != nil {
+			return session.StepResult{}, fmt.Errorf("ResolveTrick: %w", err)
+		}
 		a.paused = nil
-		// The engine already resolved the trick during PlayCard.
-		// Check if the round ended (PhaseScore).
 		if a.game.Phase == hearts.PhaseScore {
 			a.paused = &pauseState{roundComplete: true}
 			return session.StepResult{

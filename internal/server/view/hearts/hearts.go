@@ -36,11 +36,17 @@ func PlayerView(vs ViewState, seat hearts.Seat, seq int) *heartsapi.PlayerSnapsh
 		TrickNumber:   g.TrickNum + 1,
 		PassDirection: heartsapi.PassDirToWire(g.PassDir),
 		Turn:          int(g.Turn),
+		TrickWinner:   -1,
 		HeartsBroken:  g.HeartsBroken,
 		Scores:        g.Scores[:],
 		RoundPoints:   g.RoundPts[:],
-		Trick:         buildTrick(snapshotTrick(vs, g)),
+		Trick:         buildTrick(g.Trick),
 		LegalActions:  buildLegalActions(g, seat),
+	}
+	if vs.TrickComplete {
+		winner := trickWinner(g)
+		snap.TrickWinner = winner
+		snap.Turn = winner
 	}
 	if !vs.TurnDeadline.IsZero() {
 		snap.TurnDeadlineMS = vs.TurnDeadline.UnixMilli()
@@ -78,12 +84,19 @@ func ObserverView(vs ViewState, seq int) *heartsapi.ObserverSnapshot {
 		TrickNumber:   g.TrickNum + 1,
 		PassDirection: heartsapi.PassDirToWire(g.PassDir),
 		Turn:          int(g.Turn),
+		TrickWinner:   -1,
 		HeartsBroken:  g.HeartsBroken,
 		Scores:        g.Scores[:],
 		RoundPoints:   g.RoundPts[:],
-		Trick:         buildTrick(snapshotTrick(vs, g)),
+		Trick:         buildTrick(g.Trick),
 		TrickHistory:  buildTrickHistory(g.TrickHistory),
 		LegalActions:  buildLegalActions(g, g.Turn),
+	}
+	if vs.TrickComplete {
+		winner := trickWinner(g)
+		snap.TrickWinner = winner
+		snap.Turn = winner
+		snap.LegalActions = buildLegalActions(g, hearts.Seat(winner))
 	}
 	if !vs.TurnDeadline.IsZero() {
 		snap.TurnDeadlineMS = vs.TurnDeadline.UnixMilli()
@@ -112,23 +125,6 @@ func ObserverView(vs ViewState, seq int) *heartsapi.ObserverSnapshot {
 	return snap
 }
 
-// snapshotTrick returns the trick to render in a snapshot.
-//
-// This is a workaround: the engine resolves the trick inside the same PlayCard
-// call that plays the fourth card, so by the time the session goroutine
-// broadcasts the trick_complete snapshot, g.Trick has already been cleared and
-// reset for the next trick. The completed trick is preserved as the last entry
-// in g.TrickHistory, so we render that instead.
-//
-// The proper long-term fix is to separate playing the fourth card from
-// resolving the trick in the engine.
-func snapshotTrick(vs ViewState, g *hearts.Game) hearts.Trick {
-	if vs.TrickComplete && len(g.TrickHistory) > 0 {
-		return g.TrickHistory[len(g.TrickHistory)-1]
-	}
-	return g.Trick
-}
-
 // buildPhase maps ViewState flags and engine phase to the wire-format phase string.
 func buildPhase(vs ViewState, g *hearts.Game) string {
 	if vs.TrickComplete {
@@ -154,6 +150,26 @@ func buildTrick(trick hearts.Trick) []heartsapi.TrickEntry {
 		})
 	}
 	return entries
+}
+
+// trickWinner returns the seat that won the current trick, or -1 if the trick
+// is empty. It follows the same rule as the engine: highest card of the led suit.
+func trickWinner(g *hearts.Game) int {
+	if g.Trick.Count == 0 {
+		return -1
+	}
+	ledSuit := g.Trick.LedSuit()
+	winner := g.Trick.Leader
+	highRank := g.Trick.Cards[winner].Rank
+	for i := 1; i < hearts.NumPlayers; i++ {
+		seat := hearts.Seat((int(g.Trick.Leader) + i) % hearts.NumPlayers)
+		c := g.Trick.Cards[seat]
+		if c.Suit == ledSuit && c.Rank > highRank {
+			winner = seat
+			highRank = c.Rank
+		}
+	}
+	return int(winner)
 }
 
 // buildTrickHistory converts a slice of completed tricks to wire-format entry slices.

@@ -74,10 +74,11 @@ game-specific fields for Hearts:
 | `trick_number` | integer | Current trick within the round (1-indexed). Only meaningful during `playing` and `trick_complete` phases. |
 | `pass_direction` | string | `"left"`, `"right"`, `"across"`, or `"none"`. Indicates which direction cards are passed this round. |
 | `turn` | integer | Seat index of the player who must act next. |
+| `trick_winner` | integer | Seat index of the winner of the completed trick. Only meaningful during the `trick_complete` phase; `-1` in other phases. |
 | `hearts_broken` | boolean | Whether hearts have been played (to any trick) this round. |
 | `hand` | array of card objects | The receiving player's current hand, sorted. |
 | `hand_counts` | array of integers | Number of cards in each seat's hand, indexed by seat. |
-| `trick` | array of trick entries | Cards played to the current trick so far, in play order. |
+| `trick` | array of trick entries | Cards played to the current trick so far, in play order. During the `playing` phase this array contains up to three cards; when the fourth card is played, the next broadcast is the `trick_complete` phase with the full four-card trick. |
 | `scores` | array of integers | Cumulative scores per seat across all completed rounds. During an active round, this reflects the total as of the last completed round. |
 | `round_points` | array of integers | Penalty points accumulated this round per seat. Resets to zero at the start of each round. |
 | `legal_actions` | array of card objects | Cards the player may legally play or pass. Empty if it is not the player's turn. |
@@ -96,8 +97,9 @@ Each trick entry (ordered by play sequence, not by seat index):
 
 | Phase | Description |
 |-------|-------------|
+| `deal` | Cards have been dealt; brief UX pause before passing/playing begins. |
 | `passing` | Players are selecting cards to pass. |
-| `playing` | Trick-taking in progress. |
+| `playing` | Trick-taking in progress. The `trick` array contains the cards played so far, up to three cards before the trick is complete. |
 | `trick_complete` | A trick has been won. Server-synthesized pause for UX. |
 | `round_complete` | A round has ended. Scores updated. |
 | `game_over` | Game has ended. Final scores in `scores`. |

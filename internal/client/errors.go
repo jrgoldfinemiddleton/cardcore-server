@@ -8,6 +8,7 @@ const (
 	ErrWrongPhase       = "wrong_phase"
 	ErrGameOver         = "game_over"
 	ErrMalformedMessage = "malformed_message"
+	ErrInternal         = "internal_error"
 )
 
 // Recovery action constants returned by ClassifyError.
@@ -33,6 +34,8 @@ func ClassifyError(code string) string {
 		return RecoveryTerminal
 	case ErrMalformedMessage:
 		return RecoveryFixAndRetry
+	case ErrInternal:
+		return RecoveryTerminal
 	default:
 		return RecoveryTerminal
 	}
