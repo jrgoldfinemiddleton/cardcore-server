@@ -80,15 +80,15 @@ func RenderPlayingView(
 // RenderTrickCompleteView renders the view shown when a trick is complete.
 //
 // It displays the completed trick with seat labels and a status line.
-// In Hearts, snap.Turn is the winner's seat (they lead the next trick).
-// The winner is shown only when the trick has all 4 cards; otherwise a
-// generic message is shown as a defensive fallback.
+// The winner is provided by the server in snap.TrickWinner; the fallback
+// generic message is used when the trick is not complete or the server
+// did not provide a winner.
 func RenderTrickCompleteView(snap heartsclient.PlayerSnapshot, seat int) string {
 	trick := RenderTrick(snap.Trick)
 
 	var status string
-	if len(snap.Trick) == 4 {
-		status = fmt.Sprintf("Trick complete — Seat %d won", snap.Turn)
+	if len(snap.Trick) == 4 && snap.TrickWinner >= 0 {
+		status = fmt.Sprintf("Trick complete — Seat %d won", snap.TrickWinner)
 	} else {
 		status = "Trick complete"
 	}

@@ -32,6 +32,9 @@ type PlayerSnapshot struct {
 	PassDirection string `json:"pass_direction"`
 	// Turn is the seat index of the player who must act next.
 	Turn int `json:"turn"`
+	// TrickWinner is the seat index of the winner of the completed trick.
+	// Only meaningful during the trick_complete phase; -1 in other phases.
+	TrickWinner int `json:"trick_winner"`
 	// HeartsBroken is true when hearts have been played this round.
 	HeartsBroken bool `json:"hearts_broken"`
 	// Hand is the receiving player's current hand, sorted.
@@ -68,6 +71,9 @@ type ObserverSnapshot struct {
 	PassDirection string `json:"pass_direction"`
 	// Turn is the seat index of the player who must act next.
 	Turn int `json:"turn"`
+	// TrickWinner is the seat index of the winner of the completed trick.
+	// Only meaningful during the trick_complete phase; -1 in other phases.
+	TrickWinner int `json:"trick_winner"`
 	// HeartsBroken is true when hearts have been played this round.
 	HeartsBroken bool `json:"hearts_broken"`
 	// Hands is all four seats' hands, indexed by seat. All cards are visible.

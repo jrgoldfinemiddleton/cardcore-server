@@ -11,7 +11,7 @@ require (
 	charm.land/bubbletea/v2 v2.0.7
 	charm.land/lipgloss/v2 v2.0.3
 	github.com/coder/websocket v1.8.14
-	github.com/jrgoldfinemiddleton/cardcore v0.5.0
+	github.com/jrgoldfinemiddleton/cardcore v0.6.0
 )
 
 require (

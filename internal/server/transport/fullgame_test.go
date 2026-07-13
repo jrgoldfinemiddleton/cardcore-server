@@ -11,12 +11,78 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/jrgoldfinemiddleton/cardcore/games/hearts"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
 	heartsapi "github.com/jrgoldfinemiddleton/cardcore-server/internal/api/games/hearts"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
 	heartssession "github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session/games/hearts"
 )
+
+// TestAllAIObserverSeesFourCardTrick verifies that when a trick completes,
+// the observer sees a trick_complete snapshot with all four cards and then
+// the next playing snapshot with a fresh one-card trick.
+func TestAllAIObserverSeesFourCardTrick(t *testing.T) {
+	t.Parallel()
+	srv, mgr := setupHeartsServer(t)
+	httpSrv := mustStartTestServer(t, srv)
+
+	cfg := allAIHeartsConfig()
+	// Slow the AI down so the observer can connect after the session starts
+	// but before the first trick completes.
+	*cfg.AIActionDelayMS = 200
+
+	info, _, err := mgr.Create(cfg)
+	if err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+	id := info.SessionID
+
+	if err := mgr.Start(id); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+
+	obsConn := mustDialObserverWS(t, httpSrv.URL, id)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var (
+		gotTrickCompleteFour bool
+		gotNextPlaying       bool
+	)
+
+	for range 5000 {
+		snap := mustReadSnapshot(t, obsConn, ctx)
+		phase, _ := snap["phase"].(string)
+		trickLen := trickLengthFromSnap(t, snap)
+
+		switch phase {
+		case "playing":
+			if gotTrickCompleteFour && trickLen == 1 {
+				gotNextPlaying = true
+			}
+		case "trick_complete":
+			if trickLen == hearts.NumPlayers {
+				gotTrickCompleteFour = true
+			}
+		}
+
+		if gotNextPlaying {
+			break
+		}
+		if phase == "game_over" {
+			break
+		}
+	}
+
+	if !gotTrickCompleteFour {
+		t.Error("never saw trick_complete snapshot with four-card trick")
+	}
+	if !gotNextPlaying {
+		t.Error("never saw next playing snapshot after trick resolution")
+	}
+}
 
 // TestAllAIFullGameIntegration verifies that a 4-AI Hearts game completes
 // via WebSocket and an observer receives all snapshots showing phase
@@ -515,6 +581,17 @@ func fourHumanHeartsConfig() session.Config {
 		},
 		AIActionDelayMS: &delay,
 	}
+}
+
+// trickLengthFromSnap returns the number of entries in the snapshot's trick
+// array. It returns 0 if the field is missing or not an array.
+func trickLengthFromSnap(t *testing.T, snap map[string]any) int {
+	t.Helper()
+	raw, ok := snap["trick"].([]any)
+	if !ok {
+		return 0
+	}
+	return len(raw)
 }
 
 // hashTestName returns a deterministic uint64 seed derived from the test name.

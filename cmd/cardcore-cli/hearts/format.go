@@ -33,6 +33,9 @@ type snapshotEnvelope struct {
 	Hands [][]heartsclient.Card `json:"hands,omitempty"`
 	// Trick is the cards played so far in the current trick.
 	Trick []heartsclient.TrickEntry `json:"trick,omitempty"`
+	// TrickWinner is the seat index of the winner of the completed trick.
+	// Only meaningful during the trick_complete phase; -1 in other phases.
+	TrickWinner int `json:"trick_winner,omitempty"`
 	// RoundPoints are points taken this round (omitted when empty).
 	RoundPoints []int `json:"round_points,omitempty"`
 }
@@ -80,6 +83,9 @@ func (f *Formatter) FormatSnapshot(snapshot []byte) string {
 
 	if len(env.Trick) > 0 {
 		fmt.Fprintf(&b, " trick=%s", formatTrick(env.Trick))
+	}
+	if env.Phase == "trick_complete" && env.TrickWinner >= 0 {
+		fmt.Fprintf(&b, " trick_winner=%d", env.TrickWinner)
 	}
 
 	if len(env.RoundPoints) > 0 {

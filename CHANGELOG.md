@@ -10,6 +10,9 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- Cross-client real-time trick display: Hearts player and observer snapshots now include `trick_winner`, populated by the server view during the `trick_complete` phase. The TUI `RenderTrickCompleteView`, TUI observer view, and CLI formatter all display the winner explicitly instead of inferring it from `turn`
+- Hearts protocol documentation: documented the `deal` phase in `doc/games/hearts/protocol.md`
+- Client error code: `ErrInternal` (`internal_error`) in `internal/client/errors.go` with a dedicated recovery classification
 - TUI auto-create session helper: `CreateSession` in `cmd/cardcore-tui/hearts/session.go` creates a 1-human + 3-AI Hearts session, starts it, and returns the seat-0 token so the binary can be launched without `-session`/`-token`. The new `-ai-type` flag (and `CARDCORE_TUI_AI_TYPE` env var) chooses `random`, `heuristic`, or `pimc` AI for the three bot seats
 - TUI hand layout spacing: `RenderHand` now renders a checkmark in the gap immediately after a selected card and a cursor bracket two positions after the card label, so both markers are visible when a card is both selected and under the cursor. Passing/playing views include blank lines between the trick/header and the hand/status
 - TUI `-debug` flag: writes debug logs to `tui.log` in the working directory, otherwise discards all `slog` output to keep the terminal clean
@@ -51,6 +54,9 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- Bumped `cardcore` engine dependency to v0.6.0: the engine now separates playing the fourth card from resolving the trick. The server Hearts adapter pauses on the fourth card and calls `ResolveTrick()` during `Resume()` to broadcast the completed trick before advancing to the next trick
+- Server Hearts snapshot generation: removed the `snapshotTrick` workaround; `trick_winner` is now computed from the current trick cards and `Turn` is set to the winner during the `trick_complete` pause so the turn line matches the actual next leader
+- TUI observer view: removed the redundant `Seat X's turn` line during the `trick_complete` phase; the turn line reappears when the `playing` phase resumes
 - Client engine cleanup: removed the unused `heartsclient.Adapter` struct and moved the duplicated `wsURL()` helper from both frontends into a new shared `client.WebSocketURL()` function in `internal/client/url.go`. Phase constants remain in a new `internal/client/hearts/phases.go`
 - TUI turn deadline sync: replaced the connect-time `turn_timeout_ms` fetch with a per-snapshot `turn_deadline_ms` field. The server now computes the authoritative Unix-millisecond deadline when a human turn starts and includes it in every Hearts snapshot; the TUI countdown reads `turn_deadline_ms` directly, making the display accurate even when connecting mid-turn
 - Unified flag/env-var configuration across all binaries: every binary-level flag now has a corresponding `CARDCORE_SERVER_*`, `CARDCORE_CLI_*`, or `CARDCORE_TUI_*` environment variable, and vice versa. Explicit flags take precedence over environment variables, which take precedence over hardcoded defaults. Added custom `flag.Usage` output to `cmd/cardcore-server`, `cmd/cardcore-cli`, and `cmd/cardcore-tui` documenting both the flag and its env var
@@ -59,7 +65,10 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
-- TUI `trick_complete` view showed an empty trick because the engine resolves the trick before the snapshot is generated. The server-side Hearts view now populates `snap.Trick` from the last `TrickHistory` entry when in the `trick_complete` phase, so completed tricks display correctly in the TUI
+- TUI `trick_complete` view showed an empty trick because the engine resolves the trick before the snapshot is generated. The server-side Hearts adapter now pauses before resolution and the view populates `snap.Trick` with the completed trick, so the TUI and CLI show all four cards before the next trick
+- TUI observer view and CLI formatter now show the correct `trick_winner` in `trick_complete` snapshots; previously the winner was not displayed by the observer and was omitted from the CLI compact output
+- Server Hearts view `Turn` field was stale during `trick_complete`, causing the TUI observer to show the wrong seat as the next actor while the winner line showed a different seat. `Turn` is now set to the trick winner during the pause
+- TUI observer view showed a redundant `Seat X's turn` line while the `trick_complete` winner line was displayed; the turn line is now suppressed during `trick_complete`
 - TUI 10-second disconnect bug: `run()` now uses a separate long-lived context for the WebSocket read loop instead of reusing the 10-second connection timeout context
 - TUI main-area width regression: restored the 80-column layout width
 - TUI patchy hand background: fixed uneven card background rendering in the Hearts hand view

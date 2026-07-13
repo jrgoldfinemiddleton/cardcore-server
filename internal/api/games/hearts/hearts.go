@@ -21,6 +21,7 @@ type PlayerSnapshot struct {
 	TrickNumber    int          `json:"trick_number"`
 	PassDirection  string       `json:"pass_direction"`
 	Turn           int          `json:"turn"`
+	TrickWinner    int          `json:"trick_winner"`
 	HeartsBroken   bool         `json:"hearts_broken"`
 	Hand           []Card       `json:"hand"`
 	HandCounts     []int        `json:"hand_counts"`
@@ -40,6 +41,7 @@ type ObserverSnapshot struct {
 	TrickNumber    int            `json:"trick_number"`
 	PassDirection  string         `json:"pass_direction"`
 	Turn           int            `json:"turn"`
+	TrickWinner    int            `json:"trick_winner"`
 	HeartsBroken   bool           `json:"hearts_broken"`
 	Hands          [][]Card       `json:"hands"`
 	HandCounts     []int          `json:"hand_counts"`

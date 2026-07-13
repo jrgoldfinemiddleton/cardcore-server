@@ -284,6 +284,9 @@ func TestResumeAfterTrickComplete(t *testing.T) {
 	if got, want := lastRes.Outcome, session.StepPause; got != want {
 		t.Fatalf("after trick: got outcome %d, want StepPause", got)
 	}
+	if a.paused == nil || !a.paused.trickComplete {
+		t.Fatal("adapter not paused after fourth card")
+	}
 
 	res, err := a.Resume()
 	if err != nil {
@@ -293,6 +296,88 @@ func TestResumeAfterTrickComplete(t *testing.T) {
 	// complete). Should not be finished.
 	if res.Outcome == session.StepFinished {
 		t.Error("got StepFinished after first trick resume")
+	}
+	if got, want := len(a.game.TrickHistory), 1; got != want {
+		t.Errorf("TrickHistory length: got %d, want %d", got, want)
+	}
+	if a.paused != nil && a.paused.trickComplete {
+		t.Error("trickComplete pause still active after Resume")
+	}
+}
+
+// TestAdapterPlayCardPausesAfterFourthCard verifies that playing the fourth
+// card of a trick leaves the engine trick pending and pauses the adapter.
+func TestAdapterPlayCardPausesAfterFourthCard(t *testing.T) {
+	a := allAIAdapter(t)
+	advanceToPlayPhase(t, a, allAISeats())
+
+	// Play the first three cards of the trick.
+	for range hearts.NumPlayers - 1 {
+		seat := int(a.game.Turn)
+		res, err := a.AIPlay(seat)
+		if err != nil {
+			t.Fatalf("AIPlay seat %d: %v", seat, err)
+		}
+		if got, want := res.Outcome, session.StepContinue; got != want {
+			t.Fatalf("mid-trick play: got outcome %d, want StepContinue", got)
+		}
+	}
+
+	// The fourth card completes the trick.
+	seat := int(a.game.Turn)
+	res, err := a.AIPlay(seat)
+	if err != nil {
+		t.Fatalf("AIPlay seat %d: %v", seat, err)
+	}
+	if got, want := res.Outcome, session.StepPause; got != want {
+		t.Fatalf("fourth card: got outcome %d, want StepPause", got)
+	}
+	if a.paused == nil || !a.paused.trickComplete {
+		t.Error("adapter not paused after fourth card")
+	}
+	if got, want := a.game.Trick.Count, hearts.NumPlayers; got != want {
+		t.Errorf("trick count: got %d, want %d", got, want)
+	}
+}
+
+// TestAdapterResumeResolvesTrick verifies that Resume calls ResolveTrick()
+// and advances the engine to the next trick or the round-complete pause.
+func TestAdapterResumeResolvesTrick(t *testing.T) {
+	a := allAIAdapter(t)
+	advanceToPlayPhase(t, a, allAISeats())
+
+	// Play the first trick to the pending-resolution state.
+	for range hearts.NumPlayers {
+		seat := int(a.game.Turn)
+		if _, err := a.AIPlay(seat); err != nil {
+			t.Fatalf("AIPlay seat %d: %v", seat, err)
+		}
+	}
+
+	if a.paused == nil || !a.paused.trickComplete {
+		t.Fatal("adapter not paused after fourth card")
+	}
+
+	res, err := a.Resume()
+	if err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	if got, want := len(a.game.TrickHistory), 1; got != want {
+		t.Errorf("TrickHistory length: got %d, want %d", got, want)
+	}
+	// After the first trick the round is not over, so Resume returns
+	// StepContinue. If the trick ended the round, Resume returns StepPause.
+	if a.game.Phase == hearts.PhaseScore {
+		if got, want := res.Outcome, session.StepPause; got != want {
+			t.Errorf("round-ending trick: got outcome %d, want StepPause", got)
+		}
+	} else {
+		if got, want := res.Outcome, session.StepContinue; got != want {
+			t.Errorf("non-round-ending trick: got outcome %d, want StepContinue", got)
+		}
+	}
+	if a.paused != nil && a.paused.trickComplete {
+		t.Error("trickComplete pause still active after Resume")
 	}
 }
 

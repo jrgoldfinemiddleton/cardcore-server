@@ -15,6 +15,7 @@ const playerSnapshotJSON = `{
   "trick_number": 3,
   "pass_direction": "left",
   "turn": 0,
+  "trick_winner": -1,
   "hearts_broken": false,
   "hand": [
     {"rank": "four", "suit": "clubs"},
@@ -155,6 +156,9 @@ func TestPlayerSnapshotParsesProtocolExample(t *testing.T) {
 	if got.Turn != 0 {
 		t.Errorf("got Turn %d, want %d", got.Turn, 0)
 	}
+	if got.TrickWinner != -1 {
+		t.Errorf("got TrickWinner %d, want %d", got.TrickWinner, -1)
+	}
 	if got.HeartsBroken != false {
 		t.Errorf("got HeartsBroken %v, want %v", got.HeartsBroken, false)
 	}
@@ -191,6 +195,7 @@ func TestObserverSnapshotHasObserverFields(t *testing.T) {
 		TrickNumber:   12,
 		PassDirection: "left",
 		Turn:          1,
+		TrickWinner:   -1,
 		HeartsBroken:  true,
 		Hands: [][]Card{
 			{{Rank: "queen", Suit: "hearts"}},
@@ -242,5 +247,8 @@ func TestObserverSnapshotHasObserverFields(t *testing.T) {
 	if len(got.TrickHistory[10]) != 4 {
 		t.Errorf("got TrickHistory[10] length %d, want %d",
 			len(got.TrickHistory[10]), 4)
+	}
+	if got.TrickWinner != -1 {
+		t.Errorf("got TrickWinner %d, want %d", got.TrickWinner, -1)
 	}
 }

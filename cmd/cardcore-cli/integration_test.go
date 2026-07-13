@@ -158,6 +158,26 @@ outer:
 			gotPlay = true
 		case "trick_complete":
 			gotTrickComplete = true
+			var tc struct {
+				Phase       string `json:"phase"`
+				TrickWinner int    `json:"trick_winner"`
+				Trick       []struct {
+					Seat int `json:"seat"`
+					Card struct {
+						Rank string `json:"rank"`
+						Suit string `json:"suit"`
+					} `json:"card"`
+				} `json:"trick"`
+			}
+			if err := json.Unmarshal(res.data, &tc); err != nil {
+				t.Fatalf("unmarshal trick_complete snapshot: %v", err)
+			}
+			if tc.TrickWinner < 0 {
+				t.Errorf("trick_complete snapshot has trick_winner=%d, want >= 0", tc.TrickWinner)
+			}
+			if len(tc.Trick) != 4 {
+				t.Errorf("trick_complete snapshot has %d trick entries, want 4", len(tc.Trick))
+			}
 		case "round_complete":
 			gotRoundComplete = true
 		}
@@ -265,8 +285,16 @@ func TestIntegrationObserverFullGame(t *testing.T) {
 		}
 
 		var snap struct {
-			Seq   int    `json:"seq"`
-			Phase string `json:"phase"`
+			Seq         int    `json:"seq"`
+			Phase       string `json:"phase"`
+			TrickWinner int    `json:"trick_winner"`
+			Trick       []struct {
+				Seat int `json:"seat"`
+				Card struct {
+					Rank string `json:"rank"`
+					Suit string `json:"suit"`
+				} `json:"card"`
+			} `json:"trick"`
 		}
 		if err := json.Unmarshal(res.data, &snap); err != nil {
 			t.Fatalf("unmarshal snapshot: %v", err)
@@ -276,6 +304,15 @@ func TestIntegrationObserverFullGame(t *testing.T) {
 		}
 		lastSeq = snap.Seq
 		phases[snap.Phase] = true
+
+		if snap.Phase == "trick_complete" {
+			if snap.TrickWinner < 0 {
+				t.Errorf("trick_complete snapshot has trick_winner=%d, want >= 0", snap.TrickWinner)
+			}
+			if len(snap.Trick) != 4 {
+				t.Errorf("trick_complete snapshot has %d trick entries, want 4", len(snap.Trick))
+			}
+		}
 
 		if snap.Phase == "game_over" {
 			gotOver = true

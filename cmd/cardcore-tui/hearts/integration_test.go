@@ -3,9 +3,11 @@ package heartstui
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"hash/fnv"
 	"math/rand/v2"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -92,11 +94,12 @@ func TestIntegrationTUIClientFullGame(t *testing.T) {
 	c := NewClient(0, false)
 
 	var (
-		gotPass          bool
-		gotPlay          bool
-		gotTrickComplete bool
-		gotRoundComplete bool
-		gotOver          bool
+		gotPass             bool
+		gotPlay             bool
+		gotTrickComplete    bool
+		gotRoundComplete    bool
+		gotOver             bool
+		verifiedTrickWinner bool
 	)
 
 outer:
@@ -152,6 +155,21 @@ outer:
 			}
 		case heartsclient.PhaseTrickComplete:
 			gotTrickComplete = true
+			if !verifiedTrickWinner {
+				verifiedTrickWinner = true
+				if len(c.playerSnap.Trick) != 4 {
+					t.Errorf("trick_complete trick entries: got %d, want 4",
+						len(c.playerSnap.Trick))
+				}
+				if c.playerSnap.TrickWinner < 0 {
+					t.Errorf("trick_complete TrickWinner: got %d, want >= 0",
+						c.playerSnap.TrickWinner)
+				}
+				want := fmt.Sprintf("Seat %d won", c.playerSnap.TrickWinner)
+				if !strings.Contains(rendered, want) {
+					t.Errorf("trick_complete render: got %q, want %q", rendered, want)
+				}
+			}
 		case heartsclient.PhaseRoundComplete:
 			gotRoundComplete = true
 		case heartsclient.PhaseGameOver:

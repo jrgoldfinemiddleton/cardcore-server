@@ -35,11 +35,19 @@ func RenderObserverView(snap heartsclient.ObserverSnapshot) string {
 		scores = "Scores: " + strings.Join(scoreParts, " ")
 	}
 
-	turnLine := fmt.Sprintf("Seat %d's turn", snap.Turn)
+	var winnerLine string
+	if snap.Phase == heartsclient.PhaseTrickComplete && snap.TrickWinner >= 0 {
+		winnerLine = fmt.Sprintf("Trick complete — Seat %d won", snap.TrickWinner)
+	}
 
 	lines := make([]string, 0, 1+len(handLines)+3)
 	lines = append(lines, header)
 	lines = append(lines, handLines...)
-	lines = append(lines, trick, scores, turnLine)
+	lines = append(lines, trick, scores)
+	if winnerLine != "" {
+		lines = append(lines, winnerLine)
+	} else {
+		lines = append(lines, fmt.Sprintf("Seat %d's turn", snap.Turn))
+	}
 	return joinLines(lines)
 }

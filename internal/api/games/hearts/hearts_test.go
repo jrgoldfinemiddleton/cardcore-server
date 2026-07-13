@@ -138,6 +138,7 @@ func TestPlayerSnapshotJSON(t *testing.T) {
 		TrickNumber:   3,
 		PassDirection: "left",
 		Turn:          0,
+		TrickWinner:   -1,
 		HeartsBroken:  false,
 		Hand: []Card{
 			{Rank: "four", Suit: "clubs"},
@@ -195,6 +196,9 @@ func TestPlayerSnapshotJSON(t *testing.T) {
 	}
 	if got.Turn != 0 {
 		t.Errorf("got Turn %d, want %d", got.Turn, 0)
+	}
+	if got.TrickWinner != -1 {
+		t.Errorf("got TrickWinner %d, want %d", got.TrickWinner, -1)
 	}
 	if got.HeartsBroken != false {
 		t.Errorf("got HeartsBroken %v, want %v", got.HeartsBroken, false)
