@@ -25,6 +25,8 @@ type ViewState struct {
 	// TurnDeadline is the authoritative deadline for the current human turn.
 	// It is zero when no deadline is active.
 	TurnDeadline time.Time
+	// Paused indicates whether the game is currently paused by the UX/view layer.
+	Paused bool `json:"paused"`
 }
 
 // PlayerView generates a seat-filtered snapshot for the given player.
@@ -72,6 +74,8 @@ func PlayerView(vs ViewState, seat hearts.Seat, seq int) *heartsapi.PlayerSnapsh
 		}
 	}
 
+	snap.Paused = vs.Paused
+
 	return snap
 }
 
@@ -105,6 +109,7 @@ func ObserverView(vs ViewState, seq int) *heartsapi.ObserverSnapshot {
 	if !vs.TurnDeadline.IsZero() {
 		snap.TurnDeadlineMS = vs.TurnDeadline.UnixMilli()
 	}
+	snap.Paused = vs.Paused
 
 	snap.Hands = make([][]heartsapi.Card, hearts.NumPlayers)
 	for i := range hearts.NumPlayers {
@@ -131,6 +136,9 @@ func ObserverView(vs ViewState, seq int) *heartsapi.ObserverSnapshot {
 
 // buildPhase maps ViewState flags and engine phase to the wire-format phase string.
 func buildPhase(vs ViewState, g *hearts.Game) string {
+	if vs.Paused {
+		return "paused"
+	}
 	if vs.TrickComplete {
 		return "trick_complete"
 	}

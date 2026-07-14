@@ -60,6 +60,44 @@ Pass cards during the passing phase.
 }
 ```
 
+### `pause`
+
+Request that the game be paused. Only accepted when it is the requesting
+human seat's turn in an actionable phase (`passing` or `playing`). The
+server broadcasts a `paused` phase snapshot to all connected clients.
+
+**Payload:** empty object.
+
+**Example:**
+
+```json
+{
+  "type": "pause",
+  "action_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "seq": 7,
+  "payload": {}
+}
+```
+
+### `resume`
+
+Request that a paused game continue. Only accepted from the same human
+seat that paused the game. The server resumes the engine from the phase
+that was active before the pause and broadcasts a snapshot.
+
+**Payload:** empty object.
+
+**Example:**
+
+```json
+{
+  "type": "resume",
+  "action_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+  "seq": 8,
+  "payload": {}
+}
+```
+
 ---
 
 ## Snapshot Fields
@@ -81,7 +119,8 @@ game-specific fields for Hearts:
 | `trick` | array of trick entries | Cards played to the current trick so far, in play order. During the `playing` phase this array contains up to three cards; when the fourth card is played, the next broadcast is the `trick_complete` phase with the full four-card trick. |
 | `scores` | array of integers | Cumulative scores per seat across all completed rounds. During an active round, this reflects the total as of the last completed round. |
 | `round_points` | array of integers | Penalty points accumulated this round per seat. Resets to zero at the start of each round. |
-| `legal_actions` | array of card objects | Cards the player may legally play or pass. Empty if it is not the player's turn. |
+| `paused` | boolean | `true` when the game is paused. `false` during normal play. Independent of `phase` — the game may pause during `passing` or `playing`. |
+| `legal_actions` | array of card objects | Cards the player may legally play or pass. Empty if it is not the player's turn or the game is paused. |
 | `turn_deadline_ms` | integer | Server-side deadline for the current human turn, as Unix milliseconds since epoch. `0` when no deadline is active (e.g., AI turn, paused state, or timeout disabled). Clients should use this to render an accurate countdown instead of computing a deadline from the session's `turn_timeout_ms`. |
 
 Each trick entry (ordered by play sequence, not by seat index):
@@ -100,6 +139,7 @@ Each trick entry (ordered by play sequence, not by seat index):
 | `deal` | Cards have been dealt; brief UX pause before passing/playing begins. |
 | `passing` | Players are selecting cards to pass. |
 | `playing` | Trick-taking in progress. The `trick` array contains the cards played so far, up to three cards before the trick is complete. |
+| `paused` | The active human player has paused the game. No commands are processed except `resume` from the pausing seat. |
 | `trick_complete` | A trick has been won. Server-synthesized pause for UX. |
 | `round_complete` | A round has ended. Scores updated. |
 | `game_over` | Game has ended. Final scores in `scores`. |
@@ -146,6 +186,10 @@ Hearts uses the generic error codes defined in `doc/api.md`. The
 explanation of the specific rule violation (e.g., "Must follow suit:
 diamonds was led").
 
+| Code | Condition |
+|------|-----------|
+| `pause_not_allowed` | A `pause` or `resume` command was rejected because it is not the requesting human seat's turn, the game is not in an actionable phase, or another seat already paused the game. |
+
 ---
 
 ## Example Snapshot
@@ -182,6 +226,7 @@ Player view, seat 0, round 1, trick 3:
   ],
   "scores": [0, 0, 0, 0],
   "round_points": [0, 1, 0, 3],
+  "paused": false,
   "legal_actions": [
     { "rank": "seven", "suit": "diamonds" },
     { "rank": "queen", "suit": "diamonds" }

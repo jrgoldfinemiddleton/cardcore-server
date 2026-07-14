@@ -312,6 +312,28 @@ func TestRenderPlayingViewBlankLines(t *testing.T) {
 	}
 }
 
+// TestRenderPausedView verifies the paused view shows the paused message and
+// resume prompt.
+func TestRenderPausedView(t *testing.T) {
+	got := RenderPausedView()
+	if !strings.Contains(got, "paused") {
+		t.Errorf("RenderPausedView = %q, want to contain 'paused'", got)
+	}
+	if !strings.Contains(got, "resume") {
+		t.Errorf("RenderPausedView = %q, want resume prompt", got)
+	}
+}
+
+// TestRenderPausedViewBordered verifies the paused view is wrapped in a bordered
+// box.
+func TestRenderPausedViewBordered(t *testing.T) {
+	got := RenderPausedView()
+	plain := "Game paused — press P to resume"
+	if got == plain {
+		t.Errorf("RenderPausedView should add a border around the content")
+	}
+}
+
 // TestRenderTrickCompleteViewBordered verifies the trick-complete view is
 // wrapped in a bordered box.
 func TestRenderTrickCompleteViewBordered(t *testing.T) {

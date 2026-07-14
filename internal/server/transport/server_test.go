@@ -1491,6 +1491,12 @@ func (stubGame) SetTurnDeadline(time.Time) {}
 // TurnDeadline implements session.Game.
 func (stubGame) TurnDeadline() time.Time { return time.Time{} }
 
+// SetPaused implements session.Game.
+func (stubGame) SetPaused(bool) {}
+
+// Paused implements session.Game.
+func (stubGame) Paused() bool { return false }
+
 // HandleAction implements session.Game for unmarshalableStubGame.
 func (unmarshalableStubGame) HandleAction(
 	int, *api.InboundMessage,
@@ -1529,6 +1535,12 @@ func (unmarshalableStubGame) SetTurnDeadline(time.Time) {}
 
 // TurnDeadline implements session.Game for unmarshalableStubGame.
 func (unmarshalableStubGame) TurnDeadline() time.Time { return time.Time{} }
+
+// SetPaused implements session.Game for unmarshalableStubGame.
+func (unmarshalableStubGame) SetPaused(bool) {}
+
+// Paused implements session.Game for unmarshalableStubGame.
+func (unmarshalableStubGame) Paused() bool { return false }
 
 // setupTestServerWithSession creates a server and an active session with
 // 1 human + 3 AI seats. It returns the server, session ID, and the

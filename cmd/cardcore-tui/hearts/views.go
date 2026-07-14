@@ -153,6 +153,11 @@ func RenderGameOverView(snap heartsclient.PlayerSnapshot) string {
 	return summaryBoxStyle.Render(joinLines(lines))
 }
 
+// RenderPausedView renders the pause overlay.
+func RenderPausedView() string {
+	return summaryBoxStyle.Render("Game paused — press P to resume")
+}
+
 // RenderDealView renders a brief overlay shown while the deck is being dealt.
 func RenderDealView() string {
 	return "Dealing..."

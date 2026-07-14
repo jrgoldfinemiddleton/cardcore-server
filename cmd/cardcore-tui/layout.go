@@ -123,6 +123,10 @@ func (m *model) renderFooter() string {
 		return errorStyle.Render("Timeout - AI playing")
 	}
 
+	if m.paused {
+		return footerStyle.Render("Paused")
+	}
+
 	if m.statusMsg != "" {
 		return footerStyle.Render(m.statusMsg)
 	}

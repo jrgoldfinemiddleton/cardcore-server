@@ -16,15 +16,16 @@ import (
 // fakeGame is a test gameClient that records delegation calls and returns
 // configured results.
 type fakeGame struct {
-	snapshotCalls int
-	lastErr       string
-	keyCmd        client.Command
-	keySend       bool
-	keyStatus     string
-	keyCalls      int
-	renderOut     string
-	humanTurn     bool
-	inputDisabled bool
+	snapshotCalls  int
+	lastErr        string
+	keyCmd         client.Command
+	keySend        bool
+	keyStatus      string
+	keyCalls       int
+	renderOut      string
+	humanTurn      bool
+	humanTurnCalls int
+	inputDisabled  bool
 }
 
 // TestModelUpdateSnapshot verifies snapshot messages update the phase and are
@@ -78,6 +79,88 @@ func TestModelUpdateFlashTimeout(t *testing.T) {
 	}
 	if mm.errMsg != "" {
 		t.Errorf("got errMsg %q, want empty after timeout", mm.errMsg)
+	}
+}
+
+// TestModelUpdateKeyPressPause sends a pause command when the model is not paused
+// and the user presses 'p'.
+func TestModelUpdateKeyPressPause(t *testing.T) {
+	f := &fakeGame{humanTurn: true}
+	m := &model{game: f, paused: false}
+
+	newM, cmd := m.Update(tea.KeyPressMsg{Code: 'p'})
+	mm, ok := newM.(*model)
+	if !ok {
+		t.Fatalf("Update returned %T, want *model", newM)
+	}
+	if mm.paused {
+		t.Errorf("paused = true, want false (set on snapshot)")
+	}
+	if cmd == nil {
+		t.Fatalf("got nil cmd, want a send command")
+	}
+	if f.humanTurnCalls != 1 {
+		t.Errorf("got humanTurnCalls %d, want 1", f.humanTurnCalls)
+	}
+}
+
+// TestModelUpdateKeyPressPauseNotHumanTurn flashes a status when the user presses
+// 'p' but it is not their turn.
+func TestModelUpdateKeyPressPauseNotHumanTurn(t *testing.T) {
+	f := &fakeGame{humanTurn: false}
+	m := &model{game: f, paused: false}
+
+	newM, cmd := m.Update(tea.KeyPressMsg{Code: 'p'})
+	mm, ok := newM.(*model)
+	if !ok {
+		t.Fatalf("Update returned %T, want *model", newM)
+	}
+	if mm.errMsg != "Not your turn" {
+		t.Errorf("got errMsg %q, want Not your turn", mm.errMsg)
+	}
+	isFlashTimer(t, cmd)
+}
+
+// TestModelUpdateKeyPressResumeWhenPaused sends a resume command when the user
+// presses 'p' while the game is paused, even if IsHumanTurn is false.
+func TestModelUpdateKeyPressResumeWhenPaused(t *testing.T) {
+	f := &fakeGame{humanTurn: false}
+	m := &model{game: f, paused: true}
+
+	newM, cmd := m.Update(tea.KeyPressMsg{Code: 'p'})
+	mm, ok := newM.(*model)
+	if !ok {
+		t.Fatalf("Update returned %T, want *model", newM)
+	}
+	if mm.errMsg != "" {
+		t.Errorf("got errMsg %q, want empty", mm.errMsg)
+	}
+	if cmd == nil {
+		t.Fatalf("got nil cmd, want a send command")
+	}
+}
+
+// TestModelHandleSnapshotPaused sets the paused flag from the snapshot.
+func TestModelHandleSnapshotPaused(t *testing.T) {
+	f := &fakeGame{}
+	m := &model{game: f}
+
+	m.handleSnapshot([]byte(`{"phase":"playing","paused":true,"scores":[0,0,0,0]}`))
+
+	if !m.paused {
+		t.Errorf("paused = false, want true")
+	}
+}
+
+// TestModelHandleSnapshotResumed clears the paused flag from the snapshot.
+func TestModelHandleSnapshotResumed(t *testing.T) {
+	f := &fakeGame{}
+	m := &model{game: f, paused: true}
+
+	m.handleSnapshot([]byte(`{"phase":"playing","paused":false,"scores":[0,0,0,0]}`))
+
+	if m.paused {
+		t.Errorf("paused = true, want false")
 	}
 }
 
@@ -658,5 +741,14 @@ func (f *fakeGame) SetInputDisabled(disabled bool) {
 
 // IsHumanTurn returns the configured human-turn flag.
 func (f *fakeGame) IsHumanTurn() bool {
+	f.humanTurnCalls++
 	return f.humanTurn
+}
+
+// TogglePause returns a configured pause/resume command for the fake game client.
+func (f *fakeGame) TogglePause(paused bool) (client.Command, bool) {
+	if paused {
+		return client.Command{Type: "resume"}, true
+	}
+	return client.Command{Type: "pause"}, true
 }

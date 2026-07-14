@@ -60,6 +60,32 @@ func TestResumeUpdatesPreviousScores(t *testing.T) {
 	}
 }
 
+// TestSetPausedAndPaused verifies that SetPaused stores the external pause
+// state and that the flag is reflected in viewState.
+func TestSetPausedAndPaused(t *testing.T) {
+	a, err := NewAdapter(validSeats(), testRNG(), 0, 0, 0)
+	if err != nil {
+		t.Fatalf("NewAdapter: %v", err)
+	}
+
+	if a.Paused() {
+		t.Fatalf("Paused() = true, want false")
+	}
+
+	a.SetPaused(true)
+	if !a.Paused() {
+		t.Fatalf("Paused() = false after SetPaused(true), want true")
+	}
+	if !a.viewState().Paused {
+		t.Fatalf("viewState().Paused = false, want true")
+	}
+
+	a.SetPaused(false)
+	if a.Paused() {
+		t.Fatalf("Paused() = true after SetPaused(false), want false")
+	}
+}
+
 // TestNewAdapterWrongSeatCount verifies that non-4-seat configs are
 // rejected.
 func TestNewAdapterWrongSeatCount(t *testing.T) {

@@ -37,3 +37,23 @@ func NewPassCardsMessage(actionID string, seq int, cards []Card) (client.Command
 		Payload:  data,
 	}, nil
 }
+
+// NewPauseMessage builds a pause command envelope with an empty payload.
+func NewPauseMessage(actionID string, seq int) (client.Command, error) {
+	return client.Command{
+		Type:     "pause",
+		ActionID: actionID,
+		Seq:      seq,
+		Payload:  json.RawMessage("{}"),
+	}, nil
+}
+
+// NewResumeMessage builds a resume command envelope with an empty payload.
+func NewResumeMessage(actionID string, seq int) (client.Command, error) {
+	return client.Command{
+		Type:     "resume",
+		ActionID: actionID,
+		Seq:      seq,
+		Payload:  json.RawMessage("{}"),
+	}, nil
+}

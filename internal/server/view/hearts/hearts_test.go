@@ -261,6 +261,47 @@ func TestObserverViewAllHands(t *testing.T) {
 	}
 }
 
+// TestPlayerViewPausedFlag verifies that when the ViewState Paused is true,
+// the PlayerSnapshot exposes Paused: true.
+func TestPlayerViewPausedFlag(t *testing.T) {
+	g := dealGame(t)
+	vs := ViewState{Game: g, Paused: true}
+	snap := PlayerView(vs, 0, 0)
+	if snap.Paused != true {
+		t.Fatalf("PlayerSnapshot Paused = %v, want true", snap.Paused)
+	}
+}
+
+// TestObserverViewPausedFlag verifies that when the ViewState Paused is true,
+// the ObserverSnapshot exposes Paused: true.
+func TestObserverViewPausedFlag(t *testing.T) {
+	g := dealGame(t)
+	vs := ViewState{Game: g, Paused: true}
+	snap := ObserverView(vs, 0)
+	if snap.Paused != true {
+		t.Fatalf("ObserverSnapshot Paused = %v, want true", snap.Paused)
+	}
+}
+
+// TestBuildPhasePaused verifies that when Paused is true, buildPhase returns
+// the string "paused" regardless of engine phase.
+func TestBuildPhasePaused(t *testing.T) {
+	g := dealGame(t)
+	vs := ViewState{Game: g, Paused: true}
+	if got := buildPhase(vs, g); got != "paused" {
+		t.Fatalf("buildPhase paused: got %q, want 'paused'", got)
+	}
+}
+
+// TestBuildPhaseNotPaused verifies the normal phase string is returned when not paused.
+func TestBuildPhaseNotPaused(t *testing.T) {
+	g := dealGame(t)
+	vs := ViewState{Game: g, Paused: false}
+	if got := buildPhase(vs, g); got == "paused" {
+		t.Fatalf("buildPhase not paused: got %q, want not 'paused'", got)
+	}
+}
+
 // TestPlayerViewTrickCompleteUsesCurrentTrick verifies that when the server
 // sets TrickComplete, the snapshot renders the completed trick from the engine's
 // current g.Trick, which now holds all four cards until ResolveTrick is called.
