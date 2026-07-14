@@ -81,6 +81,9 @@ type model struct {
 	errMsg string
 	// statusMsg is a persistent status message (e.g., a close reason).
 	statusMsg string
+	// aiPlayedHoldUntil is the earliest time the AI-played status message
+	// may be cleared by a phase change or new human turn.
+	aiPlayedHoldUntil time.Time
 	// disconnected is true when the WebSocket has closed. It drives the
 	// footer connection-state display.
 	disconnected bool
@@ -138,6 +141,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case commandSentMsg:
 		if msg.err != nil {
+			// Send failed; re-enable input and reset pending state so the
+			// player can retry instead of being stuck on a dimmed hand.
+			m.pendingHumanAction = false
+			m.game.SetInputDisabled(false)
+			m.game.ResetSubmitted()
 			return m, m.setErrorFlash("Failed to send command")
 		}
 		return m, nil
@@ -145,6 +153,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case flashTimeoutMsg:
 		m.errMsg = ""
 		m.escConfirm = false
+		return m, nil
+
+	case aiPlayedHoldMsg:
+		if m.statusMsg == aiPlayedStatusMsg && !time.Now().Before(m.aiPlayedHoldUntil) {
+			m.statusMsg = ""
+		}
 		return m, nil
 	}
 
@@ -191,13 +205,15 @@ func (m *model) handleSnapshot(raw []byte) tea.Cmd {
 	// not submit an action, and the new snapshot is no longer our turn.
 	wasHuman := m.humanTurn
 	m.humanTurn = m.game.IsHumanTurn()
+	var cmd tea.Cmd
 	if wasHuman && !m.humanTurn && !m.pendingHumanAction {
-		m.statusMsg = "AI played for you (timeout)"
+		cmd = m.holdAIPlayedMessage()
 	}
 	m.pendingHumanAction = false
 
-	// Clear any status on phase transition.
-	if phaseChanged {
+	// Clear any status on phase transition unless the AI-played message is
+	// being held so the user has time to read it.
+	if phaseChanged && !m.isAIPlayedHoldActive() {
 		m.statusMsg = ""
 	}
 
@@ -207,13 +223,16 @@ func (m *model) handleSnapshot(raw []byte) tea.Cmd {
 		m.timeoutDisabled = false
 		m.statusMsg = ""
 		m.game.SetInputDisabled(false)
+		if cmd != nil {
+			return tea.Batch(cmd, startTurnTick())
+		}
 		return startTurnTick()
 	}
 	// No turn active countdown; make sure input is re-enabled for rendering.
 	m.turnDeadline = time.Time{}
 	m.timeoutDisabled = false
-	m.game.SetInputDisabled(false)
-	return nil
+	m.game.SetInputDisabled(!m.humanTurn)
+	return cmd
 }
 
 // handleKeyPress handles keyboard input. ctrl+c always quits; Esc then Enter
@@ -285,7 +304,7 @@ func (m *model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.pendingHumanAction = true
 		m.turnDeadline = time.Time{}
 		m.timeoutDisabled = false
-		m.game.SetInputDisabled(false)
+		m.game.SetInputDisabled(true)
 		return m, m.sendCommandCmd(cmd)
 	}
 	return m, nil

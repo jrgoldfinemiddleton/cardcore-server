@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 
 	"charm.land/bubbletea/v2"
@@ -85,10 +86,20 @@ func startWSReader(ctx context.Context, r WSReader, p *tea.Program) {
 					"code", closeErr.Code,
 					"reason", closeErr.Reason)
 				p.Send(wsCloseMsg{code: closeErr.Code})
-			} else {
-				logger.Error("websocket read error", "error", err)
-				p.Send(wsCloseMsg{code: 1011})
+				return
 			}
+
+			// EOF from the server without a close frame is a normal end of
+			// stream after the session finishes; treat it like a graceful
+			// closure instead of an internal server error.
+			if errors.Is(err, io.EOF) {
+				logger.Info("websocket closed", "code", 1000, "reason", "EOF")
+				p.Send(wsCloseMsg{code: 1000})
+				return
+			}
+
+			logger.Error("websocket read error", "error", err)
+			p.Send(wsCloseMsg{code: 1011})
 			return
 		}
 

@@ -109,6 +109,10 @@ func (oc *observerConn) writer(ctx context.Context, cancel context.CancelFunc) {
 				// of an abrupt read-context cancel that drops the frame.
 				if oc.closing != nil && oc.closing.Load() {
 					skipCancel = true
+				} else {
+					// Send a normal closure so the client sees a graceful
+					// end rather than an abrupt EOF.
+					_ = oc.ws.Close(websocket.StatusNormalClosure, "")
 				}
 				return
 			}

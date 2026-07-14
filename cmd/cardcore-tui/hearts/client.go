@@ -95,6 +95,13 @@ func (c *Client) HandleSnapshot(raw json.RawMessage) {
 	if c.cursor >= len(snap.Hand) {
 		c.cursor = max(len(snap.Hand)-1, 0)
 	}
+	// During the human's playing turn, snap the cursor to the first legal card
+	// so the player always starts from a known, playable position.
+	isPlayingTurn := c.phase == heartsclient.PhasePlaying && c.playerSnap.Turn == c.seat
+	if isPlayingTurn && len(c.playerSnap.LegalActions) > 0 {
+		legalSet := cardSet(c.playerSnap.LegalActions)
+		c.cursor = firstLegalIndex(snap.Hand, legalSet)
+	}
 }
 
 // HandleKey processes a key press during an actionable phase, returning a
@@ -161,9 +168,10 @@ func (c *Client) IsHumanTurn() bool {
 }
 
 // handlePassingKey handles navigation, selection, and submission during the
-// passing phase. Input is ignored once the player has submitted.
+// passing phase. Input is ignored once the player has submitted or when input
+// is disabled (e.g., waiting for the next snapshot or another player's turn).
 func (c *Client) handlePassingKey(key tea.KeyPressMsg) (client.Command, bool, string) {
-	if c.submitted {
+	if c.submitted || c.inputDisabled {
 		return client.Command{}, false, ""
 	}
 	switch key.Code {
@@ -180,9 +188,10 @@ func (c *Client) handlePassingKey(key tea.KeyPressMsg) (client.Command, bool, st
 }
 
 // handlePlayingKey handles navigation and submission during the playing phase.
-// Input is ignored once the player has submitted.
+// Input is ignored once the player has submitted or when input is disabled
+// (e.g., waiting for the next snapshot or another player's turn).
 func (c *Client) handlePlayingKey(key tea.KeyPressMsg) (client.Command, bool, string) {
-	if c.submitted {
+	if c.submitted || c.inputDisabled {
 		return client.Command{}, false, ""
 	}
 	switch key.Code {
@@ -229,10 +238,16 @@ func (c *Client) submitPlay() (client.Command, bool, string) {
 	return cmd, true, ""
 }
 
-// moveCursor moves the hand cursor by delta, clamped to the hand bounds.
+// moveCursor moves the hand cursor by delta, skipping illegal cards in the
+// playing phase and clamping to the hand bounds otherwise.
 func (c *Client) moveCursor(delta int) {
 	n := len(c.playerSnap.Hand)
 	if n == 0 {
+		return
+	}
+	if c.phase == heartsclient.PhasePlaying && len(c.playerSnap.LegalActions) > 0 {
+		legalSet := cardSet(c.playerSnap.LegalActions)
+		c.cursor = nextLegalIndex(c.playerSnap.Hand, c.cursor, delta, legalSet)
 		return
 	}
 	c.cursor += delta
@@ -268,4 +283,36 @@ func (c *Client) toggleSelected() {
 func (c *Client) nextActionID() string {
 	c.actionCounter++
 	return fmt.Sprintf("tui-%d-%d", c.seat, c.actionCounter)
+}
+
+// firstLegalIndex returns the index of the first legal card in hand order, or
+// 0 if no legal card exists.
+func firstLegalIndex(hand []heartsclient.Card, legalSet map[heartsclient.Card]bool) int {
+	for i, c := range hand {
+		if legalSet[c] {
+			return i
+		}
+	}
+	return 0
+}
+
+// nextLegalIndex returns the nearest legal card index in the direction of
+// delta, wrapping around the hand. If no legal card exists, it returns start.
+func nextLegalIndex(
+	hand []heartsclient.Card,
+	start, delta int,
+	legalSet map[heartsclient.Card]bool,
+) int {
+	n := len(hand)
+	if n == 0 {
+		return 0
+	}
+	idx := start
+	for range n {
+		idx = (idx + delta + n) % n
+		if legalSet[hand[idx]] {
+			return idx
+		}
+	}
+	return start
 }

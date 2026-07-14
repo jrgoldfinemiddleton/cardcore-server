@@ -107,8 +107,10 @@ func (s *session) run() {
 
 	s.logger.Debug("session goroutine started")
 
-	// Broadcast the initial snapshot so clients see the deal before any
-	// turns are processed, then wait for the game's display delay.
+	// Stamp the turn deadline onto the initial snapshot so clients see
+	// the timer for the first human turn before any commands are
+	// submitted, then wait for the game's display delay.
+	s.scheduleTurnDeadline()
 	s.broadcastSnapshot()
 	if s.finished {
 		s.drainCmds()
@@ -289,12 +291,16 @@ func (s *session) handlePlay(c playCmd) {
 		return
 	}
 
-	// Action accepted. Clear the human turn deadline, increment seq,
-	// broadcast the new state to all subscribers, and cache the snapshot
-	// for idempotent replay. Skip caching if the snapshot fails to marshal
-	// so the cache never contains nil entries that would break duplicate
-	// action_id replay.
+	// Action accepted. Clear the previous turn deadline, schedule the
+	// deadline for the next turn, increment seq, broadcast the new state
+	// to all subscribers, and cache the snapshot for idempotent replay.
+	// Skip caching if the snapshot fails to marshal so the cache never
+	// contains nil entries that would break duplicate action_id replay.
+	// If the game just finished, leave the deadline cleared.
 	s.game.SetTurnDeadline(time.Time{})
+	if res.Outcome != StepFinished {
+		s.scheduleTurnDeadline()
+	}
 	s.seq++
 	s.broadcastSnapshot()
 	if s.finished {
@@ -384,6 +390,9 @@ func (s *session) resumePauses() driveResult {
 		return driveFatal
 	}
 	s.game.SetTurnDeadline(time.Time{})
+	if res.Outcome != StepFinished {
+		s.scheduleTurnDeadline()
+	}
 	s.seq++
 	s.logger.Debug("Resume succeeded", "outcome", res.Outcome)
 	s.broadcastSnapshot()
@@ -426,16 +435,15 @@ func (s *session) processTurns() driveResult {
 		}
 		isHuman := s.isHumanSeat(seat)
 		s.logger.Debug("processTurns", "seat", seat, "human", isHuman)
-		// If human, set turn timeout and return so run() can handle it.
+		// If human, return so run() can schedule the timeout. The deadline
+		// was already stamped onto the snapshot when the game arrived at
+		// this turn.
 		if isHuman {
-			if s.turnTimeout() > 0 {
-				s.waitingForHuman = true
-				s.turnDeadline = time.Now().Add(s.turnTimeout())
-				s.game.SetTurnDeadline(s.turnDeadline)
-				s.logger.Debug("turn timeout scheduled", "seat", seat, "deadline", s.turnDeadline)
-			}
+			s.waitingForHuman = true
 			return driveHuman
 		}
+
+		s.waitingForHuman = false
 
 		// Pace AI turns for UX readability; also process any buffered
 		// commands so late subscribers are not stranded.
@@ -466,6 +474,10 @@ func (s *session) processTurns() driveResult {
 			s.logger.Error("AIPlay failed", "seat", seat, "error", err)
 			return driveFatal
 		}
+		s.game.SetTurnDeadline(time.Time{})
+		if res.Outcome != StepFinished {
+			s.scheduleTurnDeadline()
+		}
 		s.seq++
 		s.broadcastSnapshot()
 		if s.finished {
@@ -480,6 +492,33 @@ func (s *session) processTurns() driveResult {
 			return s.finishWithGrace()
 		}
 	}
+}
+
+// scheduleTurnDeadline sets the turn deadline for the current turn and
+// updates waitingForHuman. It clears the deadline if turn timeouts are
+// disabled, the current seat is invalid, or the current seat is AI.
+func (s *session) scheduleTurnDeadline() {
+	if s.turnTimeout() <= 0 {
+		s.waitingForHuman = false
+		s.game.SetTurnDeadline(time.Time{})
+		return
+	}
+	seat := s.game.Turn()
+	if seat < 0 || seat >= len(s.config.Seats) {
+		s.waitingForHuman = false
+		s.game.SetTurnDeadline(time.Time{})
+		s.logger.Error("invalid turn seat when scheduling deadline", "seat", seat)
+		return
+	}
+	if s.isHumanSeat(seat) {
+		s.waitingForHuman = true
+		s.turnDeadline = time.Now().Add(s.turnTimeout())
+		s.game.SetTurnDeadline(s.turnDeadline)
+		s.logger.Debug("turn timeout scheduled", "seat", seat, "deadline", s.turnDeadline)
+		return
+	}
+	s.waitingForHuman = false
+	s.game.SetTurnDeadline(time.Time{})
 }
 
 // isHumanSeat reports whether the given seat is configured as human.
@@ -508,6 +547,10 @@ func (s *session) handleTurnTimeout() {
 	if err != nil {
 		s.logger.Error("AIPlay on timeout failed", "seat", seat, "error", err)
 		return
+	}
+	s.game.SetTurnDeadline(time.Time{})
+	if res.Outcome != StepFinished {
+		s.scheduleTurnDeadline()
 	}
 	s.seq++
 	s.broadcastSnapshot()

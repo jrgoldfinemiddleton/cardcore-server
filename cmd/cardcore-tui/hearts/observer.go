@@ -22,7 +22,11 @@ func RenderObserverView(snap heartsclient.ObserverSnapshot) string {
 			fmt.Sprintf("Seat %d: %s", i, RenderHand(hand, -1, nil, nil, false)))
 	}
 
-	trick := RenderTrick(snap.Trick)
+	highlightSeat := -1
+	if snap.Phase == heartsclient.PhaseTrickComplete && snap.TrickWinner >= 0 {
+		highlightSeat = snap.TrickWinner
+	}
+	trick := RenderTrick(snap.Trick, highlightSeat)
 
 	var scores string
 	if len(snap.RoundPoints) != len(snap.Scores) {

@@ -35,7 +35,9 @@ func TestRenderCardStates(t *testing.T) {
 	card := heartsclient.Card{Rank: "ace", Suit: "spades"}
 	label := CardLabel(card)
 
-	states := []CardState{CardNormal, CardCursor, CardSelected, CardDimmed}
+	states := []CardState{
+		CardNormal, CardCursor, CardCursorDimmed, CardSelected, CardDimmed, CardWinner,
+	}
 	for _, state := range states {
 		got := RenderCard(card, state)
 		if got == "" {
@@ -272,6 +274,44 @@ func TestRenderHandLegalDimming(t *testing.T) {
 
 	if withLegal == withoutLegal {
 		t.Errorf("legal dimming produced same raw output as legal=nil, want different")
+	}
+}
+
+// TestCardStateForCursorOnIllegalCard verifies that the cursor on an illegal
+// card returns the combined CardCursorDimmed state.
+func TestCardStateForCursorOnIllegalCard(t *testing.T) {
+	hand := []heartsclient.Card{
+		{Rank: "ace", Suit: "spades"},
+		{Rank: "king", Suit: "hearts"},
+	}
+	legal := []heartsclient.Card{{Rank: "ace", Suit: "spades"}}
+	legalSet := cardSet(legal)
+	selectedSet := cardSet(nil)
+
+	got := cardStateFor(1, hand[1], 1, selectedSet, legalSet, true)
+	if got != CardCursorDimmed {
+		t.Errorf("cardStateFor(illegal card under cursor) = %v, want CardCursorDimmed", got)
+	}
+
+	got = cardStateFor(0, hand[0], 0, selectedSet, legalSet, true)
+	if got != CardCursor {
+		t.Errorf("cardStateFor(legal card under cursor) = %v, want CardCursor", got)
+	}
+}
+
+// TestRenderHandCursorOnIllegalCard verifies that the cursor brackets remain
+// on an illegal card and the visible layout does not shift.
+func TestRenderHandCursorOnIllegalCard(t *testing.T) {
+	hand := []heartsclient.Card{
+		{Rank: "ace", Suit: "spades"},
+		{Rank: "king", Suit: "hearts"},
+	}
+	legal := []heartsclient.Card{{Rank: "ace", Suit: "spades"}}
+
+	got := stripANSI(RenderHand(hand, 1, nil, legal, false))
+	want := " ♠A   [♥K ]"
+	if got != want {
+		t.Errorf("RenderHand(cursor on illegal card) = %q, want %q", got, want)
 	}
 }
 

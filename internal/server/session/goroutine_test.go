@@ -620,6 +620,70 @@ func TestSessionInitialTurnTimeoutFires(t *testing.T) {
 	}
 }
 
+// TestSessionBroadcastsDeadlineAfterHumanPlay verifies that when a
+// human play completes and the next turn is human, the session
+// broadcasts a snapshot carrying the newly-set turn_deadline_ms.
+func TestSessionBroadcastsDeadlineAfterHumanPlay(t *testing.T) {
+	timeout := 10000
+	g := &deadlineBroadcastGame{}
+	s := newSession("test", g, Config{
+		Seats:         []SeatConfig{{Type: SeatHuman}},
+		TurnTimeoutMS: &timeout,
+	}, DefaultDelays{}, nil)
+	defer close(s.cancel)
+
+	ch := make(chan SubscriberMessage, subChanSize)
+	s.cmds <- subscribePlayerCmd{seat: 0, ch: ch}
+
+	// Drain the subscription snapshot generated after the initial driveTurns.
+	select {
+	case <-ch:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for subscription snapshot")
+	}
+
+	// Trigger a play. The handler clears the old deadline, schedules the
+	// deadline for the next turn, and stamps it onto the snapshot before
+	// broadcasting.
+	resp := make(chan SubmitResult, 1)
+	s.cmds <- playCmd{
+		seat: 0,
+		msg: &api.InboundMessage{
+			Type:     "test",
+			ActionID: "action1",
+			Seq:      1,
+		},
+		resp: resp,
+	}
+	<-resp
+
+	deadlineSeen := false
+deadline:
+	for {
+		select {
+		case msg := <-ch:
+			if msg.CloseCode != 0 {
+				break deadline
+			}
+			var snap struct {
+				TurnDeadlineMS int64 `json:"turn_deadline_ms"`
+			}
+			if err := json.Unmarshal(msg.Data, &snap); err != nil {
+				t.Fatalf("unmarshal snapshot: %v", err)
+			}
+			if snap.TurnDeadlineMS > 0 {
+				deadlineSeen = true
+				break deadline
+			}
+		case <-time.After(200 * time.Millisecond):
+			break deadline
+		}
+	}
+	if !deadlineSeen {
+		t.Fatal("expected a snapshot with turn_deadline_ms > 0 after play")
+	}
+}
+
 // TestSessionDriveTurnsTerminatesOnFinished verifies that when AIPlay
 // returns StepFinished from within driveTurns, the session terminates
 // and the goroutine exits.

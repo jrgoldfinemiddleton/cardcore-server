@@ -176,8 +176,8 @@ func TestClientSubmitPlayNotYourTurn(t *testing.T) {
 	}
 }
 
-// TestClientSubmitPlayIllegal verifies that Enter on a card not in the legal
-// actions flashes "Illegal move".
+// TestClientSubmitPlayIllegal verifies that Enter still flashes "Illegal move"
+// if the cursor is somehow on a card not in the legal actions.
 func TestClientSubmitPlayIllegal(t *testing.T) {
 	c := NewClient(0, false)
 	snap := heartsclient.PlayerSnapshot{
@@ -190,6 +190,7 @@ func TestClientSubmitPlayIllegal(t *testing.T) {
 		LegalActions: []heartsclient.Card{{Rank: "three", Suit: "clubs"}},
 	}
 	c.HandleSnapshot(mustMarshal(t, snap))
+	c.cursor = 0 // Force the cursor onto the illegal card.
 
 	_, send, status := c.HandleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if send {
@@ -197,6 +198,34 @@ func TestClientSubmitPlayIllegal(t *testing.T) {
 	}
 	if status != "Illegal move" {
 		t.Errorf("got status %q, want %q", status, "Illegal move")
+	}
+}
+
+// TestClientInputDisabledIgnoresKeys verifies that keys are ignored when
+// input is disabled, even if the player has not submitted.
+func TestClientInputDisabledIgnoresKeys(t *testing.T) {
+	c := NewClient(0, false)
+	card := heartsclient.Card{Rank: "two", Suit: "clubs"}
+	snap := heartsclient.PlayerSnapshot{
+		Phase:        heartsclient.PhasePlaying,
+		Turn:         2,
+		Hand:         []heartsclient.Card{card},
+		LegalActions: []heartsclient.Card{card},
+	}
+	c.HandleSnapshot(mustMarshal(t, snap))
+	c.inputDisabled = true
+
+	_, send, status := c.HandleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if send {
+		t.Errorf("got send true, want false")
+	}
+	if status != "" {
+		t.Errorf("got status %q, want empty", status)
+	}
+
+	c.HandleKey(tea.KeyPressMsg{Code: tea.KeyRight})
+	if c.cursor != 0 {
+		t.Errorf("cursor moved to %d, want 0", c.cursor)
 	}
 }
 
@@ -364,6 +393,58 @@ func TestClientIsHumanTurnObserver(t *testing.T) {
 
 	if c.IsHumanTurn() {
 		t.Errorf("got IsHumanTurn true, want false")
+	}
+}
+
+// TestClientCursorSnapsToLegalCard verifies that when a human playing turn
+// begins with the cursor on an illegal card, it snaps to the first legal card.
+func TestClientCursorSnapsToLegalCard(t *testing.T) {
+	c := NewClient(0, false)
+	c.HandleSnapshot(mustMarshal(t, heartsclient.PlayerSnapshot{
+		Phase: heartsclient.PhasePlaying,
+		Turn:  0,
+		Hand: []heartsclient.Card{
+			{Rank: "two", Suit: "clubs"},
+			{Rank: "three", Suit: "clubs"},
+		},
+		LegalActions: []heartsclient.Card{{Rank: "three", Suit: "clubs"}},
+	}))
+
+	if c.cursor != 1 {
+		t.Errorf("got cursor %d, want 1 (first legal card)", c.cursor)
+	}
+}
+
+// TestClientCursorSkipsIllegalCards verifies that Left/Right navigation in the
+// playing phase jumps over illegal cards to the next legal one.
+func TestClientCursorSkipsIllegalCards(t *testing.T) {
+	c := NewClient(0, false)
+	c.HandleSnapshot(mustMarshal(t, heartsclient.PlayerSnapshot{
+		Phase: heartsclient.PhasePlaying,
+		Turn:  0,
+		Hand: []heartsclient.Card{
+			{Rank: "two", Suit: "clubs"},
+			{Rank: "three", Suit: "clubs"},
+			{Rank: "four", Suit: "clubs"},
+		},
+		LegalActions: []heartsclient.Card{
+			{Rank: "two", Suit: "clubs"},
+			{Rank: "four", Suit: "clubs"},
+		},
+	}))
+
+	if c.cursor != 0 {
+		t.Fatalf("got cursor %d, want 0 (initial legal card)", c.cursor)
+	}
+
+	c.HandleKey(tea.KeyPressMsg{Code: tea.KeyRight})
+	if c.cursor != 2 {
+		t.Errorf("got cursor %d after Right, want 2 (skip illegal card)", c.cursor)
+	}
+
+	c.HandleKey(tea.KeyPressMsg{Code: tea.KeyLeft})
+	if c.cursor != 0 {
+		t.Errorf("got cursor %d after Left, want 0 (skip illegal card)", c.cursor)
 	}
 }
 

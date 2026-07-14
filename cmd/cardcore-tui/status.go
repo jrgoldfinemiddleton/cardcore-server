@@ -12,6 +12,18 @@ import (
 // flashTimeoutMsg is sent when the error flash timer expires.
 type flashTimeoutMsg struct{}
 
+// aiPlayedStatusMsg is the footer message shown when the server auto-plays a
+// human's missed turn.
+const aiPlayedStatusMsg = "AI played for you (timeout)"
+
+// aiPlayedHoldDuration is how long the AI-played status message stays on
+// screen before it can be cleared by a phase change.
+const aiPlayedHoldDuration = 2 * time.Second
+
+// aiPlayedHoldMsg is sent when the minimum hold duration for the AI-played
+// status message has expired.
+type aiPlayedHoldMsg struct{}
+
 // setErrorFlash sets an error message and starts a 3-second flash timer.
 //
 // This is used for transient local validation errors like "Not your turn"
@@ -28,6 +40,22 @@ func (m *model) setErrorFlash(msg string) tea.Cmd {
 // clearErrorFlash clears the error message immediately.
 func (m *model) clearErrorFlash() {
 	m.errMsg = ""
+}
+
+// isAIPlayedHoldActive reports whether the AI-played status message is
+// currently being held so it remains readable.
+func (m *model) isAIPlayedHoldActive() bool {
+	return m.statusMsg == aiPlayedStatusMsg && time.Now().Before(m.aiPlayedHoldUntil)
+}
+
+// holdAIPlayedMessage sets the AI-played status message and starts a timer
+// to keep it visible for the minimum hold duration.
+func (m *model) holdAIPlayedMessage() tea.Cmd {
+	m.statusMsg = aiPlayedStatusMsg
+	m.aiPlayedHoldUntil = time.Now().Add(aiPlayedHoldDuration)
+	return tea.Tick(aiPlayedHoldDuration, func(t time.Time) tea.Msg {
+		return aiPlayedHoldMsg{}
+	})
 }
 
 // handleWSError processes a server error message and sets the appropriate
