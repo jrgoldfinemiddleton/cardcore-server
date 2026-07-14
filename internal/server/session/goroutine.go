@@ -631,6 +631,7 @@ func (s *session) handlePauseCmd(c playCmd) {
 	s.paused = true
 	s.game.SetPaused(true)
 	s.game.SetTurnDeadline(time.Time{})
+	s.logger.Info("game paused", "seat", c.seat)
 	s.seq++
 	s.broadcastSnapshot()
 	c.resp <- SubmitResult{}
@@ -661,14 +662,15 @@ func (s *session) handleResumeCmd(c playCmd) {
 		s.turnDeadline = time.Now().Add(s.pauseRemaining)
 		s.game.SetTurnDeadline(s.turnDeadline)
 	}
+	s.logger.Info("game resumed", "seat", c.seat)
 	s.seq++
 	s.broadcastSnapshot()
 	c.resp <- SubmitResult{}
 }
 
 // autoUnpause resumes a paused game when the human player disconnects.
-func (s *session) autoUnpause() {
-	s.logger.Info("auto-unpausing on human disconnect")
+func (s *session) autoUnpause(seat int) {
+	s.logger.Info("auto-unpausing after human disconnect", "seat", seat)
 	s.paused = false
 	s.game.SetPaused(false)
 	if s.waitingForHuman && s.turnTimeout() > 0 {
@@ -830,7 +832,7 @@ func (s *session) handleUnsubscribe(c unsubscribeCmd) {
 	// human, exactly as it does for a disconnected human in a non-paused
 	// game.
 	if s.paused && s.isHumanSeat(c.seat) {
-		s.autoUnpause()
+		s.autoUnpause(c.seat)
 	}
 }
 
