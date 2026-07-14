@@ -108,6 +108,17 @@ func (m *model) handleWSClose(msg wsCloseMsg) tea.Cmd {
 		return nil
 	}
 
+	// If the game has already ended, stay on the final scoreboard and let the
+	// user press Enter to exit. The final game_over snapshot is broadcast before
+	// the server closes the connection, so the model is already in this phase.
+	if m.phase == phaseGameOver {
+		m.statusMsg = closeMessageForCode(msg.code)
+		if m.conn != nil {
+			_ = m.conn.Close()
+		}
+		return nil
+	}
+
 	m.statusMsg = closeMessageForCode(msg.code)
 	if m.conn != nil {
 		_ = m.conn.Close()
@@ -128,7 +139,7 @@ func errorMessageForCode(code, serverMsg string) string {
 	case "stale_seq":
 		// Auto-resync — no flash message needed.
 		return ""
-	case "game_over":
+	case phaseGameOver:
 		return "Game over. Press Enter to exit."
 	case "malformed_message":
 		return "Internal error: invalid command format. Press Enter to exit."

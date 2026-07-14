@@ -138,6 +138,60 @@ func TestPlayerViewTrickPlayOrder(t *testing.T) {
 	}
 }
 
+// TestRoundCompletePoints verifies that during round_complete the snapshot
+// exposes the actual score delta for the round, not the raw engine RoundPts.
+// This ensures the moon-shooter shows +0 while the other seats show +26.
+func TestRoundCompletePoints(t *testing.T) {
+	t.Run("normal round", func(t *testing.T) {
+		g := hearts.New(rand.New(rand.NewPCG(1, 2)))
+		g.Scores = [hearts.NumPlayers]int{15, 13, 4, 20}
+		g.RoundPts = [hearts.NumPlayers]int{5, 8, 0, 13}
+
+		vs := ViewState{
+			Game:           g,
+			RoundComplete:  true,
+			PreviousScores: [hearts.NumPlayers]int{10, 5, 4, 7},
+		}
+		wantDelta := []int{5, 8, 0, 13}
+
+		ps := PlayerView(vs, 0, 0)
+		os := ObserverView(vs, 0)
+		for i, want := range wantDelta {
+			if got := ps.RoundPoints[i]; got != want {
+				t.Errorf("PlayerView RoundPoints[%d]: got %d, want %d", i, got, want)
+			}
+			if got := os.RoundPoints[i]; got != want {
+				t.Errorf("ObserverView RoundPoints[%d]: got %d, want %d", i, got, want)
+			}
+		}
+	})
+
+	t.Run("moon shot", func(t *testing.T) {
+		g := hearts.New(rand.New(rand.NewPCG(1, 2)))
+		// Seat 0 shot the moon: its score stays the same, others gain 26.
+		g.Scores = [hearts.NumPlayers]int{10, 31, 28, 29}
+		g.RoundPts = [hearts.NumPlayers]int{26, 0, 0, 0}
+
+		vs := ViewState{
+			Game:           g,
+			RoundComplete:  true,
+			PreviousScores: [hearts.NumPlayers]int{10, 5, 2, 3},
+		}
+		wantDelta := []int{0, 26, 26, 26}
+
+		ps := PlayerView(vs, 0, 0)
+		os := ObserverView(vs, 0)
+		for i, want := range wantDelta {
+			if got := ps.RoundPoints[i]; got != want {
+				t.Errorf("PlayerView RoundPoints[%d]: got %d, want %d", i, got, want)
+			}
+			if got := os.RoundPoints[i]; got != want {
+				t.Errorf("ObserverView RoundPoints[%d]: got %d, want %d", i, got, want)
+			}
+		}
+	})
+}
+
 // TestPlayerViewOneIndexed verifies that a fresh game produces 1-indexed
 // round and trick numbers on the wire.
 func TestPlayerViewOneIndexed(t *testing.T) {

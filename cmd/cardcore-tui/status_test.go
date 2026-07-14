@@ -25,7 +25,7 @@ func TestErrorMessageForCode(t *testing.T) {
 		{"illegal_move", "", msgIllegalMove},
 		{"wrong_phase", "", msgWrongPhase},
 		{"stale_seq", "", ""},
-		{"game_over", "", "Game over. Press Enter to exit."},
+		{phaseGameOver, "", "Game over. Press Enter to exit."},
 		{"malformed_message", "", msgMalformedMsg},
 		{"unknown", "Something bad", "Something bad"},
 		{"unknown", "", "Error: unknown"},
@@ -76,7 +76,7 @@ func TestHandleWSError(t *testing.T) {
 		{"wrong_phase", "Bad phase", msgWrongPhase, true, false},
 		{"illegal_move", "Cannot play spades", msgIllegalMove, false, true},
 		{"stale_seq", "", "", false, false},
-		{"game_over", "", "", false, false},
+		{phaseGameOver, "", "", false, false},
 		{"malformed_message", "Bad JSON", msgMalformedMsg, false, true},
 	}
 
@@ -99,15 +99,27 @@ func TestHandleWSError(t *testing.T) {
 }
 
 // TestHandleWSClose verifies that handleWSClose sets the status message.
-// 1000 returns tea.Quit; 1011 sets modalFatal and does not quit immediately.
+// 1000 returns tea.Quit unless the game is over; 1011 sets modalFatal and does
+// not quit immediately.
 func TestHandleWSClose(t *testing.T) {
-	t.Run("normal closure", func(t *testing.T) {
-		m := &model{}
+	t.Run("normal closure quits during live game", func(t *testing.T) {
+		m := &model{phase: "playing"}
 		cmd := m.handleWSClose(wsCloseMsg{code: 1000})
 		if m.statusMsg != "Game ended" {
 			t.Errorf("statusMsg = %q, want Game ended", m.statusMsg)
 		}
 		isQuitMsg(t, cmd)
+	})
+
+	t.Run("normal closure stays on final screen in game_over", func(t *testing.T) {
+		m := &model{phase: phaseGameOver}
+		cmd := m.handleWSClose(wsCloseMsg{code: 1000})
+		if m.statusMsg != "Game ended" {
+			t.Errorf("statusMsg = %q, want Game ended", m.statusMsg)
+		}
+		if cmd != nil {
+			t.Errorf("expected nil cmd for game_over close, got %v", cmd)
+		}
 	})
 
 	t.Run("internal error", func(t *testing.T) {

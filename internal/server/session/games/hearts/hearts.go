@@ -33,6 +33,10 @@ type Adapter struct {
 	// dealPending is true after a fresh Deal() and consumed by the first
 	// DisplayDelay() call in the new round.
 	dealPending bool
+	// previousScores holds the cumulative scores at the start of the current
+	// round. It is used to compute the per-seat score delta shown in the
+	// round_complete snapshot.
+	previousScores [hearts.NumPlayers]int
 	// logger is the per-component structured logger.
 	logger *slog.Logger
 	// turnDeadline is the authoritative deadline for the current human
@@ -88,6 +92,7 @@ func NewAdapter(
 	if err := a.game.Deal(); err != nil {
 		return nil, fmt.Errorf("initial deal: %w", err)
 	}
+	a.previousScores = a.game.Scores
 
 	return a, nil
 }
@@ -213,6 +218,7 @@ func (a *Adapter) Resume() (session.StepResult, error) {
 			return session.StepResult{},
 				fmt.Errorf("deal: %w", err)
 		}
+		a.previousScores = a.game.Scores
 		a.dealPending = true
 		// After Deal, Turn is not updated if PassDir != PassHold.
 		// Ensure Turn is set to a valid seat so processTurns can proceed.
@@ -429,8 +435,9 @@ func (a *Adapter) advanceTurn() {
 // the current pause state.
 func (a *Adapter) viewState() heartsview.ViewState {
 	vs := heartsview.ViewState{
-		Game:         a.game,
-		TurnDeadline: a.turnDeadline,
+		Game:           a.game,
+		TurnDeadline:   a.turnDeadline,
+		PreviousScores: a.previousScores,
 	}
 	if a.paused != nil {
 		vs.TrickComplete = a.paused.trickComplete
