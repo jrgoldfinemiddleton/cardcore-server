@@ -30,6 +30,8 @@ type PlayerSnapshot struct {
 	RoundPoints    []int        `json:"round_points"`
 	LegalActions   []Card       `json:"legal_actions"`
 	TurnDeadlineMS int64        `json:"turn_deadline_ms"`
+	// Paused indicates whether the game is currently paused.
+	Paused bool `json:"paused"`
 }
 
 // ObserverSnapshot is the game state snapshot sent to an observer connection.
@@ -51,6 +53,8 @@ type ObserverSnapshot struct {
 	RoundPoints    []int          `json:"round_points"`
 	LegalActions   []Card         `json:"legal_actions"`
 	TurnDeadlineMS int64          `json:"turn_deadline_ms"`
+	// Paused indicates whether the game is currently paused.
+	Paused bool `json:"paused"`
 }
 
 // PlayCardPayload is the payload for a play_card inbound message.

@@ -11,6 +11,50 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
 )
 
+// pauseSpyGame is a mock Game that tracks SetPaused/Paused state.
+type pauseSpyGame struct {
+	mockGame
+	paused bool
+}
+
+// TestHumanCount verifies that humanCount returns the number of human seats.
+func TestHumanCount(t *testing.T) {
+	cases := []struct {
+		name  string
+		seats []SeatConfig
+		want  int
+	}{
+		{
+			name:  "1 human 3 AI",
+			seats: []SeatConfig{{Type: SeatHuman}, {Type: SeatAI}, {Type: SeatAI}, {Type: SeatAI}},
+			want:  1,
+		},
+		{
+			name: "2 human 2 AI",
+			seats: []SeatConfig{
+				{Type: SeatHuman},
+				{Type: SeatHuman},
+				{Type: SeatAI},
+				{Type: SeatAI},
+			},
+			want: 2,
+		},
+		{
+			name:  "0 human 4 AI",
+			seats: []SeatConfig{{Type: SeatAI}, {Type: SeatAI}, {Type: SeatAI}, {Type: SeatAI}},
+			want:  0,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &session{config: Config{Seats: tc.seats}}
+			if got := s.humanCount(); got != tc.want {
+				t.Errorf("humanCount() = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
 // TestSessionHandlePlayIncrementsSeq verifies that a valid play command
 // increments the sequence number.
 func TestSessionHandlePlayIncrementsSeq(t *testing.T) {
@@ -968,4 +1012,286 @@ func TestSessionInitialDisplayDelay(t *testing.T) {
 	if elapsed < 50*time.Millisecond {
 		t.Errorf("goroutine did not wait for display delay: elapsed %v, want >= 50ms", elapsed)
 	}
+}
+
+// TestHandlePauseCmdSuccess verifies that a valid pause command sets the
+// paused state and broadcasts a snapshot.
+func TestHandlePauseCmdSuccess(t *testing.T) {
+	g := &pauseSpyGame{}
+	timeout := 5000
+	cfg := Config{Seats: []SeatConfig{{Type: SeatHuman}}}
+	delays := DefaultDelays{TurnTimeoutMS: timeout}
+	s := newSession("test", g, cfg, delays, nil)
+	stopSessionGoroutine(s)
+
+	s.waitingForHuman = true
+	s.turnDeadline = time.Now().Add(time.Duration(timeout) * time.Millisecond)
+
+	resp := make(chan SubmitResult, 1)
+	s.handlePauseCmd(playCmd{
+		seat: 0,
+		msg: &api.InboundMessage{
+			Type:     "pause",
+			ActionID: "pause-1",
+			Seq:      1,
+		},
+		resp: resp,
+	})
+
+	res := <-resp
+	if res.Err != nil {
+		t.Fatalf("handlePauseCmd: got error %v, want nil", res.Err)
+	}
+	if !s.paused {
+		t.Fatalf("s.paused = false, want true")
+	}
+	if !g.Paused() {
+		t.Fatalf("game.Paused() = false, want true")
+	}
+	if s.seq != 2 {
+		t.Fatalf("seq = %d, want 2", s.seq)
+	}
+	if s.pauseRemaining <= 0 {
+		t.Fatalf("pauseRemaining = %v, want > 0", s.pauseRemaining)
+	}
+}
+
+// TestHandlePauseCmdRejectsMultiHuman verifies that pause is rejected
+// when the session has more than one human seat.
+func TestHandlePauseCmdRejectsMultiHuman(t *testing.T) {
+	g := &mockGame{}
+	cfg := Config{Seats: []SeatConfig{
+		{Type: SeatHuman},
+		{Type: SeatHuman},
+		{Type: SeatAI},
+		{Type: SeatAI},
+	}}
+	s := newSession("test", g, cfg, DefaultDelays{}, nil)
+	stopSessionGoroutine(s)
+
+	s.waitingForHuman = true
+
+	resp := make(chan SubmitResult, 1)
+	s.handlePauseCmd(playCmd{
+		seat: 0,
+		msg: &api.InboundMessage{
+			Type:     "pause",
+			ActionID: "pause-1",
+			Seq:      1,
+		},
+		resp: resp,
+	})
+
+	res := <-resp
+	if res.Err == nil {
+		t.Fatal("handlePauseCmd: got nil error, want pause_not_allowed")
+	}
+	if res.Err.ErrorCode != api.ErrPauseNotAllowed {
+		t.Fatalf("error code = %q, want %q", res.Err.ErrorCode, api.ErrPauseNotAllowed)
+	}
+	if s.paused {
+		t.Fatal("s.paused = true, want false")
+	}
+}
+
+// TestHandlePauseCmdRejectsNotHumanTurn verifies that pause is rejected
+// when the session is not waiting for a human turn.
+func TestHandlePauseCmdRejectsNotHumanTurn(t *testing.T) {
+	g := &mockGame{}
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
+	stopSessionGoroutine(s)
+
+	s.waitingForHuman = false
+
+	resp := make(chan SubmitResult, 1)
+	s.handlePauseCmd(playCmd{
+		seat: 0,
+		msg: &api.InboundMessage{
+			Type:     "pause",
+			ActionID: "pause-1",
+			Seq:      1,
+		},
+		resp: resp,
+	})
+
+	res := <-resp
+	if res.Err == nil {
+		t.Fatal("handlePauseCmd: got nil error, want pause_not_allowed")
+	}
+	if res.Err.ErrorCode != api.ErrPauseNotAllowed {
+		t.Fatalf("error code = %q, want %q", res.Err.ErrorCode, api.ErrPauseNotAllowed)
+	}
+}
+
+// TestHandlePauseCmdRejectsAlreadyPaused verifies that pause is rejected
+// when the game is already paused.
+func TestHandlePauseCmdRejectsAlreadyPaused(t *testing.T) {
+	g := &mockGame{}
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
+	stopSessionGoroutine(s)
+
+	s.waitingForHuman = true
+	s.paused = true
+
+	resp := make(chan SubmitResult, 1)
+	s.handlePauseCmd(playCmd{
+		seat: 0,
+		msg: &api.InboundMessage{
+			Type:     "pause",
+			ActionID: "pause-1",
+			Seq:      1,
+		},
+		resp: resp,
+	})
+
+	res := <-resp
+	if res.Err == nil {
+		t.Fatal("handlePauseCmd: got nil error, want pause_not_allowed")
+	}
+	if res.Err.ErrorCode != api.ErrPauseNotAllowed {
+		t.Fatalf("error code = %q, want %q", res.Err.ErrorCode, api.ErrPauseNotAllowed)
+	}
+}
+
+// TestHandleResumeCmdSuccess verifies that resume restores the paused state
+// and recalculates the turn deadline.
+func TestHandleResumeCmdSuccess(t *testing.T) {
+	g := &mockGame{}
+	timeout := 5000
+	cfg := Config{Seats: []SeatConfig{{Type: SeatHuman}}}
+	delays := DefaultDelays{TurnTimeoutMS: timeout}
+	s := newSession("test", g, cfg, delays, nil)
+	stopSessionGoroutine(s)
+
+	s.waitingForHuman = true
+	s.paused = true
+	s.pauseRemaining = 2 * time.Second
+
+	resp := make(chan SubmitResult, 1)
+	s.handleResumeCmd(playCmd{
+		seat: 0,
+		msg: &api.InboundMessage{
+			Type:     "resume",
+			ActionID: "resume-1",
+			Seq:      1,
+		},
+		resp: resp,
+	})
+
+	res := <-resp
+	if res.Err != nil {
+		t.Fatalf("handleResumeCmd: got error %v, want nil", res.Err)
+	}
+	if s.paused {
+		t.Fatalf("s.paused = true, want false")
+	}
+	if g.Paused() {
+		t.Fatalf("game.Paused() = true, want false")
+	}
+	if s.turnDeadline.IsZero() {
+		t.Fatalf("turnDeadline is zero, want non-zero")
+	}
+	if s.seq != 2 {
+		t.Fatalf("seq = %d, want 2", s.seq)
+	}
+}
+
+// TestHandleResumeCmdRejectsNotPaused verifies that resume is rejected when
+// the game is not paused.
+func TestHandleResumeCmdRejectsNotPaused(t *testing.T) {
+	g := &mockGame{}
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
+	stopSessionGoroutine(s)
+
+	s.waitingForHuman = true
+	s.paused = false
+
+	resp := make(chan SubmitResult, 1)
+	s.handleResumeCmd(playCmd{
+		seat: 0,
+		msg: &api.InboundMessage{
+			Type:     "resume",
+			ActionID: "resume-1",
+			Seq:      1,
+		},
+		resp: resp,
+	})
+
+	res := <-resp
+	if res.Err == nil {
+		t.Fatal("handleResumeCmd: got nil error, want pause_not_allowed")
+	}
+	if res.Err.ErrorCode != api.ErrPauseNotAllowed {
+		t.Fatalf("error code = %q, want %q", res.Err.ErrorCode, api.ErrPauseNotAllowed)
+	}
+}
+
+// TestAutoUnpauseOnHumanDisconnect verifies that a paused game auto-unpauses
+// when a human seat disconnects.
+func TestAutoUnpauseOnHumanDisconnect(t *testing.T) {
+	g := &mockGame{}
+	timeout := 5000
+	cfg := Config{Seats: []SeatConfig{{Type: SeatHuman}}}
+	delays := DefaultDelays{TurnTimeoutMS: timeout}
+	s := newSession("test", g, cfg, delays, nil)
+	stopSessionGoroutine(s)
+
+	s.waitingForHuman = true
+	s.paused = true
+	s.pauseRemaining = 2 * time.Second
+
+	ch := make(chan SubscriberMessage, subChanSize)
+	s.players[0] = ch
+	s.handleUnsubscribe(unsubscribeCmd{seat: 0, ch: ch})
+
+	if s.paused {
+		t.Fatalf("s.paused = true after human disconnect, want false")
+	}
+	if g.Paused() {
+		t.Fatalf("game.Paused() = true after human disconnect, want false")
+	}
+	if s.turnDeadline.IsZero() {
+		t.Fatalf("turnDeadline is zero after human disconnect, want non-zero")
+	}
+	if s.seq != 2 {
+		t.Fatalf("seq = %d, want 2", s.seq)
+	}
+}
+
+// TestAutoUnpauseSkippedForObserverDisconnect verifies that a paused game
+// does not auto-unpause when an observer disconnects.
+func TestAutoUnpauseSkippedForObserverDisconnect(t *testing.T) {
+	g := &mockGame{}
+	cfg := Config{Seats: []SeatConfig{{Type: SeatHuman}}}
+	s := newSession("test", g, cfg, DefaultDelays{}, nil)
+	stopSessionGoroutine(s)
+
+	s.waitingForHuman = true
+	s.paused = true
+
+	ch := make(chan SubscriberMessage, subChanSize)
+	s.observers = append(s.observers, ch)
+	s.handleUnsubscribe(unsubscribeCmd{seat: -1, ch: ch})
+
+	if !s.paused {
+		t.Fatalf("s.paused = false after observer disconnect, want true")
+	}
+}
+
+// SetPaused implements Game.SetPaused for pauseSpyGame.
+func (p *pauseSpyGame) SetPaused(paused bool) {
+	p.paused = paused
+}
+
+// Paused implements Game.Paused for pauseSpyGame.
+func (p *pauseSpyGame) Paused() bool {
+	return p.paused
+}
+
+// stopSessionGoroutine signals the session goroutine to exit and waits for it
+// to finish. Use this in unit tests that call handlers directly and need to
+// mutate session state without racing the goroutine.
+func stopSessionGoroutine(s *session) {
+	close(s.cancel)
+	<-s.done
 }

@@ -112,6 +112,8 @@ func (c *Client) HandleKey(key tea.KeyPressMsg) (client.Command, bool, string) {
 		return client.Command{}, false, ""
 	}
 	switch c.phase {
+	case heartsclient.PhasePaused:
+		return c.handlePausedKey(key)
 	case heartsclient.PhasePassing:
 		return c.handlePassingKey(key)
 	case heartsclient.PhasePlaying:
@@ -119,6 +121,23 @@ func (c *Client) HandleKey(key tea.KeyPressMsg) (client.Command, bool, string) {
 	default:
 		return client.Command{}, false, ""
 	}
+}
+
+// TogglePause builds a pause or resume command based on the current
+// paused state.
+func (c *Client) TogglePause(paused bool) (client.Command, bool) {
+	if paused {
+		cmd, err := heartsclient.NewResumeMessage(c.nextActionID(), 0)
+		if err != nil {
+			return client.Command{}, false
+		}
+		return cmd, true
+	}
+	cmd, err := heartsclient.NewPauseMessage(c.nextActionID(), 0)
+	if err != nil {
+		return client.Command{}, false
+	}
+	return cmd, true
 }
 
 // Render returns the main game area for the current snapshot and selection.
@@ -129,6 +148,8 @@ func (c *Client) Render() string {
 	switch c.phase {
 	case heartsclient.PhaseDeal:
 		return RenderDealView()
+	case heartsclient.PhasePaused:
+		return RenderPausedView()
 	case heartsclient.PhasePassing:
 		return RenderPassingView(c.playerSnap, c.seat, c.cursor, c.selected, c.inputDisabled)
 	case heartsclient.PhasePlaying:
@@ -165,6 +186,12 @@ func (c *Client) IsHumanTurn() bool {
 		return false
 	}
 	return c.playerSnap.Turn == c.seat
+}
+
+// handlePausedKey handles key presses during the paused phase.
+// The model layer handles the 'p' resume toggle, so all direct keys are ignored.
+func (c *Client) handlePausedKey(tea.KeyPressMsg) (client.Command, bool, string) {
+	return client.Command{}, false, ""
 }
 
 // handlePassingKey handles navigation, selection, and submission during the

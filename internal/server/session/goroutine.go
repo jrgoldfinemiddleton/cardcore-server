@@ -92,6 +92,14 @@ type session struct {
 	waitingForHuman bool
 	// turnDeadline is the time at which the turn timeout fires.
 	turnDeadline time.Time
+	// paused is true when the game is paused. When true, the turn
+	// timeout does not fire and the select loop only accepts commands
+	// and cancel.
+	paused bool
+	// pauseRemaining stores the remaining time on the turn deadline
+	// when the game was paused. Used to recalculate the deadline on
+	// resume.
+	pauseRemaining time.Duration
 
 	// logger is the per-component logger so all session goroutine log
 	// lines carry session_id for filtering and correlation.
@@ -149,7 +157,7 @@ func (s *session) run() {
 		// set the timeout channel to fire when the deadline is reached.
 		// If the deadline has already passed, handle the timeout
 		// immediately without waiting.
-		if s.waitingForHuman && s.turnTimeout() > 0 {
+		if s.waitingForHuman && s.turnTimeout() > 0 && !s.paused {
 			remaining := time.Until(s.turnDeadline)
 			if remaining > 0 {
 				// Deadline is in the future; set the timeout channel to fire when it expires.
@@ -164,7 +172,8 @@ func (s *session) run() {
 		case cmd := <-s.cmds:
 			s.logger.Debug("command received", "type", cmdType(cmd))
 			if pc, ok := cmd.(playCmd); ok && s.waitingForHuman &&
-				pc.seat == s.game.Turn() && s.isHumanSeat(pc.seat) {
+				pc.seat == s.game.Turn() && s.isHumanSeat(pc.seat) &&
+				pc.msg.Type != "pause" && pc.msg.Type != "resume" {
 				s.waitingForHuman = false
 			}
 			s.handleCommand(cmd)
@@ -214,6 +223,17 @@ func (s *session) handlePlay(c playCmd) {
 		"seq", c.msg.Seq,
 		"server_seq", s.seq,
 	)
+
+	// Pause/resume are session-level meta-commands. Intercept them before
+	// seq validation so the same playCmd plumbing can carry them.
+	if c.msg.Type == "pause" {
+		s.handlePauseCmd(c)
+		return
+	}
+	if c.msg.Type == "resume" {
+		s.handleResumeCmd(c)
+		return
+	}
 
 	// Client seq is behind the server. Send the latest snapshot so
 	// the client can resync, along with an error.
@@ -530,6 +550,17 @@ func (s *session) isHumanSeat(seat int) bool {
 	return s.config.Seats[seat].Type == SeatHuman
 }
 
+// humanCount returns the number of human seats in the session.
+func (s *session) humanCount() int {
+	count := 0
+	for _, sc := range s.config.Seats {
+		if sc.Type == SeatHuman {
+			count++
+		}
+	}
+	return count
+}
+
 // handleTurnTimeout handles a turn timeout by playing an AI move for
 // the current human seat.
 func (s *session) handleTurnTimeout() {
@@ -565,6 +596,89 @@ func (s *session) handleTurnTimeout() {
 	case StepFinished:
 		s.finishWithGrace()
 	}
+}
+
+// handlePauseCmd pauses the game. Only valid for single-human sessions
+// when waiting for a human turn and not already paused.
+func (s *session) handlePauseCmd(c playCmd) {
+	if s.humanCount() > 1 {
+		c.resp <- SubmitResult{Err: &api.ErrorMessage{
+			Type: errType, ErrorCode: api.ErrPauseNotAllowed,
+			Message:  "pause is only available in single-human games",
+			ActionID: c.msg.ActionID, CurrentSeq: s.seq,
+		}}
+		return
+	}
+	if !s.waitingForHuman {
+		c.resp <- SubmitResult{Err: &api.ErrorMessage{
+			Type: errType, ErrorCode: api.ErrPauseNotAllowed,
+			Message:  "can only pause during your turn",
+			ActionID: c.msg.ActionID, CurrentSeq: s.seq,
+		}}
+		return
+	}
+	if s.paused {
+		c.resp <- SubmitResult{Err: &api.ErrorMessage{
+			Type: errType, ErrorCode: api.ErrPauseNotAllowed,
+			Message:  "game is already paused",
+			ActionID: c.msg.ActionID, CurrentSeq: s.seq,
+		}}
+		return
+	}
+	if s.turnTimeout() > 0 {
+		s.pauseRemaining = time.Until(s.turnDeadline)
+	}
+	s.paused = true
+	s.game.SetPaused(true)
+	s.game.SetTurnDeadline(time.Time{})
+	s.logger.Info("game paused", "seat", c.seat)
+	s.seq++
+	s.broadcastSnapshot()
+	c.resp <- SubmitResult{}
+}
+
+// handleResumeCmd resumes the game. Only valid for single-human sessions
+// when paused.
+func (s *session) handleResumeCmd(c playCmd) {
+	if !s.paused {
+		c.resp <- SubmitResult{Err: &api.ErrorMessage{
+			Type: errType, ErrorCode: api.ErrPauseNotAllowed,
+			Message:  "game is not paused",
+			ActionID: c.msg.ActionID, CurrentSeq: s.seq,
+		}}
+		return
+	}
+	if s.humanCount() > 1 {
+		c.resp <- SubmitResult{Err: &api.ErrorMessage{
+			Type: errType, ErrorCode: api.ErrPauseNotAllowed,
+			Message:  "resume is only available in single-human games",
+			ActionID: c.msg.ActionID, CurrentSeq: s.seq,
+		}}
+		return
+	}
+	s.paused = false
+	s.game.SetPaused(false)
+	if s.waitingForHuman && s.turnTimeout() > 0 {
+		s.turnDeadline = time.Now().Add(s.pauseRemaining)
+		s.game.SetTurnDeadline(s.turnDeadline)
+	}
+	s.logger.Info("game resumed", "seat", c.seat)
+	s.seq++
+	s.broadcastSnapshot()
+	c.resp <- SubmitResult{}
+}
+
+// autoUnpause resumes a paused game when the human player disconnects.
+func (s *session) autoUnpause(seat int) {
+	s.logger.Info("auto-unpausing after human disconnect", "seat", seat)
+	s.paused = false
+	s.game.SetPaused(false)
+	if s.waitingForHuman && s.turnTimeout() > 0 {
+		s.turnDeadline = time.Now().Add(s.pauseRemaining)
+		s.game.SetTurnDeadline(s.turnDeadline)
+	}
+	s.seq++
+	s.broadcastSnapshot()
 }
 
 // playerSnapshot generates a marshaled player snapshot for the given seat.
@@ -711,6 +825,14 @@ func (s *session) handleUnsubscribe(c unsubscribeCmd) {
 		close(ch)
 		delete(s.players, c.seat)
 		s.logger.Info("player unsubscribed", "seat", c.seat)
+	}
+
+	// Auto-unpause: if the game is paused and a human seat disconnects,
+	// unpause so the turn timeout can fire and AIPlay handles the absent
+	// human, exactly as it does for a disconnected human in a non-paused
+	// game.
+	if s.paused && s.isHumanSeat(c.seat) {
+		s.autoUnpause(c.seat)
 	}
 }
 

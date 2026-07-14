@@ -35,6 +35,9 @@ type gameClient interface {
 	// IsHumanTurn reports whether the current turn is for the human player.
 	// This is used by the TUI to determine countdown behavior and display.
 	IsHumanTurn() bool
+	// TogglePause builds a pause or resume command based on the current
+	// paused state. send is true when the command should be transmitted.
+	TogglePause(paused bool) (cmd client.Command, send bool)
 }
 
 // model is the main Bubble Tea model for the cardcore TUI.
@@ -60,6 +63,8 @@ type model struct {
 	// right before the server-side auto-play fires. Input is blocked while
 	// true so the user cannot race the server's timeout action.
 	timeoutDisabled bool
+	// paused is true when the server reports the game is paused.
+	paused bool
 	// humanTurn tracks whether the last snapshot indicated it's the human's turn
 	humanTurn bool
 	// pendingHumanAction is true after the human sends a command and until the
@@ -186,6 +191,7 @@ func (m *model) handleSnapshot(raw []byte) tea.Cmd {
 		RoundNumber    int    `json:"round_number"`
 		Scores         []int  `json:"scores"`
 		TurnDeadlineMS int64  `json:"turn_deadline_ms"`
+		Paused         bool   `json:"paused"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		m.errMsg = "Failed to decode snapshot"
@@ -217,6 +223,19 @@ func (m *model) handleSnapshot(raw []byte) tea.Cmd {
 	// being held so the user has time to read it.
 	if phaseChanged && !m.isAIPlayedHoldActive() {
 		m.statusMsg = ""
+	}
+
+	m.paused = envelope.Paused
+
+	// When paused, stop the countdown and keep input enabled so the user can
+	// press P to resume. The server is the authority; the client mirrors the
+	// paused state from the snapshot.
+	if m.paused {
+		m.turnDeadline = time.Time{}
+		m.timeoutDisabled = false
+		m.game.SetInputDisabled(false)
+		m.statusMsg = "Paused"
+		return cmd
 	}
 
 	// Start/stop the per-turn countdown logic if appropriate.
@@ -290,6 +309,19 @@ func (m *model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			_ = m.conn.Close()
 		}
 		return m, tea.Quit
+	}
+
+	// Toggle pause/resume on the 'p' key. This is a session-level meta-command
+	// handled by the model because it depends on the server-reported paused state.
+	if msg.String() == "p" {
+		if !m.paused && !m.game.IsHumanTurn() {
+			return m, m.setErrorFlash("Not your turn")
+		}
+		cmd, send := m.game.TogglePause(m.paused)
+		if send {
+			return m, m.sendCommandCmd(cmd)
+		}
+		return m, nil
 	}
 
 	// Input is disabled during the client-side timeout window to avoid

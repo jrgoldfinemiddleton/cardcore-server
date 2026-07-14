@@ -448,6 +448,7 @@ When the server rejects a client command, it sends an `error` message
 | Wrong phase | `wrong_phase` | e.g., a command sent during the wrong game phase. |
 | Game is finished | `game_over` | Session is in `finished` state. |
 | Malformed message | `malformed_message` | Bad JSON, missing required fields, unknown type, empty or over-length `action_id`. Includes `action_id` in response when the field was parseable; omits it only when JSON parsing itself failed. |
+| Pause/resume not allowed | `pause_not_allowed` | Game-specific: pause or resume was rejected because it is not the requester's turn, the game is not in an actionable phase, or the game is not paused. See the game's protocol file for exact rules. |
 
 Authentication failures (`401`) occur at HTTP upgrade time, not as
 WebSocket error messages.

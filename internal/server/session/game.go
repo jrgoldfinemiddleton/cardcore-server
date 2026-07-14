@@ -110,6 +110,12 @@ type Game interface {
 	// TurnDeadline returns the last deadline passed to SetTurnDeadline,
 	// or a zero time.Time if no deadline is active.
 	TurnDeadline() time.Time
+
+	// SetPaused sets whether the game is paused externally (e.g., UX pause).
+	SetPaused(paused bool)
+
+	// Paused reports whether the game is currently paused externally.
+	Paused() bool
 }
 
 // Error implements the error interface.

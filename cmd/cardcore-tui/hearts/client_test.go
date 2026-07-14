@@ -471,6 +471,72 @@ func TestClientIsHumanTurnNonActionablePhase(t *testing.T) {
 	}
 }
 
+// TestClientTogglePauseWhenPaused verifies TogglePause returns a resume command
+// when the snapshot is paused.
+func TestClientTogglePauseWhenPaused(t *testing.T) {
+	c := NewClient(0, false)
+	c.HandleSnapshot(mustMarshal(t, heartsclient.PlayerSnapshot{
+		Phase:  heartsclient.PhasePlaying,
+		Turn:   0,
+		Paused: true,
+		Hand:   []heartsclient.Card{{Rank: "two", Suit: "clubs"}},
+	}))
+
+	cmd, send := c.TogglePause(true)
+	if !send {
+		t.Errorf("got send false, want true")
+	}
+	if cmd.Type != "resume" {
+		t.Errorf("got cmd type %q, want resume", cmd.Type)
+	}
+}
+
+// TestClientTogglePauseWhenNotPaused verifies TogglePause returns a pause command
+// when the snapshot is not paused.
+func TestClientTogglePauseWhenNotPaused(t *testing.T) {
+	c := NewClient(0, false)
+	c.HandleSnapshot(mustMarshal(t, heartsclient.PlayerSnapshot{
+		Phase:  heartsclient.PhasePlaying,
+		Turn:   0,
+		Paused: false,
+		Hand:   []heartsclient.Card{{Rank: "two", Suit: "clubs"}},
+	}))
+
+	cmd, send := c.TogglePause(false)
+	if !send {
+		t.Errorf("got send false, want true")
+	}
+	if cmd.Type != "pause" {
+		t.Errorf("got cmd type %q, want pause", cmd.Type)
+	}
+}
+
+// TestClientTogglePauseBuildsPause verifies TogglePause builds a pause command.
+func TestClientTogglePauseBuildsPause(t *testing.T) {
+	c := NewClient(0, false)
+
+	cmd, send := c.TogglePause(false)
+	if !send {
+		t.Errorf("got send false, want true")
+	}
+	if cmd.Type != "pause" {
+		t.Errorf("got cmd type %q, want pause", cmd.Type)
+	}
+}
+
+// TestClientTogglePauseBuildsResume verifies TogglePause builds a resume command.
+func TestClientTogglePauseBuildsResume(t *testing.T) {
+	c := NewClient(0, false)
+
+	cmd, send := c.TogglePause(true)
+	if !send {
+		t.Errorf("got send false, want true")
+	}
+	if cmd.Type != "resume" {
+		t.Errorf("got cmd type %q, want resume", cmd.Type)
+	}
+}
+
 // newPassingClient returns a player client with a four-card hand in the
 // passing phase, ready for navigation and selection tests.
 func newPassingClient(t *testing.T) *Client {

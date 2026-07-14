@@ -9,6 +9,9 @@ const (
 	ErrGameOver         = "game_over"
 	ErrMalformedMessage = "malformed_message"
 	ErrInternal         = "internal_error"
+	// ErrPauseNotAllowed indicates that a pause/resume operation is not allowed
+	// in the current game state.
+	ErrPauseNotAllowed = "pause_not_allowed"
 )
 
 // Recovery action constants returned by ClassifyError.

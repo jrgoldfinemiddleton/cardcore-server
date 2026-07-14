@@ -10,6 +10,9 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- Single-human pause/resume for Hearts: human players can press `p` during their turn to pause the game, and press `p` again at any time while paused to resume. The server introduces `pause` and `resume` WebSocket commands, a `paused` phase, and a `paused` flag on every snapshot. While paused the turn timer is suspended, AI turns do not run, and only the pausing human can resume. If that human disconnects, the server automatically resumes so the session does not stall
+- TUI pause/resume UX: `p` key toggles pause/resume, `RenderPausedView` displays a "Game paused — press P to resume" overlay, and the footer shows "Paused" when the server reports the game is paused
+- Protocol documentation: added `pause` and `resume` inbound message types, the `paused` snapshot field, the `paused` phase, and the `pause_not_allowed` error code to `doc/games/hearts/protocol.md` and `doc/api.md`
 - TUI Hearts UX polish: dimmed cursor state for illegal cards, cursor snap to the first legal card and skip over illegal cards during play, 2-second hold on the "AI played for you (timeout)" status, winner card highlight in `trick_complete`, and bordered summary boxes for `trick_complete`, `round_complete`, and `game_over`
 - TUI post-submit lockout: after a valid pass or play, the hand is immediately rendered dimmed with no cursor and `Left`/`Right`/`Enter` are ignored until the next snapshot, so players no longer see a live cursor and get "Not your turn" while the server is processing their action
 - Cross-client real-time trick display: Hearts player and observer snapshots now include `trick_winner`, populated by the server view during the `trick_complete` phase. The TUI `RenderTrickCompleteView`, TUI observer view, and CLI formatter all display the winner explicitly instead of inferring it from `turn`

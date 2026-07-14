@@ -228,6 +228,12 @@ func (errorGame) ObserverSnapshot(seq int) any {
 // DisplayDelay implements session.Game for errorGame.
 func (errorGame) DisplayDelay() int { return 0 }
 
+// SetPaused implements session.Game for errorGame.
+func (errorGame) SetPaused(bool) {}
+
+// Paused implements session.Game for errorGame.
+func (errorGame) Paused() bool { return false }
+
 // SetTurnDeadline implements session.Game for errorGame.
 func (errorGame) SetTurnDeadline(time.Time) {}
 

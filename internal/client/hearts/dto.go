@@ -53,6 +53,8 @@ type PlayerSnapshot struct {
 	// TurnDeadlineMS is the server-side deadline for the current human turn as
 	// Unix milliseconds. It is zero when no deadline is active.
 	TurnDeadlineMS int64 `json:"turn_deadline_ms"`
+	// Paused indicates whether the game is currently paused.
+	Paused bool `json:"paused"`
 }
 
 // ObserverSnapshot is the game state snapshot sent to an observer connection.
@@ -94,6 +96,8 @@ type ObserverSnapshot struct {
 	// TurnDeadlineMS is the server-side deadline for the current human turn as
 	// Unix milliseconds. It is zero when no deadline is active.
 	TurnDeadlineMS int64 `json:"turn_deadline_ms"`
+	// Paused indicates whether the game is currently paused.
+	Paused bool `json:"paused"`
 }
 
 // PlayCardPayload is the payload for a play_card inbound message.

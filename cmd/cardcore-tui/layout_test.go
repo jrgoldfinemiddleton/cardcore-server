@@ -48,6 +48,16 @@ func TestRenderFooterDisconnected(t *testing.T) {
 	}
 }
 
+// TestRenderFooterPaused verifies the paused footer shows the paused label.
+func TestRenderFooterPaused(t *testing.T) {
+	m := &model{paused: true}
+
+	got := m.renderFooter()
+	if !strings.Contains(got, "Paused") {
+		t.Errorf("renderFooter = %q, want to contain 'Paused'", got)
+	}
+}
+
 // TestRenderFooterConnected verifies the default footer shows "Connected".
 func TestRenderFooterConnected(t *testing.T) {
 	m := &model{}

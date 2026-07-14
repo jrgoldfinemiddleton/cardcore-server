@@ -42,6 +42,9 @@ type Adapter struct {
 	// turnDeadline is the authoritative deadline for the current human
 	// turn, set by the session goroutine. It is not used by game logic.
 	turnDeadline time.Time
+	// isPaused is the external UX pause state controlled by the session
+	// goroutine. It is not used by game logic.
+	isPaused bool
 }
 
 // pauseState captures the adapter state during a UX pause.
@@ -251,6 +254,16 @@ func (a *Adapter) TurnDeadline() time.Time {
 	return a.turnDeadline
 }
 
+// SetPaused sets the external UX pause state.
+func (a *Adapter) SetPaused(paused bool) {
+	a.isPaused = paused
+}
+
+// Paused reports the external UX pause state.
+func (a *Adapter) Paused() bool {
+	return a.isPaused
+}
+
 // DisplayDelay returns the number of milliseconds to wait before
 // advancing past the current game state.
 func (a *Adapter) DisplayDelay() int {
@@ -443,6 +456,7 @@ func (a *Adapter) viewState() heartsview.ViewState {
 		vs.TrickComplete = a.paused.trickComplete
 		vs.RoundComplete = a.paused.roundComplete
 	}
+	vs.Paused = a.isPaused
 	return vs
 }
 

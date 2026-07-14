@@ -252,3 +252,26 @@ func TestObserverSnapshotHasObserverFields(t *testing.T) {
 		t.Errorf("got TrickWinner %d, want %d", got.TrickWinner, -1)
 	}
 }
+
+// TestPlayerSnapshotPausedRoundTrip verifies that a PlayerSnapshot with Paused
+// set to true round-trips through JSON encoding/decoding correctly.
+func TestPlayerSnapshotPausedRoundTrip(t *testing.T) {
+	want := PlayerSnapshot{
+		Type:           "snapshot",
+		Seq:            1,
+		Phase:          "playing",
+		TurnDeadlineMS: 0,
+		Paused:         true,
+	}
+	data, err := json.Marshal(want)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	var got PlayerSnapshot
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if got.Paused != true {
+		t.Errorf("got Paused %v, want %v", got.Paused, true)
+	}
+}
