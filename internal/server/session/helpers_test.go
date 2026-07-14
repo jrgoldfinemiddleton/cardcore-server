@@ -38,6 +38,13 @@ type aiPlayFinishedGame struct {
 // invalidTurnGame is a mock Game where Turn returns an invalid seat.
 type invalidTurnGame struct{}
 
+// deadlineBroadcastGame is a mock Game for verifying that the session
+// broadcasts a snapshot after setting the turn deadline. The snapshot
+// includes the deadline so tests can verify the client receives it.
+type deadlineBroadcastGame struct {
+	deadline time.Time
+}
+
 // aiPlayPauseGame is a mock Game where the first turn is seat 0 (human),
 // AIPlay returns StepPause on the first call then StepFinished, and
 // Resume advances the turn to seat 1 so resumePauses chains through.
@@ -446,6 +453,54 @@ func (i *invalidTurnGame) SetTurnDeadline(time.Time) {}
 
 // TurnDeadline implements Game.TurnDeadline for invalidTurnGame.
 func (i *invalidTurnGame) TurnDeadline() time.Time { return time.Time{} }
+
+// HandleAction implements Game.HandleAction for deadlineBroadcastGame.
+func (d *deadlineBroadcastGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
+	return StepResult{}, nil
+}
+
+// AIPlay implements Game.AIPlay for deadlineBroadcastGame.
+func (d *deadlineBroadcastGame) AIPlay(int) (StepResult, error) {
+	return StepResult{}, nil
+}
+
+// Resume implements Game.Resume for deadlineBroadcastGame.
+func (d *deadlineBroadcastGame) Resume() (StepResult, error) {
+	return StepResult{}, nil
+}
+
+// Turn implements Game.Turn for deadlineBroadcastGame.
+func (d *deadlineBroadcastGame) Turn() int { return 0 }
+
+// PlayerSnapshot implements Game.PlayerSnapshot for deadlineBroadcastGame.
+func (d *deadlineBroadcastGame) PlayerSnapshot(seat, seq int) any {
+	return map[string]any{
+		"seq":              seq,
+		"seat":             seat,
+		"turn":             0,
+		"turn_deadline_ms": d.deadline.UnixMilli(),
+	}
+}
+
+// ObserverSnapshot implements Game.ObserverSnapshot for deadlineBroadcastGame.
+func (d *deadlineBroadcastGame) ObserverSnapshot(seq int) any {
+	return map[string]any{
+		"seq":              seq,
+		"turn":             0,
+		"turn_deadline_ms": d.deadline.UnixMilli(),
+	}
+}
+
+// DisplayDelay implements Game.DisplayDelay for deadlineBroadcastGame.
+func (d *deadlineBroadcastGame) DisplayDelay() int { return 0 }
+
+// SetTurnDeadline implements Game.SetTurnDeadline for deadlineBroadcastGame.
+func (d *deadlineBroadcastGame) SetTurnDeadline(deadline time.Time) {
+	d.deadline = deadline
+}
+
+// TurnDeadline implements Game.TurnDeadline for deadlineBroadcastGame.
+func (d *deadlineBroadcastGame) TurnDeadline() time.Time { return d.deadline }
 
 // mockGameFactory returns a game factory for tests that don't need a
 // real game engine.

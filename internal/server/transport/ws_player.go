@@ -176,6 +176,10 @@ func (pc *playerConn) writer(ctx context.Context, cancel context.CancelFunc) {
 				// abrupt read-context cancel that drops the close frame.
 				if pc.closing != nil && pc.closing.Load() {
 					skipCancel = true
+				} else {
+					// Send a normal closure so the client sees a graceful
+					// end rather than an abrupt EOF.
+					_ = pc.ws.Close(websocket.StatusNormalClosure, "")
 				}
 				return
 			}

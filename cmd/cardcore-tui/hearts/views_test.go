@@ -99,7 +99,7 @@ func TestRenderTrickWithEntries(t *testing.T) {
 		{Seat: 3, Card: heartsclient.Card{Rank: "king", Suit: "diamonds"}},
 	}
 
-	got := RenderTrick(trick)
+	got := RenderTrick(trick, -1)
 	want := "Seat 2"
 	if !strings.Contains(got, want) {
 		t.Errorf("RenderTrick = %q, want to contain %q", got, want)
@@ -112,10 +112,28 @@ func TestRenderTrickWithEntries(t *testing.T) {
 
 // TestRenderTrickEmpty verifies that an empty trick shows the placeholder.
 func TestRenderTrickEmpty(t *testing.T) {
-	got := RenderTrick([]heartsclient.TrickEntry{})
+	got := RenderTrick([]heartsclient.TrickEntry{}, -1)
 	want := "(no cards played yet)"
 	if got != want {
 		t.Errorf("RenderTrick(empty) = %q, want %q", got, want)
+	}
+}
+
+// TestRenderTrickHighlightsWinner verifies the winning card is styled
+// differently from the other cards in the trick.
+func TestRenderTrickHighlightsWinner(t *testing.T) {
+	trick := []heartsclient.TrickEntry{
+		{Seat: 2, Card: heartsclient.Card{Rank: "five", Suit: "diamonds"}},
+		{Seat: 3, Card: heartsclient.Card{Rank: "king", Suit: "diamonds"}},
+	}
+
+	got := RenderTrick(trick, 3)
+	if !strings.Contains(got, "Seat 3") {
+		t.Errorf("RenderTrick = %q, want to contain %q", got, "Seat 3")
+	}
+	plain := RenderTrick(trick, -1)
+	if got == plain {
+		t.Errorf("RenderTrick with winner should differ from plain RenderTrick")
 	}
 }
 
@@ -156,7 +174,8 @@ func TestRenderTrickCompleteViewIncomplete(t *testing.T) {
 	}
 }
 
-// TestRenderRoundCompleteView verifies the round-complete view shows scores.
+// TestRenderRoundCompleteView verifies the round-complete view shows scores
+// inside a bordered box.
 func TestRenderRoundCompleteView(t *testing.T) {
 	snap := heartsclient.PlayerSnapshot{
 		RoundNumber: 1,
@@ -169,6 +188,10 @@ func TestRenderRoundCompleteView(t *testing.T) {
 	}
 	if !strings.Contains(got, "Seat 0: 13 (+11)") {
 		t.Errorf("RenderRoundCompleteView = %q, want Seat 0 score", got)
+	}
+	plain := "Round 1 complete\nSeat 0: 13 (+11)\nSeat 1: 0 (+0)\nSeat 2: 13 (+0)\nSeat 3: 0 (+0)"
+	if got == plain {
+		t.Errorf("RenderRoundCompleteView should add a border around the content")
 	}
 }
 
@@ -187,7 +210,7 @@ func TestRenderRoundCompleteViewMismatch(t *testing.T) {
 }
 
 // TestRenderGameOverView verifies the game-over view shows final scores and
-// an exit prompt.
+// an exit prompt inside a bordered box.
 func TestRenderGameOverView(t *testing.T) {
 	snap := heartsclient.PlayerSnapshot{
 		Scores: []int{26, 0, 0, 0},
@@ -201,6 +224,53 @@ func TestRenderGameOverView(t *testing.T) {
 	}
 	if !strings.Contains(got, "Press Enter to exit") {
 		t.Errorf("RenderGameOverView = %q, want exit prompt", got)
+	}
+	plain := "Game Over\nSeat 0: 26\nSeat 1: 0\nSeat 2: 0\nSeat 3: 0\nPress Enter to exit"
+	if got == plain {
+		t.Errorf("RenderGameOverView should add a border around the content")
+	}
+}
+
+// TestRenderPassingViewInputDisabled verifies the status line when input is
+// disabled after the player has submitted.
+func TestRenderPassingViewInputDisabled(t *testing.T) {
+	snap := heartsclient.PlayerSnapshot{
+		RoundNumber:   1,
+		PassDirection: "left",
+		Hand: []heartsclient.Card{
+			{Rank: "queen", Suit: "diamonds"},
+			{Rank: "king", Suit: "hearts"},
+			{Rank: "ace", Suit: "spades"},
+		},
+	}
+	selected := []heartsclient.Card{
+		{Rank: "queen", Suit: "diamonds"},
+		{Rank: "king", Suit: "hearts"},
+		{Rank: "ace", Suit: "spades"},
+	}
+
+	got := RenderPassingView(snap, 0, 0, selected, true)
+	want := "Waiting for other players"
+	if !strings.Contains(got, want) {
+		t.Errorf("RenderPassingView(inputDisabled) = %q, want to contain %q", got, want)
+	}
+}
+
+// TestRenderPlayingViewInputDisabled verifies the status line when input is
+// disabled after the player has played a card.
+func TestRenderPlayingViewInputDisabled(t *testing.T) {
+	snap := heartsclient.PlayerSnapshot{
+		Phase:        "playing",
+		Turn:         0,
+		Hand:         []heartsclient.Card{{Rank: "ace", Suit: "spades"}},
+		Trick:        []heartsclient.TrickEntry{},
+		LegalActions: []heartsclient.Card{{Rank: "ace", Suit: "spades"}},
+	}
+
+	got := RenderPlayingView(snap, 0, 0, true)
+	want := "Waiting for other players"
+	if !strings.Contains(got, want) {
+		t.Errorf("RenderPlayingView(inputDisabled) = %q, want to contain %q", got, want)
 	}
 }
 
@@ -242,20 +312,23 @@ func TestRenderPlayingViewBlankLines(t *testing.T) {
 	}
 }
 
-// TestRenderTrickCompleteViewBlankLines verifies a blank line between the
-// trick and the status.
-func TestRenderTrickCompleteViewBlankLines(t *testing.T) {
+// TestRenderTrickCompleteViewBordered verifies the trick-complete view is
+// wrapped in a bordered box.
+func TestRenderTrickCompleteViewBordered(t *testing.T) {
 	snap := heartsclient.PlayerSnapshot{
 		Trick: []heartsclient.TrickEntry{
 			{Seat: 0, Card: heartsclient.Card{Rank: "two", Suit: "clubs"}},
 		},
 	}
 	got := RenderTrickCompleteView(snap, 0)
-	lines := strings.Split(got, "\n")
-	if len(lines) < 3 {
-		t.Fatalf("RenderTrickCompleteView has %d lines, want at least 3", len(lines))
+	if !strings.Contains(stripANSI(got), "Seat 0") {
+		t.Errorf("RenderTrickCompleteView = %q, want to contain 'Seat 0'", got)
 	}
-	if lines[1] != "" {
-		t.Errorf("RenderTrickCompleteView blank line missing: %q", got)
+	if !strings.Contains(stripANSI(got), "Trick complete") {
+		t.Errorf("RenderTrickCompleteView = %q, want to contain 'Trick complete'", got)
+	}
+	// The box adds border characters to the output.
+	if got == RenderTrick(snap.Trick, -1)+"\nTrick complete" {
+		t.Errorf("RenderTrickCompleteView should add a border around the content")
 	}
 }

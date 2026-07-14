@@ -4,20 +4,34 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/lipgloss/v2"
+
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
 )
 
+// summaryBoxStyle is the bordered container for pause/summary views.
+var summaryBoxStyle = lipgloss.NewStyle().
+	BorderStyle(lipgloss.RoundedBorder()).
+	BorderForeground(lipgloss.Color("#E94560")).
+	Padding(0, 1).
+	Width(78)
+
 // RenderTrick renders the cards played to the current trick, in play order,
 // each labeled with its seat (e.g., "Seat 2: ♦K"). An empty trick returns a
-// short placeholder: "(no cards played yet)".
-func RenderTrick(trick []heartsclient.TrickEntry) string {
+// short placeholder: "(no cards played yet)". When highlightSeat is non-negative
+// and matches an entry's seat, that card is rendered with the CardWinner state.
+func RenderTrick(trick []heartsclient.TrickEntry, highlightSeat int) string {
 	if len(trick) == 0 {
 		return "(no cards played yet)"
 	}
 
 	lines := make([]string, len(trick))
 	for i, entry := range trick {
-		lines[i] = fmt.Sprintf("Seat %d: %s", entry.Seat, CardLabel(entry.Card))
+		state := CardNormal
+		if entry.Seat == highlightSeat {
+			state = CardWinner
+		}
+		lines[i] = fmt.Sprintf("Seat %d: %s", entry.Seat, RenderCard(entry.Card, state))
 	}
 	return joinLines(lines)
 }
@@ -46,9 +60,12 @@ func RenderPassingView(
 	remaining := max(3-len(selected), 0)
 
 	var status string
-	if len(selected) == 3 {
+	switch {
+	case inputDisabled:
+		status = "Waiting for other players…"
+	case len(selected) == 3:
 		status = "Press Enter to pass"
-	} else {
+	default:
 		status = fmt.Sprintf("Select %d more card(s) to pass", remaining)
 	}
 
@@ -64,13 +81,16 @@ func RenderPlayingView(
 	seat, cursor int,
 	inputDisabled bool,
 ) string {
-	trick := RenderTrick(snap.Trick)
+	trick := RenderTrick(snap.Trick, -1)
 	hand := RenderHand(snap.Hand, cursor, nil, snap.LegalActions, inputDisabled)
 
 	var status string
-	if snap.Turn == seat {
+	switch {
+	case inputDisabled:
+		status = "Waiting for other players…"
+	case snap.Turn == seat:
 		status = "Your turn — select a card and press Enter"
-	} else {
+	default:
 		status = fmt.Sprintf("Waiting for seat %d…", snap.Turn)
 	}
 
@@ -79,12 +99,12 @@ func RenderPlayingView(
 
 // RenderTrickCompleteView renders the view shown when a trick is complete.
 //
-// It displays the completed trick with seat labels and a status line.
-// The winner is provided by the server in snap.TrickWinner; the fallback
-// generic message is used when the trick is not complete or the server
-// did not provide a winner.
+// It displays the completed trick with seat labels and a status line inside a
+// bordered box. The winner is provided by the server in snap.TrickWinner; the
+// fallback generic message is used when the trick is not complete or the
+// server did not provide a winner.
 func RenderTrickCompleteView(snap heartsclient.PlayerSnapshot, seat int) string {
-	trick := RenderTrick(snap.Trick)
+	trick := RenderTrick(snap.Trick, snap.TrickWinner)
 
 	var status string
 	if len(snap.Trick) == 4 && snap.TrickWinner >= 0 {
@@ -93,13 +113,14 @@ func RenderTrickCompleteView(snap heartsclient.PlayerSnapshot, seat int) string 
 		status = "Trick complete"
 	}
 
-	return joinLines([]string{trick, "", status})
+	content := joinLines([]string{trick, status})
+	return summaryBoxStyle.Render(content)
 }
 
 // RenderRoundCompleteView renders the round scores overlay.
 //
-// It shows the scores for each seat and the round points accumulated.
-// The next snapshot (deal/passing) transitions naturally; no blocking.
+// It shows the scores for each seat and the round points accumulated inside a
+// bordered box. The next snapshot (deal/passing) transitions naturally.
 func RenderRoundCompleteView(snap heartsclient.PlayerSnapshot) string {
 	if len(snap.RoundPoints) != len(snap.Scores) {
 		return "ERROR: Invalid snapshot (score data mismatch)"
@@ -113,12 +134,13 @@ func RenderRoundCompleteView(snap heartsclient.PlayerSnapshot) string {
 			fmt.Sprintf("Seat %d: %d (+%d)", i, snap.Scores[i], snap.RoundPoints[i]))
 	}
 
-	return joinLines(lines)
+	return summaryBoxStyle.Render(joinLines(lines))
 }
 
 // RenderGameOverView renders the final game-over screen.
 //
-// It shows the final scores for all seats and a prompt to exit.
+// It shows the final scores for all seats and a prompt to exit inside a
+// bordered box.
 func RenderGameOverView(snap heartsclient.PlayerSnapshot) string {
 	var lines []string
 	lines = append(lines, "Game Over")
@@ -128,7 +150,7 @@ func RenderGameOverView(snap heartsclient.PlayerSnapshot) string {
 	}
 
 	lines = append(lines, "Press Enter to exit")
-	return joinLines(lines)
+	return summaryBoxStyle.Render(joinLines(lines))
 }
 
 // RenderDealView renders a brief overlay shown while the deck is being dealt.

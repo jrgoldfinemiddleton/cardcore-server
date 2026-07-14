@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -360,6 +361,24 @@ func TestModelTurnTickDisablesInputAtOneSecond(t *testing.T) {
 	}
 }
 
+// TestModelInputDisabledOnNonHumanTurn verifies a snapshot that is not the
+// human's turn disables input so the hand is dimmed and keys are ignored.
+func TestModelInputDisabledOnNonHumanTurn(t *testing.T) {
+	f := &fakeGame{humanTurn: true}
+	m := &model{game: f, phase: "playing", humanTurn: true}
+
+	m.Update(wsSnapshotMsg{raw: []byte(`{"phase":"playing","turn":0}`)})
+	if f.inputDisabled {
+		t.Errorf("inputDisabled = true, want false on human turn")
+	}
+
+	f.humanTurn = false
+	m.Update(wsSnapshotMsg{raw: []byte(`{"phase":"playing","turn":2}`)})
+	if !f.inputDisabled {
+		t.Errorf("inputDisabled = false, want true when not human turn")
+	}
+}
+
 // TestModelTurnTickStopsWhenExpired verifies a tick at or after the deadline
 // stops the countdown and disables input.
 func TestModelTurnTickStopsWhenExpired(t *testing.T) {
@@ -394,7 +413,8 @@ func TestModelKeyPressIgnoredWhenTimeoutDisabled(t *testing.T) {
 }
 
 // TestModelKeyPressSetsPendingHumanAction verifies sending a command clears the
-// deadline and marks a human action as pending.
+// deadline, marks a human action as pending, and disables input until the next
+// snapshot so the hand is rendered dimmed immediately.
 func TestModelKeyPressSetsPendingHumanAction(t *testing.T) {
 	f := &fakeGame{keySend: true}
 	m := &model{game: f, turnDeadline: time.Now().Add(time.Minute)}
@@ -406,9 +426,41 @@ func TestModelKeyPressSetsPendingHumanAction(t *testing.T) {
 	if !m.turnDeadline.IsZero() {
 		t.Errorf("turnDeadline set, want zero after human action")
 	}
+	if !f.inputDisabled {
+		t.Errorf("inputDisabled = false, want true after send")
+	}
 	if cmd == nil {
 		t.Errorf("got nil cmd, want send command")
 	}
+}
+
+// TestModelCommandSendFailureReEnablesInput verifies that a failed command send
+// re-enables input and resets the pending/submitted state so the player can
+// retry.
+func TestModelCommandSendFailureReEnablesInput(t *testing.T) {
+	f := &fakeGame{keySend: true}
+	m := &model{game: f, turnDeadline: time.Now().Add(time.Minute)}
+
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !f.inputDisabled {
+		t.Fatal("inputDisabled = false, want true after send")
+	}
+
+	newM, cmd := m.Update(commandSentMsg{err: errors.New("send failed")})
+	mm, ok := newM.(*model)
+	if !ok {
+		t.Fatalf("Update returned %T, want *model", newM)
+	}
+	if mm.pendingHumanAction {
+		t.Errorf("pendingHumanAction = true, want false after send failure")
+	}
+	if f.inputDisabled {
+		t.Errorf("inputDisabled = true, want false after send failure")
+	}
+	if mm.errMsg != "Failed to send command" {
+		t.Errorf("errMsg = %q, want %q", mm.errMsg, "Failed to send command")
+	}
+	isFlashTimer(t, cmd)
 }
 
 // TestModelTimeoutDetectedWhenNoHumanAction verifies a transition from human
@@ -418,8 +470,8 @@ func TestModelTimeoutDetectedWhenNoHumanAction(t *testing.T) {
 	m := &model{game: f, phase: "playing", humanTurn: true}
 
 	m.Update(wsSnapshotMsg{raw: []byte(`{"phase":"playing"}`)})
-	if m.statusMsg != "AI played for you (timeout)" {
-		t.Errorf("statusMsg = %q, want 'AI played for you (timeout)'", m.statusMsg)
+	if m.statusMsg != aiPlayedStatusMsg {
+		t.Errorf("statusMsg = %q, want %q", m.statusMsg, aiPlayedStatusMsg)
 	}
 }
 
@@ -441,17 +493,75 @@ func TestModelTimeoutNotDetectedWhenPending(t *testing.T) {
 	}
 }
 
-// TestModelPhaseChangeClearsStatus verifies a phase transition clears the
-// timeout status message.
+// TestModelPhaseChangeClearsStatus verifies a phase transition clears a
+// generic status message.
 func TestModelPhaseChangeClearsStatus(t *testing.T) {
 	f := &fakeGame{humanTurn: false}
 	m := &model{
-		game: f, phase: "playing", humanTurn: true, statusMsg: "previous",
+		game: f, phase: "playing", humanTurn: false, statusMsg: "previous",
 	}
 
 	m.Update(wsSnapshotMsg{raw: []byte(`{"phase":"trick_complete"}`)})
 	if m.statusMsg != "" {
 		t.Errorf("statusMsg = %q, want empty after phase change", m.statusMsg)
+	}
+}
+
+// TestModelAIPlayedHoldPreventsPhaseChangeClear verifies the AI-played status
+// message is held for a minimum duration and survives a phase change.
+func TestModelAIPlayedHoldPreventsPhaseChangeClear(t *testing.T) {
+	f := &fakeGame{humanTurn: false}
+	m := &model{game: f, phase: "playing", humanTurn: true}
+
+	newM, cmd := m.Update(wsSnapshotMsg{raw: []byte(`{"phase":"trick_complete"}`)})
+	mm := newM.(*model)
+	if mm.statusMsg != aiPlayedStatusMsg {
+		t.Errorf("statusMsg = %q, want %q", mm.statusMsg, aiPlayedStatusMsg)
+	}
+	if mm.aiPlayedHoldUntil.IsZero() {
+		t.Error("aiPlayedHoldUntil zero, want set")
+	}
+	if cmd == nil {
+		t.Fatal("got nil cmd, want hold timer")
+	}
+	msg := runCmd(t, cmd)
+	if _, ok := msg.(aiPlayedHoldMsg); !ok {
+		t.Fatalf("cmd returned %T, want aiPlayedHoldMsg", msg)
+	}
+}
+
+// TestModelAIPlayedHoldExpires verifies that when the hold timer expires the
+// AI-played status message is cleared.
+func TestModelAIPlayedHoldExpires(t *testing.T) {
+	m := &model{
+		statusMsg:         aiPlayedStatusMsg,
+		aiPlayedHoldUntil: time.Now().Add(-time.Millisecond),
+	}
+
+	newM, _ := m.Update(aiPlayedHoldMsg{})
+	mm := newM.(*model)
+	if mm.statusMsg != "" {
+		t.Errorf("statusMsg = %q, want empty after hold expires", mm.statusMsg)
+	}
+}
+
+// TestModelAIPlayedHoldClearedByHumanTurn verifies that the AI-played status
+// message is cleared immediately when the human turn starts, even if the hold
+// duration has not expired.
+func TestModelAIPlayedHoldClearedByHumanTurn(t *testing.T) {
+	f := &fakeGame{humanTurn: true}
+	m := &model{
+		game: f, phase: "playing", humanTurn: false,
+		statusMsg:         aiPlayedStatusMsg,
+		aiPlayedHoldUntil: time.Now().Add(time.Hour),
+	}
+
+	deadline := time.Now().Add(30 * time.Second).UnixMilli()
+	raw := []byte(fmt.Sprintf(`{"phase":"playing","turn_deadline_ms":%d}`, deadline))
+	newM, _ := m.Update(wsSnapshotMsg{raw: raw})
+	mm := newM.(*model)
+	if mm.statusMsg != "" {
+		t.Errorf("statusMsg = %q, want empty on human turn", mm.statusMsg)
 	}
 }
 
@@ -486,6 +596,19 @@ func TestModelRenderFooterTimeoutDisabled(t *testing.T) {
 	if !strings.Contains(got, "Timeout - AI playing") {
 		t.Errorf("renderFooter() = %q, want to contain 'Timeout - AI playing'", got)
 	}
+}
+
+// runCmd executes a tea.Cmd and returns the resulting message.
+func runCmd(t *testing.T, cmd tea.Cmd) tea.Msg {
+	t.Helper()
+	if cmd == nil {
+		t.Fatal("cmd is nil")
+	}
+	msg := cmd()
+	if msg == nil {
+		t.Fatal("cmd returned nil message")
+	}
+	return msg
 }
 
 // HandleSnapshot records the snapshot delegation call.

@@ -18,10 +18,14 @@ const (
 	CardNormal CardState = iota
 	// CardCursor means the cursor is currently on this card.
 	CardCursor
+	// CardCursorDimmed means the cursor is on a card that is not legal.
+	CardCursorDimmed
 	// CardSelected means the card is selected (e.g., chosen to pass).
 	CardSelected
 	// CardDimmed means the card is not currently legal or selectable.
 	CardDimmed
+	// CardWinner highlights the card that won a completed trick.
+	CardWinner
 )
 
 // redSuitHex is the hex color for hearts and diamonds on the dark background.
@@ -32,6 +36,9 @@ const lightSuitHex = "#FAFAFA"
 
 // dimColorHex is the muted hex color for dimmed cards.
 const dimColorHex = "#555555"
+
+// winnerBgHex is the background color for the card that won a completed trick.
+const winnerBgHex = "#533483"
 
 // handBgHex is the dark background color for the hand line. It matches
 // layoutStyle's background so cards and separator spaces render with a
@@ -119,7 +126,8 @@ func CardLabel(c heartsclient.Card) string {
 // state. Hearts and diamonds are colored red; clubs and spades are colored
 // light gray/white. CardCursor renders the label bold. CardSelected renders the
 // label normally (the selection marker is placed in the hand gap). CardDimmed
-// renders the card in a muted gray.
+// renders the card in a muted gray. CardWinner highlights the winning card
+// with a distinct background color.
 func RenderCard(c heartsclient.Card, state CardState) string {
 	label := CardLabel(c)
 	color := suitColor(c.Suit)
@@ -137,10 +145,22 @@ func RenderCard(c heartsclient.Card, state CardState) string {
 			Background(bg).
 			Bold(true).
 			Render(label)
+	case CardCursorDimmed:
+		return lipgloss.NewStyle().
+			Foreground(lipgloss.Color(dimColorHex)).
+			Background(bg).
+			Bold(true).
+			Render(label)
 	case CardSelected:
 		return lipgloss.NewStyle().
 			Foreground(color).
 			Background(bg).
+			Render(label)
+	case CardWinner:
+		return lipgloss.NewStyle().
+			Foreground(color).
+			Background(lipgloss.Color(winnerBgHex)).
+			Bold(true).
 			Render(label)
 	default:
 		return lipgloss.NewStyle().
@@ -274,9 +294,9 @@ func renderHandSuffix(
 // cardStateFor determines the CardState for a card at index i in the hand.
 //
 // The cursor highlight composes with other states: if the cursor is on this
-// card, CardCursor is returned regardless of selected/dimmed status.
-// Otherwise, CardSelected takes priority over CardDimmed, and CardDimmed
-// takes priority over CardNormal.
+// card, CardCursor is returned when the card is legal and CardCursorDimmed
+// when it is not. Otherwise, CardSelected takes priority over CardDimmed,
+// and CardDimmed takes priority over CardNormal.
 func cardStateFor(
 	i int,
 	c heartsclient.Card,
@@ -286,6 +306,9 @@ func cardStateFor(
 	hasLegal bool,
 ) CardState {
 	if i == cursor && cursor >= 0 {
+		if hasLegal && !legalSet[c] {
+			return CardCursorDimmed
+		}
 		return CardCursor
 	}
 	if selectedSet[c] {

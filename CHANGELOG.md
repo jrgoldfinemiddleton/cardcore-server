@@ -10,6 +10,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- TUI Hearts UX polish: dimmed cursor state for illegal cards, cursor snap to the first legal card and skip over illegal cards during play, 2-second hold on the "AI played for you (timeout)" status, winner card highlight in `trick_complete`, and bordered summary boxes for `trick_complete`, `round_complete`, and `game_over`
+- TUI post-submit lockout: after a valid pass or play, the hand is immediately rendered dimmed with no cursor and `Left`/`Right`/`Enter` are ignored until the next snapshot, so players no longer see a live cursor and get "Not your turn" while the server is processing their action
 - Cross-client real-time trick display: Hearts player and observer snapshots now include `trick_winner`, populated by the server view during the `trick_complete` phase. The TUI `RenderTrickCompleteView`, TUI observer view, and CLI formatter all display the winner explicitly instead of inferring it from `turn`
 - Hearts protocol documentation: documented the `deal` phase in `doc/games/hearts/protocol.md`
 - Client error code: `ErrInternal` (`internal_error`) in `internal/client/errors.go` with a dedicated recovery classification
@@ -54,6 +56,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- Server deadline broadcast: `turn_deadline_ms` is now stamped onto the same snapshot produced by state changes (initial deal, human play, AI play, resume, timeout) instead of emitting a separate seq-incrementing broadcast. This preserves strict `seq` monotonicity and keeps `stale_seq` checks consistent
+- TUI/CLI WebSocket close handling: a normal end of stream (EOF or server close code 1000) is now reported as "Game ended" rather than "Internal server error". The server transport sends a `1000 Normal Closure` frame when the session ends cleanly
 - Bumped `cardcore` engine dependency to v0.6.0: the engine now separates playing the fourth card from resolving the trick. The server Hearts adapter pauses on the fourth card and calls `ResolveTrick()` during `Resume()` to broadcast the completed trick before advancing to the next trick
 - Server Hearts snapshot generation: removed the `snapshotTrick` workaround; `trick_winner` is now computed from the current trick cards and `Turn` is set to the winner during the `trick_complete` pause so the turn line matches the actual next leader
 - TUI observer view: removed the redundant `Seat X's turn` line during the `trick_complete` phase; the turn line reappears when the `playing` phase resumes
@@ -65,6 +69,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- TUI "Internal server error" at game end: EOF after a clean session end was mapped to close code 1011. The server now sends `1000` and the client treats EOF as a normal closure
+- TUI "Not your turn" flashes after a valid play: input was not disabled while the server processed the command. The model now disables input immediately on send and keeps it disabled while the snapshot indicates it is not the local player's turn
 - TUI `trick_complete` view showed an empty trick because the engine resolves the trick before the snapshot is generated. The server-side Hearts adapter now pauses before resolution and the view populates `snap.Trick` with the completed trick, so the TUI and CLI show all four cards before the next trick
 - TUI observer view and CLI formatter now show the correct `trick_winner` in `trick_complete` snapshots; previously the winner was not displayed by the observer and was omitted from the CLI compact output
 - Server Hearts view `Turn` field was stale during `trick_complete`, causing the TUI observer to show the wrong seat as the next actor while the winner line showed a different seat. `Turn` is now set to the trick winner during the pause
