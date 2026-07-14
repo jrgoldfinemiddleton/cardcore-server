@@ -69,6 +69,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- TUI moon-shot round summary showed inverted deltas: the server was sending the engine's raw `RoundPts` (shooter 26, others 0) as `RoundPoints` in the `round_complete` snapshot, but the moon rule only applies to `Scores`. The server now tracks the previous round's cumulative scores and derives `RoundPoints` as the actual score delta, so the shooter shows `+0` and the other seats show `+26`
+- TUI exited immediately after the final round: the server closes the WebSocket cleanly after broadcasting the final `game_over` snapshot, but the TUI treated the close as a quit signal. The TUI now stays on the final score screen and only exits when the user presses Enter (or uses the existing Ctrl+C / Esc+Enter paths)
 - TUI "Internal server error" at game end: EOF after a clean session end was mapped to close code 1011. The server now sends `1000` and the client treats EOF as a normal closure
 - TUI "Not your turn" flashes after a valid play: input was not disabled while the server processed the command. The model now disables input immediately on send and keeps it disabled while the snapshot indicates it is not the local player's turn
 - TUI `trick_complete` view showed an empty trick because the engine resolves the trick before the snapshot is generated. The server-side Hearts adapter now pauses before resolution and the view populates `snap.Trick` with the completed trick, so the TUI and CLI show all four cards before the next trick

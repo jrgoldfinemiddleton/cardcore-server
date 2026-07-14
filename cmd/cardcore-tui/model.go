@@ -98,6 +98,8 @@ type model struct {
 	modalFatal bool
 }
 
+const phaseGameOver = "game_over"
+
 // commandSentMsg is delivered after an outgoing command send completes. A
 // non-nil err indicates the send failed.
 type commandSentMsg struct {
@@ -283,7 +285,7 @@ func (m *model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	m.escConfirm = false
 
-	if m.phase == "game_over" && msg.Code == tea.KeyEnter {
+	if m.phase == phaseGameOver && msg.Code == tea.KeyEnter {
 		if m.conn != nil {
 			_ = m.conn.Close()
 		}

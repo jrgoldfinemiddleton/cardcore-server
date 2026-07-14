@@ -29,6 +29,37 @@ func TestNewAdapterValid(t *testing.T) {
 	}
 }
 
+// TestNewAdapterCapturesPreviousScores verifies that previousScores is set to
+// the initial cumulative scores after the first deal.
+func TestNewAdapterCapturesPreviousScores(t *testing.T) {
+	a, err := NewAdapter(validSeats(), testRNG(), 0, 0, 0)
+	if err != nil {
+		t.Fatalf("NewAdapter: %v", err)
+	}
+	if a.previousScores != a.game.Scores {
+		t.Errorf("previousScores = %v, want %v", a.previousScores, a.game.Scores)
+	}
+}
+
+// TestResumeUpdatesPreviousScores verifies that previousScores is refreshed to
+// the cumulative scores when Resume deals a new round.
+func TestResumeUpdatesPreviousScores(t *testing.T) {
+	a, err := NewAdapter(validSeats(), testRNG(), 0, 0, 0)
+	if err != nil {
+		t.Fatalf("NewAdapter: %v", err)
+	}
+	a.game.Scores = [hearts.NumPlayers]int{13, 5, 5, 3}
+	a.game.Phase = hearts.PhaseScore
+	a.paused = &pauseState{roundComplete: true}
+
+	if _, err := a.Resume(); err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	if a.previousScores != a.game.Scores {
+		t.Errorf("previousScores = %v, want %v", a.previousScores, a.game.Scores)
+	}
+}
+
 // TestNewAdapterWrongSeatCount verifies that non-4-seat configs are
 // rejected.
 func TestNewAdapterWrongSeatCount(t *testing.T) {

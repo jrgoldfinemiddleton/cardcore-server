@@ -18,6 +18,10 @@ type ViewState struct {
 	TrickComplete bool
 	// RoundComplete signals a completed round before EndRound is called.
 	RoundComplete bool
+	// PreviousScores is the cumulative score per seat at the start of the
+	// current round. It is used to derive the actual score delta shown in the
+	// round_complete snapshot.
+	PreviousScores [hearts.NumPlayers]int
 	// TurnDeadline is the authoritative deadline for the current human turn.
 	// It is zero when no deadline is active.
 	TurnDeadline time.Time
@@ -39,7 +43,7 @@ func PlayerView(vs ViewState, seat hearts.Seat, seq int) *heartsapi.PlayerSnapsh
 		TrickWinner:   -1,
 		HeartsBroken:  g.HeartsBroken,
 		Scores:        g.Scores[:],
-		RoundPoints:   g.RoundPts[:],
+		RoundPoints:   buildRoundPoints(vs, g),
 		Trick:         buildTrick(g.Trick),
 		LegalActions:  buildLegalActions(g, seat),
 	}
@@ -87,7 +91,7 @@ func ObserverView(vs ViewState, seq int) *heartsapi.ObserverSnapshot {
 		TrickWinner:   -1,
 		HeartsBroken:  g.HeartsBroken,
 		Scores:        g.Scores[:],
-		RoundPoints:   g.RoundPts[:],
+		RoundPoints:   buildRoundPoints(vs, g),
 		Trick:         buildTrick(g.Trick),
 		TrickHistory:  buildTrickHistory(g.TrickHistory),
 		LegalActions:  buildLegalActions(g, g.Turn),
@@ -134,6 +138,23 @@ func buildPhase(vs ViewState, g *hearts.Game) string {
 		return "round_complete"
 	}
 	return heartsapi.PhaseToWire(g.Phase)
+}
+
+// buildRoundPoints returns the per-seat round points to display.
+//
+// During round_complete, the value is the actual score delta applied to each
+// seat for the round (e.g., 0 for the moon shooter and 26 for the other seats
+// when the moon is shot). During all other phases, it is the raw penalty points
+// captured in tricks so far.
+func buildRoundPoints(vs ViewState, g *hearts.Game) []int {
+	if vs.RoundComplete {
+		pts := make([]int, hearts.NumPlayers)
+		for i := range hearts.NumPlayers {
+			pts[i] = g.Scores[i] - vs.PreviousScores[i]
+		}
+		return pts
+	}
+	return g.RoundPts[:]
 }
 
 // buildTrick converts a trick to wire-format entries in play order from the leader.

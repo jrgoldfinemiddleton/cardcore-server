@@ -95,7 +95,7 @@ func TestModelUpdateKeyPressCtrlC(t *testing.T) {
 
 // TestModelUpdateKeyPressGameOverEnter verifies Enter quits in game_over phase.
 func TestModelUpdateKeyPressGameOverEnter(t *testing.T) {
-	m := &model{game: &fakeGame{}, phase: "game_over"}
+	m := &model{game: &fakeGame{}, phase: phaseGameOver}
 
 	newM, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	_, ok := newM.(*model)
@@ -105,16 +105,32 @@ func TestModelUpdateKeyPressGameOverEnter(t *testing.T) {
 	isQuitMsg(t, cmd)
 }
 
-// TestModelUpdateWSClose verifies WebSocket close quits the program.
+// TestModelUpdateWSClose verifies WebSocket close quits the program during a
+// live game, but stays on the final screen once the game has ended.
 func TestModelUpdateWSClose(t *testing.T) {
-	m := &model{game: &fakeGame{}}
+	t.Run("live game", func(t *testing.T) {
+		m := &model{game: &fakeGame{}, phase: "playing"}
 
-	newM, cmd := m.Update(wsCloseMsg{code: 1000})
-	_, ok := newM.(*model)
-	if !ok {
-		t.Fatalf("Update returned %T, want *model", newM)
-	}
-	isQuitMsg(t, cmd)
+		newM, cmd := m.Update(wsCloseMsg{code: 1000})
+		_, ok := newM.(*model)
+		if !ok {
+			t.Fatalf("Update returned %T, want *model", newM)
+		}
+		isQuitMsg(t, cmd)
+	})
+
+	t.Run("game over", func(t *testing.T) {
+		m := &model{game: &fakeGame{}, phase: phaseGameOver}
+
+		newM, cmd := m.Update(wsCloseMsg{code: 1000})
+		_, ok := newM.(*model)
+		if !ok {
+			t.Fatalf("Update returned %T, want *model", newM)
+		}
+		if cmd != nil {
+			t.Fatalf("expected nil cmd, got %v", cmd)
+		}
+	})
 }
 
 // TestModelKeyDelegatesSend verifies a key that yields a command delegates to
@@ -557,7 +573,7 @@ func TestModelAIPlayedHoldClearedByHumanTurn(t *testing.T) {
 	}
 
 	deadline := time.Now().Add(30 * time.Second).UnixMilli()
-	raw := []byte(fmt.Sprintf(`{"phase":"playing","turn_deadline_ms":%d}`, deadline))
+	raw := fmt.Appendf(nil, `{"phase":"playing","turn_deadline_ms":%d}`, deadline)
 	newM, _ := m.Update(wsSnapshotMsg{raw: raw})
 	mm := newM.(*model)
 	if mm.statusMsg != "" {
