@@ -39,7 +39,7 @@ func TestRenderCardStates(t *testing.T) {
 		CardNormal, CardCursor, CardCursorDimmed, CardSelected, CardDimmed, CardWinner,
 	}
 	for _, state := range states {
-		got := RenderCard(card, state)
+		got := RenderCard(card, state, NewDarkTheme())
 		if got == "" {
 			t.Errorf("RenderCard(%+v, %v) returned empty string", card, state)
 		}
@@ -54,11 +54,12 @@ func TestRenderCardStates(t *testing.T) {
 func TestRenderCardNoBrackets(t *testing.T) {
 	card := heartsclient.Card{Rank: "ace", Suit: "spades"}
 
-	got := stripANSI(RenderCard(card, CardCursor))
+	got := stripANSI(RenderCard(card, CardCursor, NewDarkTheme()))
 	if strings.Contains(got, "[") || strings.Contains(got, "]") {
 		t.Errorf("RenderCard(cursor) = %q, want no brackets", got)
 	}
-	if got := stripANSI(RenderCard(card, CardSelected)); strings.Contains(got, selectedMarker) {
+	selected := stripANSI(RenderCard(card, CardSelected, NewDarkTheme()))
+	if strings.Contains(selected, selectedMarker) {
 		t.Errorf("RenderCard(selected) = %q, want no checkmark", got)
 	}
 }
@@ -72,7 +73,7 @@ func TestRenderHandGapWidth(t *testing.T) {
 		{Rank: "two", Suit: "clubs"},
 	}
 
-	got := stripANSI(RenderHand(hand, -1, nil, nil, false))
+	got := stripANSI(RenderHand(hand, -1, nil, nil, false, NewDarkTheme()))
 	want := " ♥K    ♠A    ♣2"
 	if got != want {
 		t.Errorf("RenderHand = %q, want %q", got, want)
@@ -87,13 +88,13 @@ func TestRenderHandTenCard(t *testing.T) {
 		{Rank: "ace", Suit: "spades"},
 	}
 
-	got := stripANSI(RenderHand(hand, -1, nil, nil, false))
+	got := stripANSI(RenderHand(hand, -1, nil, nil, false, NewDarkTheme()))
 	want := " ♥10    ♠A"
 	if got != want {
 		t.Errorf("RenderHand = %q, want %q", got, want)
 	}
 
-	got = stripANSI(RenderHand(hand, 0, nil, nil, false))
+	got = stripANSI(RenderHand(hand, 0, nil, nil, false, NewDarkTheme()))
 	want = "[♥10 ]  ♠A"
 	if got != want {
 		t.Errorf("RenderHand(cursor on ten) = %q, want %q", got, want)
@@ -109,7 +110,7 @@ func TestRenderHandTenCardNotFirst(t *testing.T) {
 		{Rank: "two", Suit: "clubs"},
 	}
 
-	got := stripANSI(RenderHand(hand, 1, nil, nil, false))
+	got := stripANSI(RenderHand(hand, 1, nil, nil, false, NewDarkTheme()))
 	want := " ♠A   [♥10 ]  ♣2"
 	if got != want {
 		t.Errorf("RenderHand(cursor on ten) = %q, want %q", got, want)
@@ -138,7 +139,7 @@ func TestRenderHandMultipleTenCards(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		got := stripANSI(RenderHand(hand, tc.cursor, nil, nil, false))
+		got := stripANSI(RenderHand(hand, tc.cursor, nil, nil, false, NewDarkTheme()))
 		if got != tc.want {
 			t.Errorf("cursor=%d: RenderHand = %q, want %q", tc.cursor, got, tc.want)
 		}
@@ -164,7 +165,7 @@ func TestRenderHandCursorMarkers(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		got := stripANSI(RenderHand(hand, tc.cursor, nil, nil, false))
+		got := stripANSI(RenderHand(hand, tc.cursor, nil, nil, false, NewDarkTheme()))
 		if got != tc.want {
 			t.Errorf("cursor=%d: RenderHand = %q, want %q", tc.cursor, got, tc.want)
 		}
@@ -180,7 +181,7 @@ func TestRenderHandSelectedMarker(t *testing.T) {
 	}
 	selected := []heartsclient.Card{{Rank: "king", Suit: "hearts"}}
 
-	got := stripANSI(RenderHand(hand, -1, selected, nil, false))
+	got := stripANSI(RenderHand(hand, -1, selected, nil, false, NewDarkTheme()))
 	want := " ♥K✓   ♠A"
 	if got != want {
 		t.Errorf("RenderHand = %q, want %q", got, want)
@@ -232,7 +233,7 @@ func TestRenderHandCursorAndSelection(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := stripANSI(RenderHand(hand, tc.cursor, tc.selected, nil, false))
+			got := stripANSI(RenderHand(hand, tc.cursor, tc.selected, nil, false, NewDarkTheme()))
 			if got != tc.want {
 				t.Errorf("RenderHand = %q, want %q", got, tc.want)
 			}
@@ -248,12 +249,12 @@ func TestRenderHandFirstCardMargin(t *testing.T) {
 		{Rank: "two", Suit: "clubs"},
 	}
 
-	noCursor := stripANSI(RenderHand(hand, -1, nil, nil, false))
+	noCursor := stripANSI(RenderHand(hand, -1, nil, nil, false, NewDarkTheme()))
 	if !strings.HasPrefix(noCursor, " ♠") {
 		t.Errorf("RenderHand(no cursor) = %q, want leading space", noCursor)
 	}
 
-	withCursor := stripANSI(RenderHand(hand, 0, nil, nil, false))
+	withCursor := stripANSI(RenderHand(hand, 0, nil, nil, false, NewDarkTheme()))
 	if !strings.HasPrefix(withCursor, "[♠") {
 		t.Errorf("RenderHand(cursor on first) = %q, want leading bracket", withCursor)
 	}
@@ -269,8 +270,8 @@ func TestRenderHandLegalDimming(t *testing.T) {
 	}
 	legal := []heartsclient.Card{{Rank: "ace", Suit: "spades"}}
 
-	withLegal := RenderHand(hand, -1, nil, legal, false)
-	withoutLegal := RenderHand(hand, -1, nil, nil, false)
+	withLegal := RenderHand(hand, -1, nil, legal, false, NewDarkTheme())
+	withoutLegal := RenderHand(hand, -1, nil, nil, false, NewDarkTheme())
 
 	if withLegal == withoutLegal {
 		t.Errorf("legal dimming produced same raw output as legal=nil, want different")
@@ -308,7 +309,7 @@ func TestRenderHandCursorOnIllegalCard(t *testing.T) {
 	}
 	legal := []heartsclient.Card{{Rank: "ace", Suit: "spades"}}
 
-	got := stripANSI(RenderHand(hand, 1, nil, legal, false))
+	got := stripANSI(RenderHand(hand, 1, nil, legal, false, NewDarkTheme()))
 	want := " ♠A   [♥K ]"
 	if got != want {
 		t.Errorf("RenderHand(cursor on illegal card) = %q, want %q", got, want)
@@ -324,7 +325,7 @@ func TestRenderHandInputDisabled(t *testing.T) {
 	}
 	selected := []heartsclient.Card{{Rank: "king", Suit: "hearts"}}
 
-	got := stripANSI(RenderHand(hand, 0, selected, nil, true))
+	got := stripANSI(RenderHand(hand, 0, selected, nil, true, NewDarkTheme()))
 	want := " ♥K    ♠A"
 	if got != want {
 		t.Errorf("RenderHand(inputDisabled) = %q, want %q", got, want)

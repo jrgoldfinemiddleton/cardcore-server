@@ -22,6 +22,8 @@ type Client struct {
 	seat int
 	// observer is true when this client renders the omniscient observer view.
 	observer bool
+	// theme is the color palette used by all render functions.
+	theme Theme
 	// playerSnap is the most recent decoded player snapshot.
 	playerSnap heartsclient.PlayerSnapshot
 	// observerSnap is the most recent decoded observer snapshot.
@@ -45,9 +47,10 @@ type Client struct {
 }
 
 // NewClient returns a Hearts adapter for the given seat. When observer is true,
-// the client renders the omniscient observer view and ignores input.
-func NewClient(seat int, observer bool) *Client {
-	return &Client{seat: seat, observer: observer}
+// the client renders the omniscient observer view and ignores input. The theme
+// is stored and passed to all render functions.
+func NewClient(seat int, observer bool, theme Theme) *Client {
+	return &Client{seat: seat, observer: observer, theme: theme}
 }
 
 // SetInputDisabled toggles human input for the client. When true, the UI should
@@ -140,26 +143,28 @@ func (c *Client) TogglePause(paused bool) (client.Command, bool) {
 	return cmd, true
 }
 
-// Render returns the main game area for the current snapshot and selection.
+// Render returns the main game area for the current snapshot and selection,
+// passing the stored theme to all render functions.
 func (c *Client) Render() string {
 	if c.observer {
-		return RenderObserverView(c.observerSnap)
+		return RenderObserverView(c.observerSnap, c.theme)
 	}
 	switch c.phase {
 	case heartsclient.PhaseDeal:
 		return RenderDealView()
 	case heartsclient.PhasePaused:
-		return RenderPausedView()
+		return RenderPausedView(c.theme)
 	case heartsclient.PhasePassing:
-		return RenderPassingView(c.playerSnap, c.seat, c.cursor, c.selected, c.inputDisabled)
+		return RenderPassingView(c.playerSnap, c.seat, c.cursor,
+			c.selected, c.inputDisabled, c.theme)
 	case heartsclient.PhasePlaying:
-		return RenderPlayingView(c.playerSnap, c.seat, c.cursor, c.inputDisabled)
+		return RenderPlayingView(c.playerSnap, c.seat, c.cursor, c.inputDisabled, c.theme)
 	case heartsclient.PhaseTrickComplete:
-		return RenderTrickCompleteView(c.playerSnap, c.seat)
+		return RenderTrickCompleteView(c.playerSnap, c.seat, c.theme)
 	case heartsclient.PhaseRoundComplete:
-		return RenderRoundCompleteView(c.playerSnap)
+		return RenderRoundCompleteView(c.playerSnap, c.theme)
 	case heartsclient.PhaseGameOver:
-		return RenderGameOverView(c.playerSnap)
+		return RenderGameOverView(c.playerSnap, c.theme)
 	default:
 		return fmt.Sprintf("Phase: %s", c.phase)
 	}

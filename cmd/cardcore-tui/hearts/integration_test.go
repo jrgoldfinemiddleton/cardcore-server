@@ -91,7 +91,7 @@ func TestIntegrationTUIClientFullGame(t *testing.T) {
 		}
 	}()
 
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 
 	var (
 		gotPass             bool
@@ -243,7 +243,7 @@ func TestIntegrationTUIClientAutoCreateSession(t *testing.T) {
 		t.Fatal("first snapshot was empty")
 	}
 
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	c.HandleSnapshot(data)
 	if c.phase == "" {
 		t.Error("snapshot did not produce a phase")
@@ -306,7 +306,7 @@ func TestTUITimeoutAutoPlayIntegration(t *testing.T) {
 	}
 	defer func() { _ = conn.Close() }()
 
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	gotTimeoutAutoPlay := false
 
 	for range 5000 {

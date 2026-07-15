@@ -36,6 +36,9 @@ func TestParseFlagsDefaults(t *testing.T) {
 	if cfg.aiType != "random" {
 		t.Errorf("aiType got %q, want %q", cfg.aiType, "random")
 	}
+	if cfg.theme != "dark" {
+		t.Errorf("theme got %q, want %q", cfg.theme, "dark")
+	}
 }
 
 // TestParseFlagsEnvFallback verifies that environment variables are used as
@@ -48,6 +51,7 @@ func TestParseFlagsEnvFallback(t *testing.T) {
 	t.Setenv("CARDCORE_TUI_SEAT", "2")
 	t.Setenv("CARDCORE_TUI_DEBUG", "true")
 	t.Setenv("CARDCORE_TUI_AI_TYPE", "pimc")
+	t.Setenv("CARDCORE_TUI_THEME", "light")
 
 	cfg, err := parseFlags([]string{})
 	if err != nil {
@@ -78,6 +82,9 @@ func TestParseFlagsEnvFallback(t *testing.T) {
 	if cfg.aiType != "pimc" {
 		t.Errorf("aiType got %q, want %q", cfg.aiType, "pimc")
 	}
+	if cfg.theme != "light" {
+		t.Errorf("theme got %q, want %q", cfg.theme, "light")
+	}
 }
 
 // TestParseFlagsEnvFallbackObserver verifies that observer mode can be set via
@@ -107,11 +114,13 @@ func TestParseFlagsFlagOverride(t *testing.T) {
 	t.Setenv("CARDCORE_TUI_SESSION", "session-123")
 	t.Setenv("CARDCORE_TUI_TOKEN", "token-123")
 	t.Setenv("CARDCORE_TUI_AI_TYPE", "pimc")
+	t.Setenv("CARDCORE_TUI_THEME", "light")
 
 	cfg, err := parseFlags([]string{
 		"-server", "http://localhost:1111",
 		"-seat", "1",
 		"-ai-type", "random",
+		"-theme", "dark",
 	})
 	if err != nil {
 		t.Fatalf("parseFlags: %v", err)
@@ -131,6 +140,9 @@ func TestParseFlagsFlagOverride(t *testing.T) {
 	}
 	if cfg.aiType != "random" {
 		t.Errorf("aiType got %q, want %q", cfg.aiType, "random")
+	}
+	if cfg.theme != "dark" {
+		t.Errorf("theme got %q, want %q", cfg.theme, "dark")
 	}
 }
 
@@ -172,6 +184,9 @@ func TestParseFlagsValidation(t *testing.T) {
 	}
 	if _, err := parseFlags([]string{"-seat", "-1"}); err == nil {
 		t.Errorf("parseFlags got nil error, want error for negative seat")
+	}
+	if _, err := parseFlags([]string{"-theme", "foo"}); err == nil {
+		t.Errorf("parseFlags got nil error, want error for invalid theme")
 	}
 }
 

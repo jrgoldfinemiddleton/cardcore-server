@@ -8,25 +8,26 @@ import (
 )
 
 // RenderObserverView renders the full observer view showing all four seats'
-// hands, the current trick, scores, and whose turn it is.
+// hands, the current trick, scores, and whose turn it is, using the provided
+// theme for colors.
 //
 // It does not panic when Hands has fewer than 4 entries — it iterates over what
 // is present.
-func RenderObserverView(snap heartsclient.ObserverSnapshot) string {
+func RenderObserverView(snap heartsclient.ObserverSnapshot, theme Theme) string {
 	header := fmt.Sprintf("Round %d — Trick %d — %s",
 		snap.RoundNumber, snap.TrickNumber, formatPassDirection(snap.PassDirection))
 
 	handLines := make([]string, 0, len(snap.Hands))
 	for i, hand := range snap.Hands {
 		handLines = append(handLines,
-			fmt.Sprintf("Seat %d: %s", i, RenderHand(hand, -1, nil, nil, false)))
+			fmt.Sprintf("Seat %d: %s", i, RenderHand(hand, -1, nil, nil, false, theme)))
 	}
 
 	highlightSeat := -1
 	if snap.Phase == heartsclient.PhaseTrickComplete && snap.TrickWinner >= 0 {
 		highlightSeat = snap.TrickWinner
 	}
-	trick := RenderTrick(snap.Trick, highlightSeat)
+	trick := RenderTrick(snap.Trick, highlightSeat, theme)
 
 	var scores string
 	if len(snap.RoundPoints) != len(snap.Scores) {

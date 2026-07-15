@@ -20,6 +20,7 @@
 //	-token    Seat bearer token (required when joining)
 //	-seat     Seat index (game-dependent, default: 0)
 //	-observe  Observer mode: receive-only, all hands visible
+//	-theme    Color theme: dark or light (default: dark)
 //	-debug    Enable debug logging to tui.log
 //
 // The TUI uses the Elm Architecture (Model-Update-View) via Bubble Tea:

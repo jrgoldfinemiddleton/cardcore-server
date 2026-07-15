@@ -38,6 +38,8 @@ type tuiConfig struct {
 	debug bool
 	// aiType selects the AI player type for auto-created sessions.
 	aiType string
+	// theme selects the color palette: "dark" or "light".
+	theme string
 }
 
 // main is the entry point for the cardcore TUI client.
@@ -114,6 +116,9 @@ func parseFlags(args []string) (*tuiConfig, error) {
 	fs.StringVar(&cfg.aiType, "ai-type",
 		envOrDefault("CARDCORE_TUI_AI_TYPE", "random"),
 		"AI player type (env: CARDCORE_TUI_AI_TYPE)")
+	fs.StringVar(&cfg.theme, "theme",
+		envOrDefault("CARDCORE_TUI_THEME", "dark"),
+		"color theme: dark or light (env: CARDCORE_TUI_THEME)")
 
 	fs.Usage = func() {
 		_, _ = fmt.Fprintf(fs.Output(), "Usage: %s [flags]\n\n", fs.Name())
@@ -140,6 +145,9 @@ func parseFlags(args []string) (*tuiConfig, error) {
 	}
 	if cfg.seat < 0 {
 		return nil, fmt.Errorf("-seat must be >= 0")
+	}
+	if cfg.theme != "dark" && cfg.theme != "light" {
+		return nil, fmt.Errorf("-theme must be 'dark' or 'light'")
 	}
 
 	return cfg, nil
@@ -287,7 +295,14 @@ func run(cfg *tuiConfig) error {
 	// (interface{} holds the pointer value). The program and your local
 	// variable both point to the same struct. Setting m.program = p modifies
 	// the shared struct, so the goroutine sees the correct program reference.
-	game, err := newGameClient(cfg.game, cfg.seat, cfg.observer)
+	// Construct the theme from the configured string. The value is
+	// validated by parseFlags, so only "dark" or "light" reach here.
+	theme := NewDarkTheme()
+	if cfg.theme == "light" {
+		theme = NewLightTheme()
+	}
+
+	game, err := newGameClient(cfg.game, cfg.seat, cfg.observer, theme)
 	if err != nil {
 		return err
 	}
@@ -295,6 +310,7 @@ func run(cfg *tuiConfig) error {
 		conn:  conn,
 		game:  game,
 		phase: "connecting",
+		theme: theme,
 	}
 
 	// Step 6: Create program.
@@ -326,11 +342,12 @@ func run(cfg *tuiConfig) error {
 
 // newGameClient constructs the game-specific client for the named game. It is
 // the single composition point where concrete games are wired into the
-// game-agnostic model; add new games by extending the switch.
-func newGameClient(game string, seat int, observer bool) (gameClient, error) {
+// game-agnostic model; add new games by extending the switch. The theme is
+// passed through to the game client for use in rendering.
+func newGameClient(game string, seat int, observer bool, theme Theme) (gameClient, error) {
 	switch game {
 	case "hearts":
-		return heartstui.NewClient(seat, observer), nil
+		return heartstui.NewClient(seat, observer, theme), nil
 	default:
 		return nil, fmt.Errorf("unsupported game: %q", game)
 	}
