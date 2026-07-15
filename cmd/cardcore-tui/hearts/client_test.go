@@ -13,7 +13,7 @@ import (
 // TestClientHandleSnapshotPlayer verifies a player snapshot is decoded and the
 // phase is recorded.
 func TestClientHandleSnapshotPlayer(t *testing.T) {
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	snap := heartsclient.PlayerSnapshot{
 		Phase: heartsclient.PhasePassing,
 		Hand:  []heartsclient.Card{{Rank: "two", Suit: "clubs"}},
@@ -132,7 +132,7 @@ func TestClientSubmitPassWrongCount(t *testing.T) {
 // TestClientSubmitPlay verifies that Enter on a legal card during the player's
 // turn returns a play_card command.
 func TestClientSubmitPlay(t *testing.T) {
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	card := heartsclient.Card{Rank: "two", Suit: "clubs"}
 	snap := heartsclient.PlayerSnapshot{
 		Phase:        heartsclient.PhasePlaying,
@@ -157,7 +157,7 @@ func TestClientSubmitPlay(t *testing.T) {
 // TestClientSubmitPlayNotYourTurn verifies that Enter when it is not the
 // player's turn flashes a status and does not submit.
 func TestClientSubmitPlayNotYourTurn(t *testing.T) {
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	card := heartsclient.Card{Rank: "two", Suit: "clubs"}
 	snap := heartsclient.PlayerSnapshot{
 		Phase:        heartsclient.PhasePlaying,
@@ -179,7 +179,7 @@ func TestClientSubmitPlayNotYourTurn(t *testing.T) {
 // TestClientSubmitPlayIllegal verifies that Enter still flashes "Illegal move"
 // if the cursor is somehow on a card not in the legal actions.
 func TestClientSubmitPlayIllegal(t *testing.T) {
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	snap := heartsclient.PlayerSnapshot{
 		Phase: heartsclient.PhasePlaying,
 		Turn:  0,
@@ -204,7 +204,7 @@ func TestClientSubmitPlayIllegal(t *testing.T) {
 // TestClientInputDisabledIgnoresKeys verifies that keys are ignored when
 // input is disabled, even if the player has not submitted.
 func TestClientInputDisabledIgnoresKeys(t *testing.T) {
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	card := heartsclient.Card{Rank: "two", Suit: "clubs"}
 	snap := heartsclient.PlayerSnapshot{
 		Phase:        heartsclient.PhasePlaying,
@@ -232,7 +232,7 @@ func TestClientInputDisabledIgnoresKeys(t *testing.T) {
 // TestClientObserverIgnoresKeys verifies that an observer client produces no
 // command or status from key presses.
 func TestClientObserverIgnoresKeys(t *testing.T) {
-	c := NewClient(0, true)
+	c := NewClient(0, true, NewDarkTheme())
 	snap := heartsclient.ObserverSnapshot{Phase: heartsclient.PhasePlaying}
 	c.HandleSnapshot(mustMarshal(t, snap))
 
@@ -247,7 +247,7 @@ func TestClientObserverIgnoresKeys(t *testing.T) {
 
 // TestClientRenderObserver verifies the observer render includes seat labels.
 func TestClientRenderObserver(t *testing.T) {
-	c := NewClient(0, true)
+	c := NewClient(0, true, NewDarkTheme())
 	snap := heartsclient.ObserverSnapshot{
 		Phase: heartsclient.PhasePlaying,
 		Hands: [][]heartsclient.Card{
@@ -290,7 +290,7 @@ func TestClientPhaseResetSelection(t *testing.T) {
 // TestClientHandleSnapshotInvalidJSON verifies that invalid JSON sets lastErr
 // and does not update playerSnap.
 func TestClientHandleSnapshotInvalidJSON(t *testing.T) {
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	c.HandleSnapshot(json.RawMessage(`not json`))
 
 	if c.LastError() != "Failed to decode snapshot envelope" {
@@ -301,7 +301,7 @@ func TestClientHandleSnapshotInvalidJSON(t *testing.T) {
 // TestClientHandleSnapshotPlayerDecodeError verifies that a valid envelope with
 // an unmarshalable player snapshot sets lastErr.
 func TestClientHandleSnapshotPlayerDecodeError(t *testing.T) {
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	c.HandleSnapshot(json.RawMessage(`{"phase":"playing","turn":0,"hand":["not-a-card"]}`))
 
 	if c.LastError() != "Failed to decode player snapshot" {
@@ -312,7 +312,7 @@ func TestClientHandleSnapshotPlayerDecodeError(t *testing.T) {
 // TestClientHandleSnapshotObserverDecodeError verifies that an unmarshalable
 // observer snapshot sets lastErr.
 func TestClientHandleSnapshotObserverDecodeError(t *testing.T) {
-	c := NewClient(0, true)
+	c := NewClient(0, true, NewDarkTheme())
 	c.HandleSnapshot(json.RawMessage(`{"phase":"playing","hands":"not-an-array"}`))
 
 	if c.LastError() != "Failed to decode observer snapshot" {
@@ -323,7 +323,7 @@ func TestClientHandleSnapshotObserverDecodeError(t *testing.T) {
 // TestClientLastErrorClearedOnSuccess verifies that a successful HandleSnapshot
 // clears any previous lastErr.
 func TestClientLastErrorClearedOnSuccess(t *testing.T) {
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	c.HandleSnapshot(json.RawMessage(`not json`))
 	if c.LastError() == "" {
 		t.Fatal("expected lastErr after invalid JSON")
@@ -343,7 +343,7 @@ func TestClientLastErrorClearedOnSuccess(t *testing.T) {
 // TestClientIsHumanTurnPlayingYourTurn verifies IsHumanTurn returns true when
 // the player is in the playing phase and it is their turn.
 func TestClientIsHumanTurnPlayingYourTurn(t *testing.T) {
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	c.HandleSnapshot(mustMarshal(t, heartsclient.PlayerSnapshot{
 		Phase: heartsclient.PhasePlaying,
 		Turn:  0,
@@ -357,7 +357,7 @@ func TestClientIsHumanTurnPlayingYourTurn(t *testing.T) {
 // TestClientIsHumanTurnPassingYourTurn verifies IsHumanTurn returns true when
 // the player is in the passing phase and it is their turn.
 func TestClientIsHumanTurnPassingYourTurn(t *testing.T) {
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	c.HandleSnapshot(mustMarshal(t, heartsclient.PlayerSnapshot{
 		Phase: heartsclient.PhasePassing,
 		Turn:  0,
@@ -371,7 +371,7 @@ func TestClientIsHumanTurnPassingYourTurn(t *testing.T) {
 // TestClientIsHumanTurnPlayingNotYourTurn verifies IsHumanTurn returns false
 // when the playing phase is active but another seat holds the turn.
 func TestClientIsHumanTurnPlayingNotYourTurn(t *testing.T) {
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	c.HandleSnapshot(mustMarshal(t, heartsclient.PlayerSnapshot{
 		Phase: heartsclient.PhasePlaying,
 		Turn:  2,
@@ -385,7 +385,7 @@ func TestClientIsHumanTurnPlayingNotYourTurn(t *testing.T) {
 // TestClientIsHumanTurnObserver verifies IsHumanTurn returns false for an
 // observer even when the snapshot indicates their seat holds the turn.
 func TestClientIsHumanTurnObserver(t *testing.T) {
-	c := NewClient(0, true)
+	c := NewClient(0, true, NewDarkTheme())
 	c.HandleSnapshot(mustMarshal(t, heartsclient.ObserverSnapshot{
 		Phase: heartsclient.PhasePlaying,
 		Turn:  0,
@@ -399,7 +399,7 @@ func TestClientIsHumanTurnObserver(t *testing.T) {
 // TestClientCursorSnapsToLegalCard verifies that when a human playing turn
 // begins with the cursor on an illegal card, it snaps to the first legal card.
 func TestClientCursorSnapsToLegalCard(t *testing.T) {
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	c.HandleSnapshot(mustMarshal(t, heartsclient.PlayerSnapshot{
 		Phase: heartsclient.PhasePlaying,
 		Turn:  0,
@@ -418,7 +418,7 @@ func TestClientCursorSnapsToLegalCard(t *testing.T) {
 // TestClientCursorSkipsIllegalCards verifies that Left/Right navigation in the
 // playing phase jumps over illegal cards to the next legal one.
 func TestClientCursorSkipsIllegalCards(t *testing.T) {
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	c.HandleSnapshot(mustMarshal(t, heartsclient.PlayerSnapshot{
 		Phase: heartsclient.PhasePlaying,
 		Turn:  0,
@@ -458,7 +458,7 @@ func TestClientIsHumanTurnNonActionablePhase(t *testing.T) {
 		heartsclient.PhaseGameOver,
 	} {
 		t.Run(phase, func(t *testing.T) {
-			c := NewClient(0, false)
+			c := NewClient(0, false, NewDarkTheme())
 			c.HandleSnapshot(mustMarshal(t, heartsclient.PlayerSnapshot{
 				Phase: phase,
 				Turn:  0,
@@ -474,7 +474,7 @@ func TestClientIsHumanTurnNonActionablePhase(t *testing.T) {
 // TestClientTogglePauseWhenPaused verifies TogglePause returns a resume command
 // when the snapshot is paused.
 func TestClientTogglePauseWhenPaused(t *testing.T) {
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	c.HandleSnapshot(mustMarshal(t, heartsclient.PlayerSnapshot{
 		Phase:  heartsclient.PhasePlaying,
 		Turn:   0,
@@ -494,7 +494,7 @@ func TestClientTogglePauseWhenPaused(t *testing.T) {
 // TestClientTogglePauseWhenNotPaused verifies TogglePause returns a pause command
 // when the snapshot is not paused.
 func TestClientTogglePauseWhenNotPaused(t *testing.T) {
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	c.HandleSnapshot(mustMarshal(t, heartsclient.PlayerSnapshot{
 		Phase:  heartsclient.PhasePlaying,
 		Turn:   0,
@@ -513,7 +513,7 @@ func TestClientTogglePauseWhenNotPaused(t *testing.T) {
 
 // TestClientTogglePauseBuildsPause verifies TogglePause builds a pause command.
 func TestClientTogglePauseBuildsPause(t *testing.T) {
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 
 	cmd, send := c.TogglePause(false)
 	if !send {
@@ -526,7 +526,7 @@ func TestClientTogglePauseBuildsPause(t *testing.T) {
 
 // TestClientTogglePauseBuildsResume verifies TogglePause builds a resume command.
 func TestClientTogglePauseBuildsResume(t *testing.T) {
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 
 	cmd, send := c.TogglePause(true)
 	if !send {
@@ -541,7 +541,7 @@ func TestClientTogglePauseBuildsResume(t *testing.T) {
 // passing phase, ready for navigation and selection tests.
 func newPassingClient(t *testing.T) *Client {
 	t.Helper()
-	c := NewClient(0, false)
+	c := NewClient(0, false, NewDarkTheme())
 	snap := heartsclient.PlayerSnapshot{
 		Phase: heartsclient.PhasePassing,
 		Hand: []heartsclient.Card{

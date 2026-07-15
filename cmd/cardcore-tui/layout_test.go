@@ -12,6 +12,7 @@ func TestRenderFooterErrorPriority(t *testing.T) {
 		errMsg:       "validation error",
 		statusMsg:    "Game ended",
 		disconnected: true,
+		theme:        NewDarkTheme(),
 	}
 
 	got := m.renderFooter()
@@ -26,6 +27,7 @@ func TestRenderFooterStatusPriority(t *testing.T) {
 	m := &model{
 		statusMsg:    "Game ended",
 		disconnected: true,
+		theme:        NewDarkTheme(),
 	}
 
 	got := m.renderFooter()
@@ -40,7 +42,7 @@ func TestRenderFooterStatusPriority(t *testing.T) {
 // TestRenderFooterDisconnected verifies a disconnected model with no status
 // message shows the generic "Disconnected" label.
 func TestRenderFooterDisconnected(t *testing.T) {
-	m := &model{disconnected: true}
+	m := &model{disconnected: true, theme: NewDarkTheme()}
 
 	got := m.renderFooter()
 	if !strings.Contains(got, "Disconnected") {
@@ -50,7 +52,7 @@ func TestRenderFooterDisconnected(t *testing.T) {
 
 // TestRenderFooterPaused verifies the paused footer shows the paused label.
 func TestRenderFooterPaused(t *testing.T) {
-	m := &model{paused: true}
+	m := &model{paused: true, theme: NewDarkTheme()}
 
 	got := m.renderFooter()
 	if !strings.Contains(got, "Paused") {
@@ -60,7 +62,7 @@ func TestRenderFooterPaused(t *testing.T) {
 
 // TestRenderFooterConnected verifies the default footer shows "Connected".
 func TestRenderFooterConnected(t *testing.T) {
-	m := &model{}
+	m := &model{theme: NewDarkTheme()}
 
 	got := m.renderFooter()
 	if !strings.Contains(got, "Connected") {
@@ -71,7 +73,7 @@ func TestRenderFooterConnected(t *testing.T) {
 // TestRenderLayoutBlankLines verifies that the layout includes blank lines
 // between the header, main area, and footer.
 func TestRenderLayoutBlankLines(t *testing.T) {
-	m := &model{}
+	m := &model{theme: NewDarkTheme()}
 
 	got := m.renderLayout()
 	lines := strings.Split(got, "\n")

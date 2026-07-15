@@ -55,6 +55,8 @@ type model struct {
 	conn *client.Conn
 	// game handles all game-specific decoding, input, and rendering.
 	game gameClient
+	// theme is the color palette used by all layout and game render functions.
+	theme Theme
 	// turnDeadline is the server-side auto-play deadline for the current human
 	// turn, read from the snapshot's turn_deadline_ms field. The client-side
 	// cutoff is enforced one second earlier in handleTurnTick.

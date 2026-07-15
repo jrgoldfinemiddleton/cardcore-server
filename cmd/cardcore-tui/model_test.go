@@ -304,7 +304,7 @@ func TestModelHandleSnapshotGameClientError(t *testing.T) {
 // client once a snapshot has arrived.
 func TestModelRenderMainDelegates(t *testing.T) {
 	f := &fakeGame{renderOut: "GAMEAREA"}
-	m := &model{game: f, snapshot: json.RawMessage(`{}`)}
+	m := &model{game: f, snapshot: json.RawMessage(`{}`), theme: NewDarkTheme()}
 
 	got := m.renderMain()
 	if !strings.Contains(got, "GAMEAREA") {
@@ -690,7 +690,7 @@ func TestModelCountdownStatusExpired(t *testing.T) {
 // TestModelRenderFooterTimeoutDisabled verifies the footer shows the timeout
 // message when input is disabled.
 func TestModelRenderFooterTimeoutDisabled(t *testing.T) {
-	m := &model{timeoutDisabled: true}
+	m := &model{timeoutDisabled: true, theme: NewDarkTheme()}
 	got := m.renderFooter()
 	if !strings.Contains(got, "Timeout - AI playing") {
 		t.Errorf("renderFooter() = %q, want to contain 'Timeout - AI playing'", got)

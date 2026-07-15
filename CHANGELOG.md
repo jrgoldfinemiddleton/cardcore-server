@@ -10,6 +10,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- TUI dark/light theme system: added `Theme` struct with approved dark and light palettes, `-theme` flag (default `dark`), and `CARDCORE_TUI_THEME` environment variable. All layout styles and Hearts render functions are now theme-aware; hardcoded hex colors have been replaced with theme lookups so the UI renders correctly in both themes
 - Single-human pause/resume for Hearts: human players can press `p` during their turn to pause the game, and press `p` again at any time while paused to resume. The server introduces `pause` and `resume` WebSocket commands, a `paused` phase, and a `paused` flag on every snapshot. While paused the turn timer is suspended, AI turns do not run, and only the pausing human can resume. If that human disconnects, the server automatically resumes so the session does not stall
 - TUI pause/resume UX: `p` key toggles pause/resume, `RenderPausedView` displays a "Game paused — press P to resume" overlay, and the footer shows "Paused" when the server reports the game is paused
 - Protocol documentation: added `pause` and `resume` inbound message types, the `paused` snapshot field, the `paused` phase, and the `pause_not_allowed` error code to `doc/games/hearts/protocol.md` and `doc/api.md`

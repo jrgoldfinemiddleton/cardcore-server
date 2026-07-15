@@ -28,23 +28,6 @@ const (
 	CardWinner
 )
 
-// redSuitHex is the hex color for hearts and diamonds on the dark background.
-const redSuitHex = "#E94560"
-
-// lightSuitHex is the hex color for clubs and spades on the dark background.
-const lightSuitHex = "#FAFAFA"
-
-// dimColorHex is the muted hex color for dimmed cards.
-const dimColorHex = "#555555"
-
-// winnerBgHex is the background color for the card that won a completed trick.
-const winnerBgHex = "#533483"
-
-// handBgHex is the dark background color for the hand line. It matches
-// layoutStyle's background so cards and separator spaces render with a
-// consistent fill instead of a patchy appearance.
-const handBgHex = "#1A1A2E"
-
 // selectedMarker is the checkmark appended to selected cards.
 const selectedMarker = "✓"
 
@@ -123,20 +106,20 @@ func CardLabel(c heartsclient.Card) string {
 }
 
 // RenderCard returns a styled string for a single card with the given visual
-// state. Hearts and diamonds are colored red; clubs and spades are colored
-// light gray/white. CardCursor renders the label bold. CardSelected renders the
-// label normally (the selection marker is placed in the hand gap). CardDimmed
-// renders the card in a muted gray. CardWinner highlights the winning card
-// with a distinct background color.
-func RenderCard(c heartsclient.Card, state CardState) string {
+// state, using the provided theme for colors. Hearts and diamonds are colored
+// red; clubs and spades are colored light gray/white. CardCursor renders the
+// label bold. CardSelected renders the label normally (the selection marker is
+// placed in the hand gap). CardDimmed renders the card in a muted gray.
+// CardWinner highlights the winning card with a distinct background color.
+func RenderCard(c heartsclient.Card, state CardState, theme Theme) string {
 	label := CardLabel(c)
-	color := suitColor(c.Suit)
-	bg := lipgloss.Color(handBgHex)
+	color := suitColor(c.Suit, theme)
+	bg := theme.Background
 
 	switch state {
 	case CardDimmed:
 		return lipgloss.NewStyle().
-			Foreground(lipgloss.Color(dimColorHex)).
+			Foreground(theme.Dimmed).
 			Background(bg).
 			Render(label)
 	case CardCursor:
@@ -147,7 +130,7 @@ func RenderCard(c heartsclient.Card, state CardState) string {
 			Render(label)
 	case CardCursorDimmed:
 		return lipgloss.NewStyle().
-			Foreground(lipgloss.Color(dimColorHex)).
+			Foreground(theme.Dimmed).
 			Background(bg).
 			Bold(true).
 			Render(label)
@@ -159,7 +142,7 @@ func RenderCard(c heartsclient.Card, state CardState) string {
 	case CardWinner:
 		return lipgloss.NewStyle().
 			Foreground(color).
-			Background(lipgloss.Color(winnerBgHex)).
+			Background(theme.WinnerBg).
 			Bold(true).
 			Render(label)
 	default:
@@ -171,7 +154,8 @@ func RenderCard(c heartsclient.Card, state CardState) string {
 }
 
 // RenderHand renders a hand of cards as a horizontal spread separated by
-// handGapWidth spaces, fitting within 80 columns.
+// handGapWidth spaces, fitting within 80 columns, using the provided theme
+// for colors.
 //
 // The cursor index highlights the card under the cursor. If cursor is negative
 // or out of range, no cursor highlight is drawn. A card whose value is in
@@ -189,12 +173,15 @@ func RenderHand(
 	selected []heartsclient.Card,
 	legal []heartsclient.Card,
 	inputDisabled bool,
+	theme Theme,
 ) string {
 	if len(hand) == 0 {
 		return ""
 	}
 
-	gapStyle := lipgloss.NewStyle().Background(lipgloss.Color(handBgHex))
+	gapStyle := lipgloss.NewStyle().
+		Foreground(theme.Text).
+		Background(theme.Background)
 	selectedSet := cardSet(selected)
 
 	// If input is disabled (timeout), render all cards as dimmed to reflect
@@ -203,7 +190,7 @@ func RenderHand(
 		parts := make([]string, 0, 2*len(hand)+1)
 		parts = append(parts, gapStyle.Render(strings.Repeat(" ", firstCardMargin)))
 		for i := range hand {
-			parts = append(parts, RenderCard(hand[i], CardDimmed))
+			parts = append(parts, RenderCard(hand[i], CardDimmed, theme))
 			if i < len(hand)-1 {
 				parts = append(parts, gapStyle.Render(strings.Repeat(" ", handGapWidth)))
 			}
@@ -218,7 +205,7 @@ func RenderHand(
 	for i, c := range hand {
 		parts = append(parts, renderHandPrefix(i, hand, cursor, selectedSet, gapStyle))
 		state := cardStateFor(i, c, cursor, selectedSet, legalSet, hasLegal)
-		parts = append(parts, RenderCard(c, state))
+		parts = append(parts, RenderCard(c, state, theme))
 	}
 	parts = append(parts, renderHandSuffix(len(hand)-1, hand, cursor, selectedSet, gapStyle))
 	return strings.Join(parts, "")
@@ -320,15 +307,16 @@ func cardStateFor(
 	return CardNormal
 }
 
-// suitColor returns the lipgloss terminal color for a card suit.
+// suitColor returns the lipgloss terminal color for a card suit, using the
+// provided theme.
 //
-// Hearts and diamonds are red (#E94560); clubs and spades are light (#FAFAFA).
-func suitColor(suit string) color.Color {
+// Hearts and diamonds are red; clubs and spades are dark.
+func suitColor(suit string, theme Theme) color.Color {
 	switch suit {
 	case "hearts", "diamonds":
-		return lipgloss.Color(redSuitHex)
+		return theme.RedSuit
 	default:
-		return lipgloss.Color(lightSuitHex)
+		return theme.DarkSuit
 	}
 }
 

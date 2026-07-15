@@ -7,46 +7,6 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// layoutStyle is the global style for the TUI layout.
-//
-// It defines the color scheme, border styles, and padding used across all
-// layout components. This is the single source of truth for visual styling.
-var layoutStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("#FAFAFA")).
-	Background(lipgloss.Color("#1A1A2E")).
-	Width(80)
-
-// headerStyle is the style for the top header bar.
-//
-// It shows the round number, phase, and score summary. The header is
-// visually distinct from the main game area to provide context at a glance.
-var headerStyle = lipgloss.NewStyle().
-	Bold(true).
-	Foreground(lipgloss.Color("#E94560")).
-	Padding(0, 1).
-	Width(80)
-
-// footerStyle is the style for the bottom status bar.
-//
-// It shows error messages, connection status, and "AI thinking...".
-// Error messages are rendered in red; normal status in default color.
-var footerStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("#FAFAFA")).
-	Background(lipgloss.Color("#16213E")).
-	Padding(0, 1).
-	Width(80)
-
-// errorStyle is the style for error flash messages in the status bar.
-//
-// Error messages are rendered in bright red (#FF0000) to grab attention.
-// They flash for 3 seconds, then clear.
-var errorStyle = lipgloss.NewStyle().
-	Bold(true).
-	Foreground(lipgloss.Color("#FF0000")).
-	Background(lipgloss.Color("#16213E")).
-	Padding(0, 1).
-	Width(80)
-
 // renderLayout renders the full screen layout.
 //
 // The layout is a vertical stack: header, main area, footer.
@@ -62,7 +22,7 @@ func (m *model) renderLayout() string {
 	// Join vertically with lipgloss.
 	// The header is bold, the main area is the game state, and the footer
 	// is the status bar.
-	blank := layoutStyle.Render("")
+	blank := layoutStyle(m.theme).Render("")
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
@@ -90,16 +50,16 @@ func (m *model) renderHeader() string {
 	} else {
 		line = fmt.Sprintf("Round %d | Phase: %s", m.roundNumber, m.phase)
 	}
-	return headerStyle.Render(line)
+	return headerStyle(m.theme).Render(line)
 }
 
 // renderMain renders the central game area. It delegates to the game client
 // once a snapshot has arrived; before then it shows a waiting message.
 func (m *model) renderMain() string {
 	if m.snapshot == nil {
-		return layoutStyle.Render("Waiting for game state...")
+		return layoutStyle(m.theme).Render("Waiting for game state...")
 	}
-	return layoutStyle.Render(m.game.Render())
+	return layoutStyle(m.theme).Render(m.game.Render())
 }
 
 // renderFooter renders the status bar (error messages, connection status).
@@ -116,31 +76,80 @@ func (m *model) renderMain() string {
 // "Server is shutting down", etc.) rather than a plain label.
 func (m *model) renderFooter() string {
 	if m.errMsg != "" {
-		return errorStyle.Render(m.errMsg)
+		return errorStyle(m.theme).Render(m.errMsg)
 	}
 
 	if m.timeoutDisabled {
-		return errorStyle.Render("Timeout - AI playing")
+		return errorStyle(m.theme).Render("Timeout - AI playing")
 	}
 
 	if m.paused {
-		return footerStyle.Render("Paused")
+		return footerStyle(m.theme).Render("Paused")
 	}
 
 	if m.statusMsg != "" {
-		return footerStyle.Render(m.statusMsg)
+		return footerStyle(m.theme).Render(m.statusMsg)
 	}
 
 	// Countdown status (if any)
 	if s := m.countdownStatus(); s != "" {
-		return footerStyle.Render(s)
+		return footerStyle(m.theme).Render(s)
 	}
 
 	// Connection status.
 	if m.disconnected {
-		return footerStyle.Render("Disconnected")
+		return footerStyle(m.theme).Render("Disconnected")
 	}
 
 	// Default: show connected status.
-	return footerStyle.Render("Connected")
+	return footerStyle(m.theme).Render("Connected")
+}
+
+// layoutStyle returns the global style for the TUI layout given a theme.
+//
+// It defines the color scheme and width used across all layout components.
+// This is the single source of truth for visual styling.
+func layoutStyle(theme Theme) lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(theme.Text).
+		Background(theme.Background).
+		Width(80)
+}
+
+// headerStyle returns the style for the top header bar given a theme.
+//
+// It shows the round number, phase, and score summary. The header is
+// visually distinct from the main game area to provide context at a glance.
+func headerStyle(theme Theme) lipgloss.Style {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(theme.Accent).
+		Padding(0, 1).
+		Width(80)
+}
+
+// footerStyle returns the style for the bottom status bar given a theme.
+//
+// It shows error messages, connection status, and "AI thinking...".
+// Error messages are rendered in red; normal status in default color.
+func footerStyle(theme Theme) lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(theme.Text).
+		Background(theme.FooterBg).
+		Padding(0, 1).
+		Width(80)
+}
+
+// errorStyle returns the style for error flash messages in the status bar
+// given a theme.
+//
+// Error messages are rendered in bright red to grab attention.
+// They flash for 3 seconds, then clear.
+func errorStyle(theme Theme) lipgloss.Style {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(theme.Error).
+		Background(theme.FooterBg).
+		Padding(0, 1).
+		Width(80)
 }
