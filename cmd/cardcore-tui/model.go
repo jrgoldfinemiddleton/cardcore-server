@@ -24,8 +24,9 @@ type gameClient interface {
 	// and a status message to flash. send is true when cmd should be sent;
 	// status is non-empty when a message should flash.
 	HandleKey(key tea.KeyPressMsg) (cmd client.Command, send bool, status string)
-	// Render returns the main game area for the current state.
-	Render() string
+	// Render returns the main game area for the current state, scaled to the
+	// given terminal dimensions in columns and rows.
+	Render(width, height int) string
 	// ResetSubmitted re-enables input after a recoverable server error so
 	// the human can retry if a fresh snapshot has not yet arrived.
 	ResetSubmitted()
@@ -57,6 +58,14 @@ type model struct {
 	game gameClient
 	// theme is the color palette used by all layout and game render functions.
 	theme Theme
+	// width is the current terminal width in columns, updated on resize.
+	// A zero value means no tea.WindowSizeMsg has been received yet; render
+	// functions default to 80 columns in that case.
+	width int
+	// height is the current terminal height in rows, updated on resize.
+	// A zero value means no tea.WindowSizeMsg has been received yet; render
+	// functions default to 24 rows in that case.
+	height int
 	// turnDeadline is the server-side auto-play deadline for the current human
 	// turn, read from the snapshot's turn_deadline_ms field. The client-side
 	// cutoff is enforced one second earlier in handleTurnTick.
@@ -167,6 +176,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case aiPlayedHoldMsg:
 		if m.statusMsg == aiPlayedStatusMsg && !time.Now().Before(m.aiPlayedHoldUntil) {
 			m.statusMsg = ""
+		}
+		return m, nil
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		if m.width == 0 {
+			m.width = 80
+		}
+		m.height = msg.Height
+		if m.height == 0 {
+			m.height = 24
 		}
 		return m, nil
 	}

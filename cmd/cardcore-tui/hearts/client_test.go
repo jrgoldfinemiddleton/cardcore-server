@@ -261,7 +261,7 @@ func TestClientRenderObserver(t *testing.T) {
 	}
 	c.HandleSnapshot(mustMarshal(t, snap))
 
-	got := c.Render()
+	got := c.Render(80, 24)
 	if !strings.Contains(got, "Seat 0") {
 		t.Errorf("got render %q, want to contain %q", got, "Seat 0")
 	}

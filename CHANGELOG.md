@@ -10,6 +10,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- TUI responsive dimensions: terminal resizes update the layout via `tea.WindowSizeMsg`, panel widths and summary boxes scale to the terminal width, and the Hearts hand widens its gap on larger terminals while staying within 80 columns at the default size
 - TUI panels and improved score header: added rounded, theme-aware borders around the header, main, and footer areas; replaced the compact `S0=0` score line with an aligned `S0: 0 • S1: 0 ...` display with a consistent background, danger highlighting for scores within 26 points of 100, and round-number display that never shows "Round 0"
 - TUI card boxes and seat labels: replaced the bracket/checkmark card rendering with rounded bordered boxes and color-change cursor/selection, and added seat labels (including "(You)" for the viewer) to the trick, round-complete, and game-over views
 - TUI dark/light theme system: added `Theme` struct with approved dark and light palettes, `-theme` flag (default `dark`), and `CARDCORE_TUI_THEME` environment variable. All layout styles and Hearts render functions are now theme-aware; hardcoded hex colors have been replaced with theme lookups so the UI renders correctly in both themes

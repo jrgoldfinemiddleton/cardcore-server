@@ -40,7 +40,8 @@ func RenderTrick(
 }
 
 // RenderPassingView renders the passing phase view for a seated player, using
-// the provided theme for colors.
+// the provided theme for colors and scaling the hand to the given terminal
+// width.
 //
 // It shows a header with the round number and pass direction, the player's
 // hand (with cursor and selected cards highlighted), and a status line
@@ -57,10 +58,11 @@ func RenderPassingView(
 	selected []heartsclient.Card,
 	inputDisabled bool,
 	theme Theme,
+	width int,
 ) string {
 	dir := formatPassDirection(snap.PassDirection)
 	header := fmt.Sprintf("Round %d — %s", snap.RoundNumber, dir)
-	hand := RenderHand(snap.Hand, cursor, selected, nil, inputDisabled, theme)
+	hand := RenderHand(snap.Hand, cursor, selected, nil, inputDisabled, theme, width)
 
 	remaining := max(3-len(selected), 0)
 
@@ -78,7 +80,8 @@ func RenderPassingView(
 }
 
 // RenderPlayingView renders the playing phase view for a seated player, using
-// the provided theme for colors.
+// the provided theme for colors and scaling the hand to the given terminal
+// width.
 //
 // It shows the current trick on top, the player's hand (with illegal cards
 // dimmed), and a status line indicating whose turn it is.
@@ -87,9 +90,10 @@ func RenderPlayingView(
 	seat, cursor int,
 	inputDisabled bool,
 	theme Theme,
+	width int,
 ) string {
 	trick := RenderTrick(snap.Trick, seat, -1, theme)
-	hand := RenderHand(snap.Hand, cursor, nil, snap.LegalActions, inputDisabled, theme)
+	hand := RenderHand(snap.Hand, cursor, nil, snap.LegalActions, inputDisabled, theme, width)
 
 	var status string
 	switch {
@@ -105,13 +109,19 @@ func RenderPlayingView(
 }
 
 // RenderTrickCompleteView renders the view shown when a trick is complete,
-// using the provided theme for colors.
+// using the provided theme for colors and sizing the summary box to the given
+// terminal width.
 //
 // It displays the completed trick with seat labels and a status line inside a
 // bordered box. The winner is provided by the server in snap.TrickWinner; the
 // fallback generic message is used when the trick is not complete or the
 // server did not provide a winner.
-func RenderTrickCompleteView(snap heartsclient.PlayerSnapshot, seat int, theme Theme) string {
+func RenderTrickCompleteView(
+	snap heartsclient.PlayerSnapshot,
+	seat int,
+	theme Theme,
+	width int,
+) string {
 	trick := RenderTrick(snap.Trick, seat, snap.TrickWinner, theme)
 
 	var status string
@@ -122,16 +132,21 @@ func RenderTrickCompleteView(snap heartsclient.PlayerSnapshot, seat int, theme T
 	}
 
 	content := joinLines([]string{trick, status})
-	return summaryBoxStyle(theme).Render(content)
+	return summaryBoxStyle(theme, width).Render(content)
 }
 
 // RenderRoundCompleteView renders the round scores overlay, using the provided
-// theme for colors.
+// theme for colors and sizing the summary box to the given terminal width.
 //
 // It shows the scores for each seat and the round points accumulated inside a
 // bordered box. The viewer's seat is labeled with "(You)". The next snapshot
 // (deal/passing) transitions naturally.
-func RenderRoundCompleteView(snap heartsclient.PlayerSnapshot, seat int, theme Theme) string {
+func RenderRoundCompleteView(
+	snap heartsclient.PlayerSnapshot,
+	seat int,
+	theme Theme,
+	width int,
+) string {
 	if len(snap.RoundPoints) != len(snap.Scores) {
 		return "ERROR: Invalid snapshot (score data mismatch)"
 	}
@@ -147,15 +162,15 @@ func RenderRoundCompleteView(snap heartsclient.PlayerSnapshot, seat int, theme T
 				snap.RoundPoints[i]))
 	}
 
-	return summaryBoxStyle(theme).Render(joinLines(lines))
+	return summaryBoxStyle(theme, width).Render(joinLines(lines))
 }
 
 // RenderGameOverView renders the final game-over screen, using the provided
-// theme for colors.
+// theme for colors and sizing the summary box to the given terminal width.
 //
 // It shows the final scores for all seats and a prompt to exit inside a
 // bordered box. The viewer's seat is labeled with "(You)".
-func RenderGameOverView(snap heartsclient.PlayerSnapshot, seat int, theme Theme) string {
+func RenderGameOverView(snap heartsclient.PlayerSnapshot, seat int, theme Theme, width int) string {
 	var lines []string
 	lines = append(lines, "Game Over")
 
@@ -164,13 +179,13 @@ func RenderGameOverView(snap heartsclient.PlayerSnapshot, seat int, theme Theme)
 	}
 
 	lines = append(lines, "Press Enter to exit")
-	return summaryBoxStyle(theme).Render(joinLines(lines))
+	return summaryBoxStyle(theme, width).Render(joinLines(lines))
 }
 
 // RenderPausedView renders the pause overlay, using the provided theme for
-// colors.
-func RenderPausedView(theme Theme) string {
-	return summaryBoxStyle(theme).Render("Game paused — press P to resume")
+// colors and sizing the summary box to the given terminal width.
+func RenderPausedView(theme Theme, width int) string {
+	return summaryBoxStyle(theme, width).Render("Game paused — press P to resume")
 }
 
 // RenderDealView renders a brief overlay shown while the deck is being dealt.
@@ -179,8 +194,9 @@ func RenderDealView() string {
 }
 
 // summaryBoxStyle returns the bordered container style for pause/summary views,
-// using the provided theme for the border and background colors.
-func summaryBoxStyle(theme Theme) lipgloss.Style {
+// using the provided theme for the border and background colors and sized to
+// the given terminal width.
+func summaryBoxStyle(theme Theme, width int) lipgloss.Style {
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(theme.PanelBorder).
@@ -188,7 +204,7 @@ func summaryBoxStyle(theme Theme) lipgloss.Style {
 		Foreground(theme.Text).
 		Background(theme.Background).
 		Padding(0, 1).
-		Width(78)
+		Width(width)
 }
 
 // joinLines joins lines with newlines for multi-line view output.
