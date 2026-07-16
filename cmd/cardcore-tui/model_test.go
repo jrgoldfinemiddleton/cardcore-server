@@ -306,7 +306,7 @@ func TestModelRenderMainDelegates(t *testing.T) {
 	f := &fakeGame{renderOut: "GAMEAREA"}
 	m := &model{game: f, snapshot: json.RawMessage(`{}`), theme: NewDarkTheme()}
 
-	got := m.renderMain()
+	got := m.renderMain(80)
 	if !strings.Contains(got, "GAMEAREA") {
 		t.Errorf("got render %q, want to contain %q", got, "GAMEAREA")
 	}
@@ -691,10 +691,59 @@ func TestModelCountdownStatusExpired(t *testing.T) {
 // message when input is disabled.
 func TestModelRenderFooterTimeoutDisabled(t *testing.T) {
 	m := &model{timeoutDisabled: true, theme: NewDarkTheme()}
-	got := m.renderFooter()
+	got := m.renderFooter(80)
 	if !strings.Contains(got, "Timeout - AI playing") {
 		t.Errorf("renderFooter() = %q, want to contain 'Timeout - AI playing'", got)
 	}
+}
+
+// TestModelWindowSize verifies that a tea.WindowSizeMsg updates the model's
+// stored dimensions, and that zero dimensions default to 80x24.
+func TestModelWindowSize(t *testing.T) {
+	t.Run("stores dimensions", func(t *testing.T) {
+		m := &model{game: &fakeGame{}}
+		newM, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+		mm, ok := newM.(*model)
+		if !ok {
+			t.Fatalf("Update returned %T, want *model", newM)
+		}
+		if mm.width != 120 {
+			t.Errorf("got width %d, want 120", mm.width)
+		}
+		if mm.height != 40 {
+			t.Errorf("got height %d, want 40", mm.height)
+		}
+	})
+
+	t.Run("defaults zero width to 80", func(t *testing.T) {
+		m := &model{game: &fakeGame{}}
+		newM, _ := m.Update(tea.WindowSizeMsg{Width: 0, Height: 40})
+		mm, ok := newM.(*model)
+		if !ok {
+			t.Fatalf("Update returned %T, want *model", newM)
+		}
+		if mm.width != 80 {
+			t.Errorf("got width %d, want 80 (default)", mm.width)
+		}
+		if mm.height != 40 {
+			t.Errorf("got height %d, want 40", mm.height)
+		}
+	})
+
+	t.Run("defaults zero height to 24", func(t *testing.T) {
+		m := &model{game: &fakeGame{}}
+		newM, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 0})
+		mm, ok := newM.(*model)
+		if !ok {
+			t.Fatalf("Update returned %T, want *model", newM)
+		}
+		if mm.width != 100 {
+			t.Errorf("got width %d, want 100", mm.width)
+		}
+		if mm.height != 24 {
+			t.Errorf("got height %d, want 24 (default)", mm.height)
+		}
+	})
 }
 
 // runCmd executes a tea.Cmd and returns the resulting message.
@@ -727,7 +776,7 @@ func (f *fakeGame) HandleKey(key tea.KeyPressMsg) (client.Command, bool, string)
 }
 
 // Render returns the configured render output.
-func (f *fakeGame) Render() string {
+func (f *fakeGame) Render(width, height int) string {
 	return f.renderOut
 }
 

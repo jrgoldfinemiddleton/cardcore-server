@@ -31,9 +31,9 @@ const (
 )
 
 // handGapWidth is the number of visible spaces between adjacent cards in the
-// hand. With bordered cards, a one-space gap is enough to keep a 13-card hand
-// within 80 columns (worst case: 4 tens * 5 chars + 9 non-tens * 4 chars +
-// margins + borders).
+// hand when the terminal is 80 columns or narrower. With bordered cards, a
+// one-space gap is enough to keep a 13-card hand within 80 columns (worst
+// case: 4 tens * 5 chars + 9 non-tens * 4 chars + margins + borders).
 const handGapWidth = 1
 
 // firstCardMargin is the single space before the first card in the hand.
@@ -152,8 +152,8 @@ func RenderCard(c heartsclient.Card, state CardState, theme Theme) string {
 }
 
 // RenderHand renders a hand of cards as a horizontal spread of bordered card
-// boxes separated by handGapWidth spaces, fitting within 80 columns, using the
-// provided theme for colors.
+// boxes separated by gap spaces, fitting within the given terminal width, using
+// the provided theme for colors. A zero width defaults to 80 columns.
 //
 // The cursor index highlights the card under the cursor by coloring its border
 // with the accent color and making the label bold. If cursor is negative or out
@@ -168,14 +168,20 @@ func RenderHand(
 	legal []heartsclient.Card,
 	inputDisabled bool,
 	theme Theme,
+	width int,
 ) string {
 	if len(hand) == 0 {
 		return ""
 	}
 
+	if width == 0 {
+		width = 80
+	}
+	gap := handGapForWidth(width)
+
 	gapStyle := lipgloss.NewStyle().Background(theme.Background)
 	marginLine := gapStyle.Render(strings.Repeat(" ", firstCardMargin))
-	gapLine := gapStyle.Render(strings.Repeat(" ", handGapWidth))
+	gapLine := gapStyle.Render(strings.Repeat(" ", gap))
 
 	// If input is disabled (timeout), render all cards as dimmed to reflect
 	// that no user interaction is allowed.
@@ -197,6 +203,20 @@ func RenderHand(
 		cards[i] = RenderCard(c, state, theme)
 	}
 	return joinCards(cards, marginLine, gapLine)
+}
+
+// handGapForWidth returns the gap width between adjacent cards for the given
+// terminal width. For widths of 80 or fewer, the constant handGapWidth (1) is
+// returned so a 13-card hand fits within 80 columns. For wider terminals, the
+// extra space beyond 80 columns is distributed across the 12 gaps of a full
+// 13-card hand so the hand spreads out comfortably without truncating cards.
+func handGapForWidth(width int) int {
+	if width <= 80 {
+		return handGapWidth
+	}
+	extra := width - 80
+	gap := handGapWidth + extra/12
+	return gap
 }
 
 // joinCards arranges bordered card strings side by side horizontally, separated

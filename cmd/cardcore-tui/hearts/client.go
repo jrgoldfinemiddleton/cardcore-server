@@ -144,27 +144,35 @@ func (c *Client) TogglePause(paused bool) (client.Command, bool) {
 }
 
 // Render returns the main game area for the current snapshot and selection,
-// passing the stored theme to all render functions.
-func (c *Client) Render() string {
+// scaled to the given terminal dimensions, passing the stored theme to all
+// render functions. The width is threaded through to view functions that
+// produce width-dependent output (hand spacing, summary boxes).
+func (c *Client) Render(width, height int) string {
+	// The game area is rendered inside the main panel, which has a one-cell
+	// border on each side. Use the inner content width so nested borders and
+	// the hand do not overlap the main panel border.
+	innerWidth := max(width-2, 0)
+
 	if c.observer {
-		return RenderObserverView(c.observerSnap, c.theme)
+		return RenderObserverView(c.observerSnap, c.theme, innerWidth)
 	}
 	switch c.phase {
 	case heartsclient.PhaseDeal:
 		return RenderDealView()
 	case heartsclient.PhasePaused:
-		return RenderPausedView(c.theme)
+		return RenderPausedView(c.theme, innerWidth)
 	case heartsclient.PhasePassing:
 		return RenderPassingView(c.playerSnap, c.cursor,
-			c.selected, c.inputDisabled, c.theme)
+			c.selected, c.inputDisabled, c.theme, innerWidth)
 	case heartsclient.PhasePlaying:
-		return RenderPlayingView(c.playerSnap, c.seat, c.cursor, c.inputDisabled, c.theme)
+		return RenderPlayingView(
+			c.playerSnap, c.seat, c.cursor, c.inputDisabled, c.theme, innerWidth)
 	case heartsclient.PhaseTrickComplete:
-		return RenderTrickCompleteView(c.playerSnap, c.seat, c.theme)
+		return RenderTrickCompleteView(c.playerSnap, c.seat, c.theme, innerWidth)
 	case heartsclient.PhaseRoundComplete:
-		return RenderRoundCompleteView(c.playerSnap, c.seat, c.theme)
+		return RenderRoundCompleteView(c.playerSnap, c.seat, c.theme, innerWidth)
 	case heartsclient.PhaseGameOver:
-		return RenderGameOverView(c.playerSnap, c.seat, c.theme)
+		return RenderGameOverView(c.playerSnap, c.seat, c.theme, innerWidth)
 	default:
 		return fmt.Sprintf("Phase: %s", c.phase)
 	}

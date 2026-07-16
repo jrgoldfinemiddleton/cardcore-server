@@ -15,7 +15,7 @@ func TestRenderFooterErrorPriority(t *testing.T) {
 		theme:        NewDarkTheme(),
 	}
 
-	got := m.renderFooter()
+	got := m.renderFooter(80)
 	if !strings.Contains(got, "validation error") {
 		t.Errorf("renderFooter = %q, want to contain %q", got, "validation error")
 	}
@@ -33,7 +33,7 @@ func TestRenderFooterStatusPriority(t *testing.T) {
 		theme:        NewDarkTheme(),
 	}
 
-	got := m.renderFooter()
+	got := m.renderFooter(80)
 	if !strings.Contains(got, "Game ended") {
 		t.Errorf("renderFooter = %q, want to contain %q", got, "Game ended")
 	}
@@ -47,7 +47,7 @@ func TestRenderFooterStatusPriority(t *testing.T) {
 func TestRenderFooterDisconnected(t *testing.T) {
 	m := &model{disconnected: true, theme: NewDarkTheme()}
 
-	got := m.renderFooter()
+	got := m.renderFooter(80)
 	if !strings.Contains(got, "Disconnected") {
 		t.Errorf("renderFooter = %q, want to contain %q", got, "Disconnected")
 	}
@@ -57,7 +57,7 @@ func TestRenderFooterDisconnected(t *testing.T) {
 func TestRenderFooterPaused(t *testing.T) {
 	m := &model{paused: true, theme: NewDarkTheme()}
 
-	got := m.renderFooter()
+	got := m.renderFooter(80)
 	if !strings.Contains(got, "Paused") {
 		t.Errorf("renderFooter = %q, want to contain %q", got, "Paused")
 	}
@@ -67,7 +67,7 @@ func TestRenderFooterPaused(t *testing.T) {
 func TestRenderFooterConnected(t *testing.T) {
 	m := &model{theme: NewDarkTheme()}
 
-	got := m.renderFooter()
+	got := m.renderFooter(80)
 	if !strings.Contains(got, "Connected") {
 		t.Errorf("renderFooter = %q, want to contain %q", got, "Connected")
 	}
@@ -111,7 +111,7 @@ func TestRenderHeaderScorePresentation(t *testing.T) {
 		theme:       NewDarkTheme(),
 	}
 
-	got := m.renderHeader()
+	got := m.renderHeader(80)
 	wantParts := []string{"Round 2", "Phase: playing", "S0: 5", "S1: 12", "S2: 8", "S3: 3"}
 	for _, part := range wantParts {
 		if !strings.Contains(got, part) {
@@ -132,7 +132,7 @@ func TestRenderHeaderRoundZeroDisplaysAsOne(t *testing.T) {
 		theme:       NewDarkTheme(),
 	}
 
-	got := m.renderHeader()
+	got := m.renderHeader(80)
 	if !strings.Contains(got, "Round 1") {
 		t.Errorf("renderHeader = %q, want to contain %q", got, "Round 1")
 	}
@@ -152,7 +152,7 @@ func TestRenderHeaderScoreDangerHighlight(t *testing.T) {
 		theme:       NewDarkTheme(),
 	}
 
-	got := m.renderHeader()
+	got := m.renderHeader(80)
 	wantParts := []string{"Round 4", "Phase: playing", "S0: 12", "S1: 80", "S2: 45", "S3: 73"}
 	for _, part := range wantParts {
 		if !strings.Contains(got, part) {

@@ -111,7 +111,7 @@ outer:
 
 		c.HandleSnapshot(res.data)
 
-		rendered := c.Render()
+		rendered := c.Render(80, 24)
 		if rendered == "" {
 			t.Fatal("Render() returned empty string")
 		}

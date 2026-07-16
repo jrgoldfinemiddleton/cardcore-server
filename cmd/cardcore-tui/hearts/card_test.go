@@ -86,7 +86,7 @@ func TestRenderHandGapWidth(t *testing.T) {
 		{Rank: "two", Suit: "clubs"},
 	}
 
-	got := stripANSI(RenderHand(hand, -1, nil, nil, false, NewDarkTheme()))
+	got := stripANSI(RenderHand(hand, -1, nil, nil, false, NewDarkTheme(), 80))
 	want := " ╭──╮ ╭──╮ ╭──╮\n │♥K│ │♠A│ │♣2│\n ╰──╯ ╰──╯ ╰──╯"
 	if got != want {
 		t.Errorf("RenderHand = %q, want %q", got, want)
@@ -101,13 +101,13 @@ func TestRenderHandTenCard(t *testing.T) {
 		{Rank: "ace", Suit: "spades"},
 	}
 
-	got := stripANSI(RenderHand(hand, -1, nil, nil, false, NewDarkTheme()))
+	got := stripANSI(RenderHand(hand, -1, nil, nil, false, NewDarkTheme(), 80))
 	want := " ╭───╮ ╭──╮\n │♥10│ │♠A│\n ╰───╯ ╰──╯"
 	if got != want {
 		t.Errorf("RenderHand = %q, want %q", got, want)
 	}
 
-	got = stripANSI(RenderHand(hand, 0, nil, nil, false, NewDarkTheme()))
+	got = stripANSI(RenderHand(hand, 0, nil, nil, false, NewDarkTheme(), 80))
 	want = " ╭───╮ ╭──╮\n │♥10│ │♠A│\n ╰───╯ ╰──╯"
 	if got != want {
 		t.Errorf("RenderHand(cursor on ten) = %q, want %q", got, want)
@@ -123,7 +123,7 @@ func TestRenderHandTenCardNotFirst(t *testing.T) {
 		{Rank: "two", Suit: "clubs"},
 	}
 
-	got := stripANSI(RenderHand(hand, 1, nil, nil, false, NewDarkTheme()))
+	got := stripANSI(RenderHand(hand, 1, nil, nil, false, NewDarkTheme(), 80))
 	want := " ╭──╮ ╭───╮ ╭──╮\n │♠A│ │♥10│ │♣2│\n ╰──╯ ╰───╯ ╰──╯"
 	if got != want {
 		t.Errorf("RenderHand(cursor on ten) = %q, want %q", got, want)
@@ -144,7 +144,7 @@ func TestRenderHandMultipleTenCards(t *testing.T) {
 
 	want := " ╭───╮ ╭───╮ ╭───╮ ╭───╮\n │♥10│ │♠10│ │♣10│ │♦10│\n ╰───╯ ╰───╯ ╰───╯ ╰───╯"
 	for _, cursor := range []int{0, 1, 2, 3} {
-		got := stripANSI(RenderHand(hand, cursor, nil, nil, false, NewDarkTheme()))
+		got := stripANSI(RenderHand(hand, cursor, nil, nil, false, NewDarkTheme(), 80))
 		if got != want {
 			t.Errorf("cursor=%d: RenderHand = %q, want %q", cursor, got, want)
 		}
@@ -160,11 +160,11 @@ func TestRenderHandCursorVisible(t *testing.T) {
 		{Rank: "two", Suit: "clubs"},
 	}
 
-	plain := RenderHand(hand, -1, nil, nil, false, NewDarkTheme())
+	plain := RenderHand(hand, -1, nil, nil, false, NewDarkTheme(), 80)
 	visible := stripANSI(plain)
 
 	for _, cursor := range []int{0, 1, 2} {
-		got := RenderHand(hand, cursor, nil, nil, false, NewDarkTheme())
+		got := RenderHand(hand, cursor, nil, nil, false, NewDarkTheme(), 80)
 		if stripANSI(got) != visible {
 			t.Errorf("cursor=%d: visible text shifted: %q", cursor, stripANSI(got))
 		}
@@ -183,8 +183,8 @@ func TestRenderHandSelectedVisible(t *testing.T) {
 	}
 	selected := []heartsclient.Card{{Rank: "king", Suit: "hearts"}}
 
-	plain := RenderHand(hand, -1, nil, nil, false, NewDarkTheme())
-	got := RenderHand(hand, -1, selected, nil, false, NewDarkTheme())
+	plain := RenderHand(hand, -1, nil, nil, false, NewDarkTheme(), 80)
+	got := RenderHand(hand, -1, selected, nil, false, NewDarkTheme(), 80)
 	if stripANSI(got) != stripANSI(plain) {
 		t.Errorf("selected hand visible text shifted: %q", stripANSI(got))
 	}
@@ -228,11 +228,11 @@ func TestRenderHandCursorSelectionStyling(t *testing.T) {
 		},
 	}
 
-	plain := RenderHand(hand, -1, nil, nil, false, NewDarkTheme())
+	plain := RenderHand(hand, -1, nil, nil, false, NewDarkTheme(), 80)
 	visiblePlain := stripANSI(plain)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := RenderHand(hand, tc.cursor, tc.selected, nil, false, NewDarkTheme())
+			got := RenderHand(hand, tc.cursor, tc.selected, nil, false, NewDarkTheme(), 80)
 			if stripANSI(got) != visiblePlain {
 				t.Errorf("visible text shifted: %q", stripANSI(got))
 			}
@@ -251,12 +251,12 @@ func TestRenderHandFirstCardMargin(t *testing.T) {
 		{Rank: "two", Suit: "clubs"},
 	}
 
-	noCursor := stripANSI(RenderHand(hand, -1, nil, nil, false, NewDarkTheme()))
+	noCursor := stripANSI(RenderHand(hand, -1, nil, nil, false, NewDarkTheme(), 80))
 	if !strings.HasPrefix(noCursor, " ╭──") {
 		t.Errorf("RenderHand(no cursor) = %q, want leading space and border", noCursor)
 	}
 
-	withCursor := stripANSI(RenderHand(hand, 0, nil, nil, false, NewDarkTheme()))
+	withCursor := stripANSI(RenderHand(hand, 0, nil, nil, false, NewDarkTheme(), 80))
 	if !strings.HasPrefix(withCursor, " ╭──") {
 		t.Errorf("RenderHand(cursor on first) = %q, want leading space and border", withCursor)
 	}
@@ -272,8 +272,8 @@ func TestRenderHandLegalDimming(t *testing.T) {
 	}
 	legal := []heartsclient.Card{{Rank: "ace", Suit: "spades"}}
 
-	withLegal := RenderHand(hand, -1, nil, legal, false, NewDarkTheme())
-	withoutLegal := RenderHand(hand, -1, nil, nil, false, NewDarkTheme())
+	withLegal := RenderHand(hand, -1, nil, legal, false, NewDarkTheme(), 80)
+	withoutLegal := RenderHand(hand, -1, nil, nil, false, NewDarkTheme(), 80)
 
 	if withLegal == withoutLegal {
 		t.Errorf("legal dimming produced same raw output as legal=nil, want different")
@@ -311,7 +311,7 @@ func TestRenderHandCursorOnIllegalCard(t *testing.T) {
 	}
 	legal := []heartsclient.Card{{Rank: "ace", Suit: "spades"}}
 
-	got := stripANSI(RenderHand(hand, 1, nil, legal, false, NewDarkTheme()))
+	got := stripANSI(RenderHand(hand, 1, nil, legal, false, NewDarkTheme(), 80))
 	want := " ╭──╮ ╭──╮\n │♠A│ │♥K│\n ╰──╯ ╰──╯"
 	if got != want {
 		t.Errorf("RenderHand(cursor on illegal card) = %q, want %q", got, want)
@@ -343,10 +343,10 @@ func TestRenderHandCursorSelectedDistinct(t *testing.T) {
 	}
 	selected := []heartsclient.Card{hand[0]}
 
-	plain := RenderHand(hand, -1, nil, nil, false, NewDarkTheme())
-	cursorOnly := RenderHand(hand, 0, nil, nil, false, NewDarkTheme())
-	selectedOnly := RenderHand(hand, -1, selected, nil, false, NewDarkTheme())
-	combined := RenderHand(hand, 0, selected, nil, false, NewDarkTheme())
+	plain := RenderHand(hand, -1, nil, nil, false, NewDarkTheme(), 80)
+	cursorOnly := RenderHand(hand, 0, nil, nil, false, NewDarkTheme(), 80)
+	selectedOnly := RenderHand(hand, -1, selected, nil, false, NewDarkTheme(), 80)
+	combined := RenderHand(hand, 0, selected, nil, false, NewDarkTheme(), 80)
 
 	if combined == plain || combined == cursorOnly || combined == selectedOnly {
 		t.Errorf("cursor+selected styling not distinct from plain, cursor-only, or selected-only")
@@ -365,16 +365,18 @@ func TestRenderHandInputDisabled(t *testing.T) {
 	}
 	selected := []heartsclient.Card{{Rank: "king", Suit: "hearts"}}
 
-	got := stripANSI(RenderHand(hand, 0, selected, nil, true, NewDarkTheme()))
+	got := stripANSI(RenderHand(hand, 0, selected, nil, true, NewDarkTheme(), 80))
 	want := " ╭──╮ ╭──╮\n │♥K│ │♠A│\n ╰──╯ ╰──╯"
 	if got != want {
 		t.Errorf("RenderHand(inputDisabled) = %q, want %q", got, want)
 	}
 }
 
-// TestRenderHandFullWidth verifies that a 13-card hand fits within 80
-// columns, including the worst-case mix of four 3-character ten labels and
-// nine 2-character non-ten labels.
+// TestRenderHandFullWidth verifies that a 13-card hand fits within the
+// terminal width at various sizes, including the worst-case mix of four
+// 3-character ten labels and nine 2-character non-ten labels. At 80 columns
+// the hand must fit within 80; at wider terminals the expanded gaps must not
+// exceed the terminal width.
 func TestRenderHandFullWidth(t *testing.T) {
 	hand := []heartsclient.Card{
 		{Rank: "ten", Suit: "hearts"},
@@ -392,13 +394,25 @@ func TestRenderHandFullWidth(t *testing.T) {
 		{Rank: "five", Suit: "hearts"},
 	}
 
-	got := RenderHand(hand, -1, nil, nil, false, NewDarkTheme())
-	for _, line := range strings.Split(got, "\n") {
-		stripped := stripANSI(line)
-		if utf8.RuneCountInString(stripped) > 80 {
-			wantCols := utf8.RuneCountInString(stripped)
-			t.Errorf("hand line exceeds 80 columns: %d chars: %q", wantCols, stripped)
-		}
+	for _, tc := range []struct {
+		name  string
+		width int
+	}{
+		{"80 columns", 80},
+		{"100 columns", 100},
+		{"120 columns", 120},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := RenderHand(hand, -1, nil, nil, false, NewDarkTheme(), tc.width)
+			for _, line := range strings.Split(got, "\n") {
+				stripped := stripANSI(line)
+				colCount := utf8.RuneCountInString(stripped)
+				if colCount > tc.width {
+					t.Errorf("hand line exceeds %d columns: %d chars: %q",
+						tc.width, colCount, stripped)
+				}
+			}
+		})
 	}
 }
 
