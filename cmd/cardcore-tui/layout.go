@@ -9,19 +9,14 @@ import (
 
 // renderLayout renders the full screen layout.
 //
-// The layout is a vertical stack: header, main area, footer.
+// The layout is a vertical stack of bordered panels: header, main area, footer.
 // Each section is rendered by a separate function for clarity.
-//
-// The layout uses lipgloss to style each section. The header and footer
-// are fixed-height; the main area expands to fill the remaining space.
 func (m *model) renderLayout() string {
 	header := m.renderHeader()
 	main := m.renderMain()
 	footer := m.renderFooter()
 
-	// Join vertically with lipgloss.
-	// The header is bold, the main area is the game state, and the footer
-	// is the status bar.
+	// Join vertically with a blank separator between panels.
 	blank := layoutStyle(m.theme).Render("")
 
 	return lipgloss.JoinVertical(
@@ -34,32 +29,75 @@ func (m *model) renderLayout() string {
 	)
 }
 
-// renderHeader renders the top section (scores, phase, round info).
+// renderHeader renders the top section (round, phase, and scores).
 //
-// The header shows the current round number, game phase, and a score summary.
-// It is styled with bold red text to make it visually distinct.
+// The header shows the current round number, game phase, and an aligned score
+// summary inside a bordered panel. Scores are shown in the default text color
+// with a consistent background; any score within 26 points of 100 (the typical
+// Hearts game-ending threshold) is highlighted in bold red to indicate danger.
 func (m *model) renderHeader() string {
-	var line string
-	if len(m.scores) > 0 {
-		scoreParts := make([]string, len(m.scores))
-		for i, s := range m.scores {
-			scoreParts[i] = fmt.Sprintf("S%d=%d", i, s)
-		}
-		line = fmt.Sprintf("Round %d | Phase: %s | Scores: %s",
-			m.roundNumber, m.phase, strings.Join(scoreParts, " "))
-	} else {
-		line = fmt.Sprintf("Round %d | Phase: %s", m.roundNumber, m.phase)
+	// Never display "Round 0"; the server can send 0 before the first deal.
+	displayRound := max(m.roundNumber, 1)
+	roundPhase := fmt.Sprintf("Round %d | Phase: %s", displayRound, m.phase)
+	roundPhaseStyled := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(m.theme.Accent).
+		Background(m.theme.Background).
+		Render(roundPhase)
+	if len(m.scores) == 0 {
+		return headerPanelStyle(m.theme).Render(roundPhaseStyled)
 	}
-	return headerStyle(m.theme).Render(line)
+
+	const dangerThreshold = 100 - 26
+
+	scoreStyle := lipgloss.NewStyle().
+		Bold(false).
+		Foreground(m.theme.Text).
+		Background(m.theme.Background)
+	dangerScoreStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(m.theme.Error).
+		Background(m.theme.Background)
+	sepStyle := lipgloss.NewStyle().
+		Bold(false).
+		Foreground(m.theme.Dimmed).
+		Background(m.theme.Background)
+	bgFillStyle := lipgloss.NewStyle().
+		Bold(false).
+		Background(m.theme.Background)
+
+	scoreParts := make([]string, len(m.scores))
+	for i, s := range m.scores {
+		label := fmt.Sprintf("S%d: %d", i, s)
+		style := scoreStyle
+		if s >= dangerThreshold {
+			style = dangerScoreStyle
+		}
+		scoreParts[i] = style.Render(label)
+	}
+
+	scoreLine := strings.Join(scoreParts, sepStyle.Render(" • "))
+	scoresLabel := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(m.theme.Accent).
+		Background(m.theme.Background).
+		Render(" | Scores: ")
+	prefix := roundPhaseStyled + scoresLabel + scoreLine
+	padWidth := 78 - lipgloss.Width(prefix)
+	if padWidth < 0 {
+		padWidth = 0
+	}
+	line := prefix + bgFillStyle.Render(strings.Repeat(" ", padWidth))
+	return headerPanelStyle(m.theme).Render(line)
 }
 
 // renderMain renders the central game area. It delegates to the game client
 // once a snapshot has arrived; before then it shows a waiting message.
 func (m *model) renderMain() string {
 	if m.snapshot == nil {
-		return layoutStyle(m.theme).Render("Waiting for game state...")
+		return mainPanelStyle(m.theme).Render("Waiting for game state...")
 	}
-	return layoutStyle(m.theme).Render(m.game.Render())
+	return mainPanelStyle(m.theme).Render(m.game.Render())
 }
 
 // renderFooter renders the status bar (error messages, connection status).
@@ -76,33 +114,33 @@ func (m *model) renderMain() string {
 // "Server is shutting down", etc.) rather than a plain label.
 func (m *model) renderFooter() string {
 	if m.errMsg != "" {
-		return errorStyle(m.theme).Render(m.errMsg)
+		return errorPanelStyle(m.theme).Render(m.errMsg)
 	}
 
 	if m.timeoutDisabled {
-		return errorStyle(m.theme).Render("Timeout - AI playing")
+		return errorPanelStyle(m.theme).Render("Timeout - AI playing")
 	}
 
 	if m.paused {
-		return footerStyle(m.theme).Render("Paused")
+		return footerPanelStyle(m.theme).Render("Paused")
 	}
 
 	if m.statusMsg != "" {
-		return footerStyle(m.theme).Render(m.statusMsg)
+		return footerPanelStyle(m.theme).Render(m.statusMsg)
 	}
 
 	// Countdown status (if any)
 	if s := m.countdownStatus(); s != "" {
-		return footerStyle(m.theme).Render(s)
+		return footerPanelStyle(m.theme).Render(s)
 	}
 
 	// Connection status.
 	if m.disconnected {
-		return footerStyle(m.theme).Render("Disconnected")
+		return footerPanelStyle(m.theme).Render("Disconnected")
 	}
 
 	// Default: show connected status.
-	return footerStyle(m.theme).Render("Connected")
+	return footerPanelStyle(m.theme).Render("Connected")
 }
 
 // layoutStyle returns the global style for the TUI layout given a theme.
@@ -116,40 +154,47 @@ func layoutStyle(theme Theme) lipgloss.Style {
 		Width(80)
 }
 
-// headerStyle returns the style for the top header bar given a theme.
-//
-// It shows the round number, phase, and score summary. The header is
-// visually distinct from the main game area to provide context at a glance.
-func headerStyle(theme Theme) lipgloss.Style {
+// headerPanelStyle returns the bordered panel style for the top header bar.
+func headerPanelStyle(theme Theme) lipgloss.Style {
 	return lipgloss.NewStyle().
-		Bold(true).
 		Foreground(theme.Accent).
-		Padding(0, 1).
+		Background(theme.Background).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(theme.PanelBorder).
+		BorderBackground(theme.Background).
 		Width(80)
 }
 
-// footerStyle returns the style for the bottom status bar given a theme.
-//
-// It shows error messages, connection status, and "AI thinking...".
-// Error messages are rendered in red; normal status in default color.
-func footerStyle(theme Theme) lipgloss.Style {
+// mainPanelStyle returns the bordered panel style for the central game area.
+func mainPanelStyle(theme Theme) lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(theme.Text).
+		Background(theme.Background).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(theme.PanelBorder).
+		BorderBackground(theme.Background).
+		Width(80)
+}
+
+// footerPanelStyle returns the bordered panel style for the bottom status bar.
+func footerPanelStyle(theme Theme) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Foreground(theme.Text).
 		Background(theme.FooterBg).
-		Padding(0, 1).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(theme.PanelBorder).
+		BorderBackground(theme.Background).
 		Width(80)
 }
 
-// errorStyle returns the style for error flash messages in the status bar
-// given a theme.
-//
-// Error messages are rendered in bright red to grab attention.
-// They flash for 3 seconds, then clear.
-func errorStyle(theme Theme) lipgloss.Style {
+// errorPanelStyle returns the bordered panel style for error flash messages.
+func errorPanelStyle(theme Theme) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Bold(true).
 		Foreground(theme.Error).
 		Background(theme.FooterBg).
-		Padding(0, 1).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(theme.PanelBorder).
+		BorderBackground(theme.Background).
 		Width(80)
 }

@@ -10,6 +10,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- TUI panels and improved score header: added rounded, theme-aware borders around the header, main, and footer areas; replaced the compact `S0=0` score line with an aligned `S0: 0 • S1: 0 ...` display with a consistent background, danger highlighting for scores within 26 points of 100, and round-number display that never shows "Round 0"
 - TUI card boxes and seat labels: replaced the bracket/checkmark card rendering with rounded bordered boxes and color-change cursor/selection, and added seat labels (including "(You)" for the viewer) to the trick, round-complete, and game-over views
 - TUI dark/light theme system: added `Theme` struct with approved dark and light palettes, `-theme` flag (default `dark`), and `CARDCORE_TUI_THEME` environment variable. All layout styles and Hearts render functions are now theme-aware; hardcoded hex colors have been replaced with theme lookups so the UI renders correctly in both themes
 - Single-human pause/resume for Hearts: human players can press `p` during their turn to pause the game, and press `p` again at any time while paused to resume. The server introduces `pause` and `resume` WebSocket commands, a `paused` phase, and a `paused` flag on every snapshot. While paused the turn timer is suspended, AI turns do not run, and only the pausing human can resume. If that human disconnects, the server automatically resumes so the session does not stall
