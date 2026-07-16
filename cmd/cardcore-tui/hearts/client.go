@@ -155,16 +155,16 @@ func (c *Client) Render() string {
 	case heartsclient.PhasePaused:
 		return RenderPausedView(c.theme)
 	case heartsclient.PhasePassing:
-		return RenderPassingView(c.playerSnap, c.seat, c.cursor,
+		return RenderPassingView(c.playerSnap, c.cursor,
 			c.selected, c.inputDisabled, c.theme)
 	case heartsclient.PhasePlaying:
 		return RenderPlayingView(c.playerSnap, c.seat, c.cursor, c.inputDisabled, c.theme)
 	case heartsclient.PhaseTrickComplete:
 		return RenderTrickCompleteView(c.playerSnap, c.seat, c.theme)
 	case heartsclient.PhaseRoundComplete:
-		return RenderRoundCompleteView(c.playerSnap, c.theme)
+		return RenderRoundCompleteView(c.playerSnap, c.seat, c.theme)
 	case heartsclient.PhaseGameOver:
-		return RenderGameOverView(c.playerSnap, c.theme)
+		return RenderGameOverView(c.playerSnap, c.seat, c.theme)
 	default:
 		return fmt.Sprintf("Phase: %s", c.phase)
 	}
