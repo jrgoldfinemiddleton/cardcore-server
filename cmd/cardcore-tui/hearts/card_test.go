@@ -3,6 +3,7 @@ package heartstui
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
 )
@@ -36,7 +37,9 @@ func TestRenderCardStates(t *testing.T) {
 	label := CardLabel(card)
 
 	states := []CardState{
-		CardNormal, CardCursor, CardCursorDimmed, CardSelected, CardDimmed, CardWinner,
+		CardNormal, CardCursor, CardCursorDimmed,
+		CardCursorSelected, CardSelected, CardDimmed,
+		CardWinner,
 	}
 	for _, state := range states {
 		got := RenderCard(card, state, NewDarkTheme())
@@ -49,23 +52,33 @@ func TestRenderCardStates(t *testing.T) {
 	}
 }
 
-// TestRenderCardNoBrackets verifies that RenderCard does not wrap the card
-// label in cursor brackets or append the selected checkmark.
-func TestRenderCardNoBrackets(t *testing.T) {
+// TestRenderCardBorderedBox verifies that RenderCard draws a rounded border
+// around the card label for each state.
+func TestRenderCardBorderedBox(t *testing.T) {
 	card := heartsclient.Card{Rank: "ace", Suit: "spades"}
+	label := CardLabel(card)
 
-	got := stripANSI(RenderCard(card, CardCursor, NewDarkTheme()))
-	if strings.Contains(got, "[") || strings.Contains(got, "]") {
-		t.Errorf("RenderCard(cursor) = %q, want no brackets", got)
+	states := []CardState{
+		CardNormal, CardCursor, CardCursorDimmed,
+		CardCursorSelected, CardSelected, CardDimmed,
+		CardWinner,
 	}
-	selected := stripANSI(RenderCard(card, CardSelected, NewDarkTheme()))
-	if strings.Contains(selected, selectedMarker) {
-		t.Errorf("RenderCard(selected) = %q, want no checkmark", got)
+	for _, state := range states {
+		got := stripANSI(RenderCard(card, state, NewDarkTheme()))
+		if !strings.Contains(got, "╭") || !strings.Contains(got, "╮") {
+			t.Errorf("RenderCard(%v) missing top border: %q", state, got)
+		}
+		if !strings.Contains(got, "╰") || !strings.Contains(got, "╯") {
+			t.Errorf("RenderCard(%v) missing bottom border: %q", state, got)
+		}
+		if !strings.Contains(got, label) {
+			t.Errorf("RenderCard(%v) missing label: %q", state, got)
+		}
 	}
 }
 
 // TestRenderHandGapWidth verifies that adjacent cards are separated by a
-// four-space gap when no marker is present.
+// one-space gap between their rounded borders.
 func TestRenderHandGapWidth(t *testing.T) {
 	hand := []heartsclient.Card{
 		{Rank: "king", Suit: "hearts"},
@@ -74,14 +87,14 @@ func TestRenderHandGapWidth(t *testing.T) {
 	}
 
 	got := stripANSI(RenderHand(hand, -1, nil, nil, false, NewDarkTheme()))
-	want := " ♥K    ♠A    ♣2"
+	want := " ╭──╮ ╭──╮ ╭──╮\n │♥K│ │♠A│ │♣2│\n ╰──╯ ╰──╯ ╰──╯"
 	if got != want {
 		t.Errorf("RenderHand = %q, want %q", got, want)
 	}
 }
 
-// TestRenderHandTenCard verifies that 3-character labels (e.g., "♥10") are
-// spaced correctly with the same 4-space gap.
+// TestRenderHandTenCard verifies that 3-character labels (e.g., "♥10") widen
+// the card box while keeping a one-space gap.
 func TestRenderHandTenCard(t *testing.T) {
 	hand := []heartsclient.Card{
 		{Rank: "ten", Suit: "hearts"},
@@ -89,20 +102,20 @@ func TestRenderHandTenCard(t *testing.T) {
 	}
 
 	got := stripANSI(RenderHand(hand, -1, nil, nil, false, NewDarkTheme()))
-	want := " ♥10    ♠A"
+	want := " ╭───╮ ╭──╮\n │♥10│ │♠A│\n ╰───╯ ╰──╯"
 	if got != want {
 		t.Errorf("RenderHand = %q, want %q", got, want)
 	}
 
 	got = stripANSI(RenderHand(hand, 0, nil, nil, false, NewDarkTheme()))
-	want = "[♥10 ]  ♠A"
+	want = " ╭───╮ ╭──╮\n │♥10│ │♠A│\n ╰───╯ ╰──╯"
 	if got != want {
 		t.Errorf("RenderHand(cursor on ten) = %q, want %q", got, want)
 	}
 }
 
 // TestRenderHandTenCardNotFirst verifies that the 3-character "10" label is
-// wrapped correctly when the cursor is on it and it is not the first card.
+// rendered correctly when the cursor is on it and it is not the first card.
 func TestRenderHandTenCardNotFirst(t *testing.T) {
 	hand := []heartsclient.Card{
 		{Rank: "ace", Suit: "spades"},
@@ -111,15 +124,16 @@ func TestRenderHandTenCardNotFirst(t *testing.T) {
 	}
 
 	got := stripANSI(RenderHand(hand, 1, nil, nil, false, NewDarkTheme()))
-	want := " ♠A   [♥10 ]  ♣2"
+	want := " ╭──╮ ╭───╮ ╭──╮\n │♠A│ │♥10│ │♣2│\n ╰──╯ ╰───╯ ╰──╯"
 	if got != want {
 		t.Errorf("RenderHand(cursor on ten) = %q, want %q", got, want)
 	}
 }
 
 // TestRenderHandMultipleTenCards verifies that a hand with multiple
-// 3-character labels still uses 4-space gaps and that cursor brackets wrap the
-// correct card without shifting the visible start of later cards.
+// 3-character labels renders with wider boxes and one-space gaps. The visible
+// layout does not shift between cursor positions because the cursor is expressed
+// through styling changes.
 func TestRenderHandMultipleTenCards(t *testing.T) {
 	hand := []heartsclient.Card{
 		{Rank: "ten", Suit: "hearts"},
@@ -128,72 +142,60 @@ func TestRenderHandMultipleTenCards(t *testing.T) {
 		{Rank: "ten", Suit: "diamonds"},
 	}
 
-	cases := []struct {
-		cursor int
-		want   string
-	}{
-		{0, "[♥10 ]  ♠10    ♣10    ♦10"},
-		{1, " ♥10   [♠10 ]  ♣10    ♦10"},
-		{2, " ♥10    ♠10   [♣10 ]  ♦10"},
-		{3, " ♥10    ♠10    ♣10   [♦10 ]"},
-	}
-
-	for _, tc := range cases {
-		got := stripANSI(RenderHand(hand, tc.cursor, nil, nil, false, NewDarkTheme()))
-		if got != tc.want {
-			t.Errorf("cursor=%d: RenderHand = %q, want %q", tc.cursor, got, tc.want)
+	want := " ╭───╮ ╭───╮ ╭───╮ ╭───╮\n │♥10│ │♠10│ │♣10│ │♦10│\n ╰───╯ ╰───╯ ╰───╯ ╰───╯"
+	for _, cursor := range []int{0, 1, 2, 3} {
+		got := stripANSI(RenderHand(hand, cursor, nil, nil, false, NewDarkTheme()))
+		if got != want {
+			t.Errorf("cursor=%d: RenderHand = %q, want %q", cursor, got, want)
 		}
 	}
 }
 
-// TestRenderHandCursorMarkers verifies the visible bracket placement for each
-// cursor position and that card labels do not shift.
-func TestRenderHandCursorMarkers(t *testing.T) {
+// TestRenderHandCursorVisible verifies that the cursor position is visible
+// through styling and that the card labels do not shift when the cursor moves.
+func TestRenderHandCursorVisible(t *testing.T) {
 	hand := []heartsclient.Card{
 		{Rank: "king", Suit: "hearts"},
 		{Rank: "ace", Suit: "spades"},
 		{Rank: "two", Suit: "clubs"},
 	}
 
-	cases := []struct {
-		cursor int
-		want   string
-	}{
-		{0, "[♥K ]  ♠A    ♣2"},
-		{1, " ♥K   [♠A ]  ♣2"},
-		{2, " ♥K    ♠A   [♣2 ]"},
-	}
+	plain := RenderHand(hand, -1, nil, nil, false, NewDarkTheme())
+	visible := stripANSI(plain)
 
-	for _, tc := range cases {
-		got := stripANSI(RenderHand(hand, tc.cursor, nil, nil, false, NewDarkTheme()))
-		if got != tc.want {
-			t.Errorf("cursor=%d: RenderHand = %q, want %q", tc.cursor, got, tc.want)
+	for _, cursor := range []int{0, 1, 2} {
+		got := RenderHand(hand, cursor, nil, nil, false, NewDarkTheme())
+		if stripANSI(got) != visible {
+			t.Errorf("cursor=%d: visible text shifted: %q", cursor, stripANSI(got))
+		}
+		if got == plain {
+			t.Errorf("cursor=%d: cursor styling not visible in raw output", cursor)
 		}
 	}
 }
 
-// TestRenderHandSelectedMarker verifies that the selection checkmark appears
-// in the gap after the selected card, not in the card label.
-func TestRenderHandSelectedMarker(t *testing.T) {
+// TestRenderHandSelectedVisible verifies that selected cards are visible
+// through styling and that the card labels do not shift when cards are selected.
+func TestRenderHandSelectedVisible(t *testing.T) {
 	hand := []heartsclient.Card{
 		{Rank: "king", Suit: "hearts"},
 		{Rank: "ace", Suit: "spades"},
 	}
 	selected := []heartsclient.Card{{Rank: "king", Suit: "hearts"}}
 
-	got := stripANSI(RenderHand(hand, -1, selected, nil, false, NewDarkTheme()))
-	want := " ♥K✓   ♠A"
-	if got != want {
-		t.Errorf("RenderHand = %q, want %q", got, want)
+	plain := RenderHand(hand, -1, nil, nil, false, NewDarkTheme())
+	got := RenderHand(hand, -1, selected, nil, false, NewDarkTheme())
+	if stripANSI(got) != stripANSI(plain) {
+		t.Errorf("selected hand visible text shifted: %q", stripANSI(got))
+	}
+	if got == plain {
+		t.Errorf("selected hand styling not visible in raw output")
 	}
 }
 
-// TestRenderHandCursorAndSelection verifies interactions between cursor and
-// selection markers. A card that is both selected and under the cursor shows
-// the checkmark in the gap immediately after its label and the closing bracket
-// two positions after its label. A selected card plus a cursor on a different
-// card shows both markers in the correct gap.
-func TestRenderHandCursorAndSelection(t *testing.T) {
+// TestRenderHandCursorSelectionStyling verifies that the combined cursor and
+// selection states produce visible styling without shifting the card labels.
+func TestRenderHandCursorSelectionStyling(t *testing.T) {
 	hand := []heartsclient.Card{
 		{Rank: "king", Suit: "hearts"},
 		{Rank: "ace", Suit: "spades"},
@@ -203,46 +205,46 @@ func TestRenderHandCursorAndSelection(t *testing.T) {
 		name     string
 		cursor   int
 		selected []heartsclient.Card
-		want     string
 	}{
 		{
 			name:     "same card selected and cursor",
 			cursor:   0,
 			selected: []heartsclient.Card{{Rank: "king", Suit: "hearts"}},
-			want:     "[♥K✓]  ♠A",
 		},
 		{
 			name:     "different cards selected and cursor",
 			cursor:   1,
 			selected: []heartsclient.Card{{Rank: "king", Suit: "hearts"}},
-			want:     " ♥K✓  [♠A ]",
 		},
 		{
 			name:     "cursor on last selected card",
 			cursor:   1,
 			selected: []heartsclient.Card{{Rank: "ace", Suit: "spades"}},
-			want:     " ♥K   [♠A✓]",
 		},
 		{
 			name:     "cursor on first selected second",
 			cursor:   0,
 			selected: []heartsclient.Card{{Rank: "ace", Suit: "spades"}},
-			want:     "[♥K ]  ♠A✓",
 		},
 	}
 
+	plain := RenderHand(hand, -1, nil, nil, false, NewDarkTheme())
+	visiblePlain := stripANSI(plain)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := stripANSI(RenderHand(hand, tc.cursor, tc.selected, nil, false, NewDarkTheme()))
-			if got != tc.want {
-				t.Errorf("RenderHand = %q, want %q", got, tc.want)
+			got := RenderHand(hand, tc.cursor, tc.selected, nil, false, NewDarkTheme())
+			if stripANSI(got) != visiblePlain {
+				t.Errorf("visible text shifted: %q", stripANSI(got))
+			}
+			if got == plain {
+				t.Errorf("cursor/selection styling not visible in raw output")
 			}
 		})
 	}
 }
 
 // TestRenderHandFirstCardMargin verifies that the first card has a one-space
-// leading margin and that the cursor opening bracket replaces it.
+// leading margin and a rounded border.
 func TestRenderHandFirstCardMargin(t *testing.T) {
 	hand := []heartsclient.Card{
 		{Rank: "ace", Suit: "spades"},
@@ -250,13 +252,13 @@ func TestRenderHandFirstCardMargin(t *testing.T) {
 	}
 
 	noCursor := stripANSI(RenderHand(hand, -1, nil, nil, false, NewDarkTheme()))
-	if !strings.HasPrefix(noCursor, " ♠") {
-		t.Errorf("RenderHand(no cursor) = %q, want leading space", noCursor)
+	if !strings.HasPrefix(noCursor, " ╭──") {
+		t.Errorf("RenderHand(no cursor) = %q, want leading space and border", noCursor)
 	}
 
 	withCursor := stripANSI(RenderHand(hand, 0, nil, nil, false, NewDarkTheme()))
-	if !strings.HasPrefix(withCursor, "[♠") {
-		t.Errorf("RenderHand(cursor on first) = %q, want leading bracket", withCursor)
+	if !strings.HasPrefix(withCursor, " ╭──") {
+		t.Errorf("RenderHand(cursor on first) = %q, want leading space and border", withCursor)
 	}
 }
 
@@ -300,8 +302,8 @@ func TestCardStateForCursorOnIllegalCard(t *testing.T) {
 	}
 }
 
-// TestRenderHandCursorOnIllegalCard verifies that the cursor brackets remain
-// on an illegal card and the visible layout does not shift.
+// TestRenderHandCursorOnIllegalCard verifies that the cursor on an illegal card
+// is visible through styling and the visible layout does not shift.
 func TestRenderHandCursorOnIllegalCard(t *testing.T) {
 	hand := []heartsclient.Card{
 		{Rank: "ace", Suit: "spades"},
@@ -310,9 +312,47 @@ func TestRenderHandCursorOnIllegalCard(t *testing.T) {
 	legal := []heartsclient.Card{{Rank: "ace", Suit: "spades"}}
 
 	got := stripANSI(RenderHand(hand, 1, nil, legal, false, NewDarkTheme()))
-	want := " ♠A   [♥K ]"
+	want := " ╭──╮ ╭──╮\n │♠A│ │♥K│\n ╰──╯ ╰──╯"
 	if got != want {
 		t.Errorf("RenderHand(cursor on illegal card) = %q, want %q", got, want)
+	}
+}
+
+// TestCardStateForCursorSelected verifies that the cursor on a selected card
+// returns the combined CardCursorSelected state.
+func TestCardStateForCursorSelected(t *testing.T) {
+	hand := []heartsclient.Card{
+		{Rank: "king", Suit: "hearts"},
+		{Rank: "ace", Suit: "spades"},
+	}
+	selected := []heartsclient.Card{hand[0]}
+	selectedSet := cardSet(selected)
+
+	got := cardStateFor(0, hand[0], 0, selectedSet, nil, false)
+	if got != CardCursorSelected {
+		t.Errorf("cardStateFor(selected card under cursor) = %v, want CardCursorSelected", got)
+	}
+}
+
+// TestRenderHandCursorSelectedDistinct verifies that a card that is both
+// selected and under the cursor renders differently from a plain card, a
+// cursor-only card, and a selected-only card.
+func TestRenderHandCursorSelectedDistinct(t *testing.T) {
+	hand := []heartsclient.Card{
+		{Rank: "king", Suit: "hearts"},
+	}
+	selected := []heartsclient.Card{hand[0]}
+
+	plain := RenderHand(hand, -1, nil, nil, false, NewDarkTheme())
+	cursorOnly := RenderHand(hand, 0, nil, nil, false, NewDarkTheme())
+	selectedOnly := RenderHand(hand, -1, selected, nil, false, NewDarkTheme())
+	combined := RenderHand(hand, 0, selected, nil, false, NewDarkTheme())
+
+	if combined == plain || combined == cursorOnly || combined == selectedOnly {
+		t.Errorf("cursor+selected styling not distinct from plain, cursor-only, or selected-only")
+	}
+	if stripANSI(combined) != stripANSI(plain) {
+		t.Errorf("cursor+selected shifted visible text: %q", stripANSI(combined))
 	}
 }
 
@@ -326,9 +366,39 @@ func TestRenderHandInputDisabled(t *testing.T) {
 	selected := []heartsclient.Card{{Rank: "king", Suit: "hearts"}}
 
 	got := stripANSI(RenderHand(hand, 0, selected, nil, true, NewDarkTheme()))
-	want := " ♥K    ♠A"
+	want := " ╭──╮ ╭──╮\n │♥K│ │♠A│\n ╰──╯ ╰──╯"
 	if got != want {
 		t.Errorf("RenderHand(inputDisabled) = %q, want %q", got, want)
+	}
+}
+
+// TestRenderHandFullWidth verifies that a 13-card hand fits within 80
+// columns, including the worst-case mix of four 3-character ten labels and
+// nine 2-character non-ten labels.
+func TestRenderHandFullWidth(t *testing.T) {
+	hand := []heartsclient.Card{
+		{Rank: "ten", Suit: "hearts"},
+		{Rank: "ten", Suit: "spades"},
+		{Rank: "ten", Suit: "diamonds"},
+		{Rank: "ten", Suit: "clubs"},
+		{Rank: "ace", Suit: "hearts"},
+		{Rank: "king", Suit: "spades"},
+		{Rank: "queen", Suit: "diamonds"},
+		{Rank: "jack", Suit: "clubs"},
+		{Rank: "nine", Suit: "hearts"},
+		{Rank: "eight", Suit: "spades"},
+		{Rank: "seven", Suit: "diamonds"},
+		{Rank: "six", Suit: "clubs"},
+		{Rank: "five", Suit: "hearts"},
+	}
+
+	got := RenderHand(hand, -1, nil, nil, false, NewDarkTheme())
+	for _, line := range strings.Split(got, "\n") {
+		stripped := stripANSI(line)
+		if utf8.RuneCountInString(stripped) > 80 {
+			wantCols := utf8.RuneCountInString(stripped)
+			t.Errorf("hand line exceeds 80 columns: %d chars: %q", wantCols, stripped)
+		}
 	}
 }
 

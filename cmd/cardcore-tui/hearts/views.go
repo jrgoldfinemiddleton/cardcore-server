@@ -9,12 +9,18 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
 )
 
-// RenderTrick renders the cards played to the current trick, in play order,
-// each labeled with its seat (e.g., "Seat 2: ♦K"), using the provided theme
-// for colors. An empty trick returns a short placeholder: "(no cards played
-// yet)". When highlightSeat is non-negative and matches an entry's seat, that
-// card is rendered with the CardWinner state.
-func RenderTrick(trick []heartsclient.TrickEntry, highlightSeat int, theme Theme) string {
+// RenderTrick renders the cards played to the current trick, in play order.
+// Each card is preceded by a styled seat label on its own line (e.g.,
+// "Seat 2 (You)" followed by the bordered card). An empty trick returns a short
+// placeholder: "(no cards played yet)". When highlightSeat is non-negative and
+// matches an entry's seat, that card is rendered with the CardWinner state. The
+// viewer's seat is marked with "(You)" when viewerSeat is non-negative and
+// matches the entry.
+func RenderTrick(
+	trick []heartsclient.TrickEntry,
+	viewerSeat, highlightSeat int,
+	theme Theme,
+) string {
 	if len(trick) == 0 {
 		return "(no cards played yet)"
 	}
@@ -25,7 +31,10 @@ func RenderTrick(trick []heartsclient.TrickEntry, highlightSeat int, theme Theme
 		if entry.Seat == highlightSeat {
 			state = CardWinner
 		}
-		lines[i] = fmt.Sprintf("Seat %d: %s", entry.Seat, RenderCard(entry.Card, state, theme))
+		lines[i] = joinLines([]string{
+			seatLabel(entry.Seat, viewerSeat, theme),
+			RenderCard(entry.Card, state, theme),
+		})
 	}
 	return joinLines(lines)
 }
@@ -44,7 +53,7 @@ func RenderTrick(trick []heartsclient.TrickEntry, highlightSeat int, theme Theme
 // caller violated the contract.
 func RenderPassingView(
 	snap heartsclient.PlayerSnapshot,
-	seat, cursor int,
+	cursor int,
 	selected []heartsclient.Card,
 	inputDisabled bool,
 	theme Theme,
@@ -79,7 +88,7 @@ func RenderPlayingView(
 	inputDisabled bool,
 	theme Theme,
 ) string {
-	trick := RenderTrick(snap.Trick, -1, theme)
+	trick := RenderTrick(snap.Trick, seat, -1, theme)
 	hand := RenderHand(snap.Hand, cursor, nil, snap.LegalActions, inputDisabled, theme)
 
 	var status string
@@ -103,7 +112,7 @@ func RenderPlayingView(
 // fallback generic message is used when the trick is not complete or the
 // server did not provide a winner.
 func RenderTrickCompleteView(snap heartsclient.PlayerSnapshot, seat int, theme Theme) string {
-	trick := RenderTrick(snap.Trick, snap.TrickWinner, theme)
+	trick := RenderTrick(snap.Trick, seat, snap.TrickWinner, theme)
 
 	var status string
 	if len(snap.Trick) == 4 && snap.TrickWinner >= 0 {
@@ -120,8 +129,9 @@ func RenderTrickCompleteView(snap heartsclient.PlayerSnapshot, seat int, theme T
 // theme for colors.
 //
 // It shows the scores for each seat and the round points accumulated inside a
-// bordered box. The next snapshot (deal/passing) transitions naturally.
-func RenderRoundCompleteView(snap heartsclient.PlayerSnapshot, theme Theme) string {
+// bordered box. The viewer's seat is labeled with "(You)". The next snapshot
+// (deal/passing) transitions naturally.
+func RenderRoundCompleteView(snap heartsclient.PlayerSnapshot, seat int, theme Theme) string {
 	if len(snap.RoundPoints) != len(snap.Scores) {
 		return "ERROR: Invalid snapshot (score data mismatch)"
 	}
@@ -131,7 +141,10 @@ func RenderRoundCompleteView(snap heartsclient.PlayerSnapshot, theme Theme) stri
 
 	for i := 0; i < len(snap.Scores); i++ {
 		lines = append(lines,
-			fmt.Sprintf("Seat %d: %d (+%d)", i, snap.Scores[i], snap.RoundPoints[i]))
+			fmt.Sprintf("%s: %d (+%d)",
+				seatLabel(i, seat, theme),
+				snap.Scores[i],
+				snap.RoundPoints[i]))
 	}
 
 	return summaryBoxStyle(theme).Render(joinLines(lines))
@@ -141,13 +154,13 @@ func RenderRoundCompleteView(snap heartsclient.PlayerSnapshot, theme Theme) stri
 // theme for colors.
 //
 // It shows the final scores for all seats and a prompt to exit inside a
-// bordered box.
-func RenderGameOverView(snap heartsclient.PlayerSnapshot, theme Theme) string {
+// bordered box. The viewer's seat is labeled with "(You)".
+func RenderGameOverView(snap heartsclient.PlayerSnapshot, seat int, theme Theme) string {
 	var lines []string
 	lines = append(lines, "Game Over")
 
 	for i := 0; i < len(snap.Scores); i++ {
-		lines = append(lines, fmt.Sprintf("Seat %d: %d", i, snap.Scores[i]))
+		lines = append(lines, fmt.Sprintf("%s: %d", seatLabel(i, seat, theme), snap.Scores[i]))
 	}
 
 	lines = append(lines, "Press Enter to exit")
@@ -166,11 +179,14 @@ func RenderDealView() string {
 }
 
 // summaryBoxStyle returns the bordered container style for pause/summary views,
-// using the provided theme for the border color.
+// using the provided theme for the border and background colors.
 func summaryBoxStyle(theme Theme) lipgloss.Style {
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(theme.PanelBorder).
+		BorderBackground(theme.Background).
+		Foreground(theme.Text).
+		Background(theme.Background).
 		Padding(0, 1).
 		Width(78)
 }
@@ -178,4 +194,14 @@ func summaryBoxStyle(theme Theme) lipgloss.Style {
 // joinLines joins lines with newlines for multi-line view output.
 func joinLines(lines []string) string {
 	return strings.Join(lines, "\n")
+}
+
+// seatLabel returns a styled "Seat N" label, appending "(You)" when the seat
+// belongs to the viewer.
+func seatLabel(seat, viewerSeat int, theme Theme) string {
+	label := fmt.Sprintf("Seat %d", seat)
+	if seat == viewerSeat {
+		label += " (You)"
+	}
+	return lipgloss.NewStyle().Foreground(theme.Text).Bold(true).Render(label)
 }

@@ -20,6 +20,8 @@ const (
 	CardCursor
 	// CardCursorDimmed means the cursor is on a card that is not legal.
 	CardCursorDimmed
+	// CardCursorSelected means the cursor is on a card that is also selected.
+	CardCursorSelected
 	// CardSelected means the card is selected (e.g., chosen to pass).
 	CardSelected
 	// CardDimmed means the card is not currently legal or selectable.
@@ -28,18 +30,13 @@ const (
 	CardWinner
 )
 
-// selectedMarker is the checkmark appended to selected cards.
-const selectedMarker = "✓"
-
 // handGapWidth is the number of visible spaces between adjacent cards in the
-// hand. The first two positions hold markers for the card on the left
-// (selection checkmark at position 0, cursor closing bracket at position 1),
-// and the last position holds the cursor opening bracket for the card on the
-// right. Card labels stay at fixed positions regardless of cursor or selection.
-const handGapWidth = 4
+// hand. With bordered cards, a one-space gap is enough to keep a 13-card hand
+// within 80 columns (worst case: 4 tens * 5 chars + 9 non-tens * 4 chars +
+// margins + borders).
+const handGapWidth = 1
 
-// firstCardMargin is the single space before the first card in the hand. When
-// the cursor is on the first card this space becomes the opening bracket.
+// firstCardMargin is the single space before the first card in the hand.
 const firstCardMargin = 1
 
 // RankSymbol maps a rank string to its display symbol.
@@ -105,68 +102,65 @@ func CardLabel(c heartsclient.Card) string {
 	return SuitSymbol(c.Suit) + RankSymbol(c.Rank)
 }
 
-// RenderCard returns a styled string for a single card with the given visual
-// state, using the provided theme for colors. Hearts and diamonds are colored
-// red; clubs and spades are colored light gray/white. CardCursor renders the
-// label bold. CardSelected renders the label normally (the selection marker is
-// placed in the hand gap). CardDimmed renders the card in a muted gray.
-// CardWinner highlights the winning card with a distinct background color.
+// RenderCard returns a bordered card box for the given visual state, using
+// the provided theme for colors. The card label is centered inside a rounded
+// box. Hearts and diamonds are colored red; clubs and spades are colored
+// light/dark. CardNormal and CardDimmed use a subtle dimmed border. CardCursor
+// highlights the box border in the text color and makes the label bold.
+// CardCursorSelected combines the accent background fill with the text border
+// and bold label so selection remains visible under the cursor. CardSelected
+// fills the box background with the accent color. CardDimmed renders the box
+// border and label in the dimmed color. CardWinner highlights the winning card
+// with a distinct background color.
 func RenderCard(c heartsclient.Card, state CardState, theme Theme) string {
 	label := CardLabel(c)
-	color := suitColor(c.Suit, theme)
+	fg := suitColor(c.Suit, theme)
 	bg := theme.Background
+
+	base := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		Background(bg).
+		BorderBackground(bg)
 
 	switch state {
 	case CardDimmed:
-		return lipgloss.NewStyle().
-			Foreground(theme.Dimmed).
-			Background(bg).
-			Render(label)
+		return base.Foreground(theme.Dimmed).BorderForeground(theme.Dimmed).Render(label)
 	case CardCursor:
-		return lipgloss.NewStyle().
-			Foreground(color).
-			Background(bg).
-			Bold(true).
-			Render(label)
+		return base.Foreground(fg).BorderForeground(theme.Text).Bold(true).Render(label)
 	case CardCursorDimmed:
-		return lipgloss.NewStyle().
-			Foreground(theme.Dimmed).
-			Background(bg).
+		return base.Foreground(theme.Dimmed).BorderForeground(theme.Text).Bold(true).Render(label)
+	case CardCursorSelected:
+		return base.Foreground(theme.Text).
+			Background(theme.Accent).
+			BorderForeground(theme.Text).
 			Bold(true).
 			Render(label)
 	case CardSelected:
-		return lipgloss.NewStyle().
-			Foreground(color).
-			Background(bg).
+		return base.Foreground(theme.Text).
+			Background(theme.Accent).
+			BorderForeground(theme.Accent).
 			Render(label)
 	case CardWinner:
-		return lipgloss.NewStyle().
-			Foreground(color).
+		return base.Foreground(fg).
 			Background(theme.WinnerBg).
+			BorderForeground(theme.Accent).
 			Bold(true).
 			Render(label)
 	default:
-		return lipgloss.NewStyle().
-			Foreground(color).
-			Background(bg).
-			Render(label)
+		return base.Foreground(fg).BorderForeground(theme.Dimmed).Render(label)
 	}
 }
 
-// RenderHand renders a hand of cards as a horizontal spread separated by
-// handGapWidth spaces, fitting within 80 columns, using the provided theme
-// for colors.
+// RenderHand renders a hand of cards as a horizontal spread of bordered card
+// boxes separated by handGapWidth spaces, fitting within 80 columns, using the
+// provided theme for colors.
 //
-// The cursor index highlights the card under the cursor. If cursor is negative
-// or out of range, no cursor highlight is drawn. A card whose value is in
-// selected gets the selected decoration. If legal is non-empty, any card NOT
-// in legal gets CardDimmed; if legal is nil/empty, nothing is dimmed. The
-// cursor highlight composes with and is visible over other states. Card
-// equality is by value (Rank AND Suit both match).
-//
-// Cursor brackets and the selection checkmark are placed in the separator gaps
-// so that the visible position of each card label does not shift when the
-// cursor moves or a card is selected.
+// The cursor index highlights the card under the cursor by coloring its border
+// with the accent color and making the label bold. If cursor is negative or out
+// of range, no cursor highlight is drawn. A card whose value is in selected gets
+// the selected decoration (accent background fill). If legal is non-empty, any
+// card NOT in legal gets CardDimmed; if legal is nil/empty, nothing is dimmed.
+// Card equality is by value (Rank AND Suit both match).
 func RenderHand(
 	hand []heartsclient.Card,
 	cursor int,
@@ -179,111 +173,62 @@ func RenderHand(
 		return ""
 	}
 
-	gapStyle := lipgloss.NewStyle().
-		Foreground(theme.Text).
-		Background(theme.Background)
-	selectedSet := cardSet(selected)
+	gapStyle := lipgloss.NewStyle().Background(theme.Background)
+	marginLine := gapStyle.Render(strings.Repeat(" ", firstCardMargin))
+	gapLine := gapStyle.Render(strings.Repeat(" ", handGapWidth))
 
 	// If input is disabled (timeout), render all cards as dimmed to reflect
 	// that no user interaction is allowed.
 	if inputDisabled {
-		parts := make([]string, 0, 2*len(hand)+1)
-		parts = append(parts, gapStyle.Render(strings.Repeat(" ", firstCardMargin)))
+		cards := make([]string, len(hand))
 		for i := range hand {
-			parts = append(parts, RenderCard(hand[i], CardDimmed, theme))
-			if i < len(hand)-1 {
-				parts = append(parts, gapStyle.Render(strings.Repeat(" ", handGapWidth)))
-			}
+			cards[i] = RenderCard(hand[i], CardDimmed, theme)
 		}
-		return strings.Join(parts, "")
+		return joinCards(cards, marginLine, gapLine)
 	}
 
+	selectedSet := cardSet(selected)
 	legalSet := cardSet(legal)
 	hasLegal := len(legal) > 0
 
-	parts := make([]string, 0, 2*len(hand)+1)
+	cards := make([]string, len(hand))
 	for i, c := range hand {
-		parts = append(parts, renderHandPrefix(i, hand, cursor, selectedSet, gapStyle))
 		state := cardStateFor(i, c, cursor, selectedSet, legalSet, hasLegal)
-		parts = append(parts, RenderCard(c, state, theme))
+		cards[i] = RenderCard(c, state, theme)
 	}
-	parts = append(parts, renderHandSuffix(len(hand)-1, hand, cursor, selectedSet, gapStyle))
-	return strings.Join(parts, "")
+	return joinCards(cards, marginLine, gapLine)
 }
 
-// renderHandPrefix returns the separator before the card at index i. The first
-// card gets a single-character margin; subsequent cards get a handGapWidth
-// separator. The separator's first two characters hold the selection checkmark
-// and cursor closing bracket for the previous card, and its last character is
-// the opening bracket for the current card.
-func renderHandPrefix(
-	i int,
-	hand []heartsclient.Card,
-	cursor int,
-	selectedSet map[heartsclient.Card]bool,
-	gapStyle lipgloss.Style,
-) string {
-	if i == 0 {
-		marker := " "
-		if cursor == 0 {
-			marker = "["
+// joinCards arranges bordered card strings side by side horizontally, separated
+// by gap on each line, with a leading margin on each line.
+func joinCards(cards []string, margin, gap string) string {
+	if len(cards) == 0 {
+		return ""
+	}
+
+	linesPerCard := strings.Split(cards[0], "\n")
+	lines := make([]string, len(linesPerCard))
+	for lineIdx := range linesPerCard {
+		var b strings.Builder
+		b.WriteString(margin)
+		for i, card := range cards {
+			b.WriteString(strings.Split(card, "\n")[lineIdx])
+			if i < len(cards)-1 {
+				b.WriteString(gap)
+			}
 		}
-		return gapStyle.Render(marker)
+		lines[lineIdx] = b.String()
 	}
-
-	previous := hand[i-1]
-	width := handGapWidth
-	chars := make([]rune, width)
-	for j := range chars {
-		chars[j] = ' '
-	}
-
-	if selectedSet[previous] {
-		chars[0] = '✓'
-	}
-	if cursor == i-1 {
-		chars[1] = ']'
-	}
-	if cursor == i {
-		chars[width-1] = '['
-	}
-
-	return gapStyle.Render(string(chars))
-}
-
-// renderHandSuffix returns the trailing marker for the last card. The first two
-// positions hold the selection checkmark and cursor closing bracket for the
-// last card. If neither marker is needed, an empty string is returned so the
-// hand does not extend past the last card.
-func renderHandSuffix(
-	last int,
-	hand []heartsclient.Card,
-	cursor int,
-	selectedSet map[heartsclient.Card]bool,
-	gapStyle lipgloss.Style,
-) string {
-	lastCard := hand[last]
-	selected := selectedSet[lastCard]
-	underCursor := cursor == last
-
-	if selected && underCursor {
-		return gapStyle.Render("✓]")
-	}
-	if underCursor {
-		return gapStyle.Render(" ]")
-	}
-	if selected {
-		return gapStyle.Render(selectedMarker)
-	}
-	return ""
+	return strings.Join(lines, "\n")
 }
 
 // cardStateFor determines the CardState for a card at index i in the hand.
 //
 // The cursor highlight composes with other states: if the cursor is on this
-// card, CardCursor is returned when the card is legal and CardCursorDimmed
-// when it is not. Otherwise, CardSelected takes priority over CardDimmed,
-// and CardDimmed takes priority over CardNormal.
+// card, CardCursorSelected is returned when the card is also selected,
+// CardCursor is returned when the card is legal, and CardCursorDimmed when it
+// is not. Otherwise, CardSelected takes priority over CardDimmed, and
+// CardDimmed takes priority over CardNormal.
 func cardStateFor(
 	i int,
 	c heartsclient.Card,
@@ -293,6 +238,9 @@ func cardStateFor(
 	hasLegal bool,
 ) CardState {
 	if i == cursor && cursor >= 0 {
+		if selectedSet[c] {
+			return CardCursorSelected
+		}
 		if hasLegal && !legalSet[c] {
 			return CardCursorDimmed
 		}

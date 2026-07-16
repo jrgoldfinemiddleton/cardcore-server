@@ -25,7 +25,7 @@ func TestRenderPassingViewThreeSelected(t *testing.T) {
 		{Rank: "ace", Suit: "spades"},
 	}
 
-	got := RenderPassingView(snap, 0, 0, selected, false, NewDarkTheme())
+	got := RenderPassingView(snap, 0, selected, false, NewDarkTheme())
 	want := "Press Enter to pass"
 	if !strings.Contains(got, want) {
 		t.Errorf("RenderPassingView with 3 selected = %q, want to contain %q", got, want)
@@ -48,7 +48,7 @@ func TestRenderPassingViewOneSelected(t *testing.T) {
 		{Rank: "queen", Suit: "diamonds"},
 	}
 
-	got := RenderPassingView(snap, 0, 0, selected, false, NewDarkTheme())
+	got := RenderPassingView(snap, 0, selected, false, NewDarkTheme())
 	want := "Select 2 more card(s) to pass"
 	if !strings.Contains(got, want) {
 		t.Errorf("RenderPassingView with 1 selected = %q, want to contain %q", got, want)
@@ -99,7 +99,7 @@ func TestRenderTrickWithEntries(t *testing.T) {
 		{Seat: 3, Card: heartsclient.Card{Rank: "king", Suit: "diamonds"}},
 	}
 
-	got := RenderTrick(trick, -1, NewDarkTheme())
+	got := RenderTrick(trick, -1, -1, NewDarkTheme())
 	want := "Seat 2"
 	if !strings.Contains(got, want) {
 		t.Errorf("RenderTrick = %q, want to contain %q", got, want)
@@ -112,7 +112,7 @@ func TestRenderTrickWithEntries(t *testing.T) {
 
 // TestRenderTrickEmpty verifies that an empty trick shows the placeholder.
 func TestRenderTrickEmpty(t *testing.T) {
-	got := RenderTrick([]heartsclient.TrickEntry{}, -1, NewDarkTheme())
+	got := RenderTrick([]heartsclient.TrickEntry{}, -1, -1, NewDarkTheme())
 	want := "(no cards played yet)"
 	if got != want {
 		t.Errorf("RenderTrick(empty) = %q, want %q", got, want)
@@ -127,11 +127,11 @@ func TestRenderTrickHighlightsWinner(t *testing.T) {
 		{Seat: 3, Card: heartsclient.Card{Rank: "king", Suit: "diamonds"}},
 	}
 
-	got := RenderTrick(trick, 3, NewDarkTheme())
+	got := RenderTrick(trick, -1, 3, NewDarkTheme())
 	if !strings.Contains(got, "Seat 3") {
 		t.Errorf("RenderTrick = %q, want to contain %q", got, "Seat 3")
 	}
-	plain := RenderTrick(trick, -1, NewDarkTheme())
+	plain := RenderTrick(trick, -1, -1, NewDarkTheme())
 	if got == plain {
 		t.Errorf("RenderTrick with winner should differ from plain RenderTrick")
 	}
@@ -182,14 +182,18 @@ func TestRenderRoundCompleteView(t *testing.T) {
 		Scores:      []int{13, 0, 13, 0},
 		RoundPoints: []int{11, 0, 0, 0},
 	}
-	got := RenderRoundCompleteView(snap, NewDarkTheme())
+	got := RenderRoundCompleteView(snap, 0, NewDarkTheme())
 	if !strings.Contains(got, "Round 1 complete") {
 		t.Errorf("RenderRoundCompleteView = %q, want 'Round 1 complete'", got)
 	}
-	if !strings.Contains(got, "Seat 0: 13 (+11)") {
+	if !strings.Contains(stripANSI(got), "Seat 0 (You): 13 (+11)") {
 		t.Errorf("RenderRoundCompleteView = %q, want Seat 0 score", got)
 	}
-	plain := "Round 1 complete\nSeat 0: 13 (+11)\nSeat 1: 0 (+0)\nSeat 2: 13 (+0)\nSeat 3: 0 (+0)"
+	plain := "Round 1 complete\n" +
+		"Seat 0 (You): 13 (+11)\n" +
+		"Seat 1: 0 (+0)\n" +
+		"Seat 2: 13 (+0)\n" +
+		"Seat 3: 0 (+0)"
 	if got == plain {
 		t.Errorf("RenderRoundCompleteView should add a border around the content")
 	}
@@ -203,7 +207,7 @@ func TestRenderRoundCompleteViewMismatch(t *testing.T) {
 		Scores:      []int{13, 0, 13, 0},
 		RoundPoints: []int{11, 0},
 	}
-	got := RenderRoundCompleteView(snap, NewDarkTheme())
+	got := RenderRoundCompleteView(snap, 0, NewDarkTheme())
 	if !strings.Contains(got, "ERROR") {
 		t.Errorf("RenderRoundCompleteView = %q, want to contain 'ERROR'", got)
 	}
@@ -215,17 +219,17 @@ func TestRenderGameOverView(t *testing.T) {
 	snap := heartsclient.PlayerSnapshot{
 		Scores: []int{26, 0, 0, 0},
 	}
-	got := RenderGameOverView(snap, NewDarkTheme())
+	got := RenderGameOverView(snap, 0, NewDarkTheme())
 	if !strings.Contains(got, "Game Over") {
 		t.Errorf("RenderGameOverView = %q, want 'Game Over'", got)
 	}
-	if !strings.Contains(got, "Seat 0: 26") {
+	if !strings.Contains(stripANSI(got), "Seat 0 (You): 26") {
 		t.Errorf("RenderGameOverView = %q, want Seat 0 score", got)
 	}
 	if !strings.Contains(got, "Press Enter to exit") {
 		t.Errorf("RenderGameOverView = %q, want exit prompt", got)
 	}
-	plain := "Game Over\nSeat 0: 26\nSeat 1: 0\nSeat 2: 0\nSeat 3: 0\nPress Enter to exit"
+	plain := "Game Over\nSeat 0 (You): 26\nSeat 1: 0\nSeat 2: 0\nSeat 3: 0\nPress Enter to exit"
 	if got == plain {
 		t.Errorf("RenderGameOverView should add a border around the content")
 	}
@@ -249,7 +253,7 @@ func TestRenderPassingViewInputDisabled(t *testing.T) {
 		{Rank: "ace", Suit: "spades"},
 	}
 
-	got := RenderPassingView(snap, 0, 0, selected, true, NewDarkTheme())
+	got := RenderPassingView(snap, 0, selected, true, NewDarkTheme())
 	want := "Waiting for other players"
 	if !strings.Contains(got, want) {
 		t.Errorf("RenderPassingView(inputDisabled) = %q, want to contain %q", got, want)
@@ -275,25 +279,27 @@ func TestRenderPlayingViewInputDisabled(t *testing.T) {
 }
 
 // TestRenderPassingViewBlankLines verifies blank lines between the header,
-// hand, and status sections.
+// hand, and status sections. The bordered hand is rendered as a 3-line block,
+// so the blank separator lines are at positions 1 and 5.
 func TestRenderPassingViewBlankLines(t *testing.T) {
 	snap := heartsclient.PlayerSnapshot{
 		RoundNumber:   1,
 		PassDirection: "left",
 		Hand:          []heartsclient.Card{{Rank: "ace", Suit: "spades"}},
 	}
-	got := RenderPassingView(snap, 0, -1, nil, false, NewDarkTheme())
+	got := RenderPassingView(snap, -1, nil, false, NewDarkTheme())
 	lines := strings.Split(got, "\n")
-	if len(lines) < 5 {
-		t.Fatalf("RenderPassingView has %d lines, want at least 5", len(lines))
+	if len(lines) < 7 {
+		t.Fatalf("RenderPassingView has %d lines, want at least 7", len(lines))
 	}
-	if lines[1] != "" || lines[3] != "" {
+	if lines[1] != "" || lines[5] != "" {
 		t.Errorf("RenderPassingView blank lines missing: %q", got)
 	}
 }
 
 // TestRenderPlayingViewBlankLines verifies blank lines between the trick,
-// hand, and status sections.
+// hand, and status sections. The bordered hand is rendered as a 3-line block,
+// so the blank separator lines are at positions 1 and 5.
 func TestRenderPlayingViewBlankLines(t *testing.T) {
 	snap := heartsclient.PlayerSnapshot{
 		Phase:        "playing",
@@ -304,10 +310,10 @@ func TestRenderPlayingViewBlankLines(t *testing.T) {
 	}
 	got := RenderPlayingView(snap, 0, 0, false, NewDarkTheme())
 	lines := strings.Split(got, "\n")
-	if len(lines) < 5 {
-		t.Fatalf("RenderPlayingView has %d lines, want at least 5", len(lines))
+	if len(lines) < 7 {
+		t.Fatalf("RenderPlayingView has %d lines, want at least 7", len(lines))
 	}
-	if lines[1] != "" || lines[3] != "" {
+	if lines[1] != "" || lines[5] != "" {
 		t.Errorf("RenderPlayingView blank lines missing: %q", got)
 	}
 }
@@ -350,7 +356,7 @@ func TestRenderTrickCompleteViewBordered(t *testing.T) {
 		t.Errorf("RenderTrickCompleteView = %q, want to contain 'Trick complete'", got)
 	}
 	// The box adds border characters to the output.
-	if got == RenderTrick(snap.Trick, -1, NewDarkTheme())+"\nTrick complete" {
+	if got == RenderTrick(snap.Trick, -1, -1, NewDarkTheme())+"\nTrick complete" {
 		t.Errorf("RenderTrickCompleteView should add a border around the content")
 	}
 }
