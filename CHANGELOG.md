@@ -10,6 +10,9 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- TUI layout stability: fixed-height header, main, and footer regions; the Hearts hand is anchored to the bottom of the main panel; the entire screen fills with the theme background; and the layout clips content to its allocated height so resizes cannot push the footer off-screen
+- TUI ANSI-aware header truncation: header text is now truncated using `github.com/charmbracelet/x/ansi` so narrow terminals keep the header to a single line without corrupting lipgloss ANSI style codes
+- TUI full-screen theme background: `tea.View.BackgroundColor` is set to the active theme background so the whole terminal surface renders consistently in both dark and light themes
 - TUI responsive dimensions: terminal resizes update the layout via `tea.WindowSizeMsg`, panel widths and summary boxes scale to the terminal width, and the Hearts hand widens its gap on larger terminals while staying within 80 columns at the default size
 - TUI panels and improved score header: added rounded, theme-aware borders around the header, main, and footer areas; replaced the compact `S0=0` score line with an aligned `S0: 0 • S1: 0 ...` display with a consistent background, danger highlighting for scores within 26 points of 100, and round-number display that never shows "Round 0"
 - TUI card boxes and seat labels: replaced the bracket/checkmark card rendering with rounded bordered boxes and color-change cursor/selection, and added seat labels (including "(You)" for the viewer) to the trick, round-complete, and game-over views
@@ -76,6 +79,9 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- TUI observer view showed "Trick 14" after the last trick in a round; the server Hearts view now caps the displayed trick number at `hearts.HandSize` (13), and both `PlayerView` and `ObserverView` are covered by `TestTrickNumberCapped`
+- TUI footer pushed off-screen by tall content in narrow terminals; the new `placeContent` / `clipLines` helpers in the Hearts view layer ensure every fixed-height region renders exactly its allocated height
+- TUI light-mode horizontal black lines behind the header; fixed by truncating the header to the available width with ANSI-aware width counting and by setting `tea.View.BackgroundColor` to the theme background
 - TUI moon-shot round summary showed inverted deltas: the server was sending the engine's raw `RoundPts` (shooter 26, others 0) as `RoundPoints` in the `round_complete` snapshot, but the moon rule only applies to `Scores`. The server now tracks the previous round's cumulative scores and derives `RoundPoints` as the actual score delta, so the shooter shows `+0` and the other seats show `+26`
 - TUI exited immediately after the final round: the server closes the WebSocket cleanly after broadcasting the final `game_over` snapshot, but the TUI treated the close as a quit signal. The TUI now stays on the final score screen and only exits when the user presses Enter (or uses the existing Ctrl+C / Esc+Enter paths)
 - TUI "Internal server error" at game end: EOF after a clean session end was mapped to close code 1011. The server now sends `1000` and the client treats EOF as a normal closure

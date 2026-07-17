@@ -207,6 +207,26 @@ func TestPlayerViewOneIndexed(t *testing.T) {
 	}
 }
 
+// TestTrickNumberCapped verifies that TrickNumber is never reported beyond the
+// maximum number of tricks in a round. The engine advances TrickNum to the hand
+// size after the final trick, so without the cap the snapshot would expose a
+// non-existent "trick 14".
+func TestTrickNumberCapped(t *testing.T) {
+	g := newGameInPlayPhase(t)
+	g.TrickNum = hearts.HandSize
+
+	vs := ViewState{Game: g}
+	ps := PlayerView(vs, 0, 0)
+	os := ObserverView(vs, 0)
+
+	if got, want := ps.TrickNumber, hearts.HandSize; got != want {
+		t.Errorf("PlayerView TrickNumber: got %d, want %d", got, want)
+	}
+	if got, want := os.TrickNumber, hearts.HandSize; got != want {
+		t.Errorf("ObserverView TrickNumber: got %d, want %d", got, want)
+	}
+}
+
 // TestPlayerViewPhasePriority verifies the override hierarchy:
 // TrickComplete > RoundComplete > engine phase.
 func TestPlayerViewPhasePriority(t *testing.T) {

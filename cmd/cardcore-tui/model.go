@@ -202,6 +202,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *model) View() tea.View {
 	v := tea.NewView(m.renderLayout())
 	v.AltScreen = true
+	v.BackgroundColor = m.theme.Background
 	return v
 }
 

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/lipgloss/v2"
+
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
 )
 
@@ -13,9 +15,10 @@ import (
 //
 // It does not panic when Hands has fewer than 4 entries — it iterates over what
 // is present.
-func RenderObserverView(snap heartsclient.ObserverSnapshot, theme Theme, width int) string {
-	header := fmt.Sprintf("Round %d — Trick %d — %s",
-		snap.RoundNumber, snap.TrickNumber, formatPassDirection(snap.PassDirection))
+func RenderObserverView(snap heartsclient.ObserverSnapshot, theme Theme, width, height int) string {
+	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
+	header := textStyle.Render(fmt.Sprintf("Round %d — Trick %d — %s",
+		snap.RoundNumber, snap.TrickNumber, formatPassDirection(snap.PassDirection)))
 
 	handLines := make([]string, 0, len(snap.Hands))
 	for i, hand := range snap.Hands {
@@ -49,11 +52,11 @@ func RenderObserverView(snap heartsclient.ObserverSnapshot, theme Theme, width i
 	lines := make([]string, 0, 1+len(handLines)+3)
 	lines = append(lines, header)
 	lines = append(lines, handLines...)
-	lines = append(lines, trick, scores)
+	lines = append(lines, trick, textStyle.Render(scores))
 	if winnerLine != "" {
-		lines = append(lines, winnerLine)
+		lines = append(lines, textStyle.Render(winnerLine))
 	} else {
-		lines = append(lines, fmt.Sprintf("Seat %d's turn", snap.Turn))
+		lines = append(lines, textStyle.Render(fmt.Sprintf("Seat %d's turn", snap.Turn)))
 	}
-	return joinLines(lines)
+	return placeContent(joinLines(lines), width, height, lipgloss.Bottom, theme)
 }

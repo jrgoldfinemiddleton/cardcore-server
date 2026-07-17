@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // renderLayout renders the full screen layout.
@@ -109,7 +110,7 @@ func (m *model) renderHeader(width int) string {
 			Width(centerWidth).
 			Align(lipgloss.Center).
 			Background(m.theme.Background).
-			Render(center)
+			Render(truncateText(center, centerWidth))
 		line := lipgloss.JoinHorizontal(lipgloss.Top, left, centerBlock)
 		return headerPanelStyle(m.theme, width).Render(line)
 	}
@@ -127,24 +128,50 @@ func (m *model) renderHeader(width int) string {
 		Width(centerWidth).
 		Align(lipgloss.Center).
 		Background(m.theme.Background).
-		Render(center)
+		Render(truncateText(center, centerWidth))
 	rightBlock := lipgloss.NewStyle().
 		Width(rightWidth).
 		Align(lipgloss.Right).
 		Background(m.theme.Background).
-		Render(right)
+		Render(truncateText(right, rightWidth))
 
 	line := lipgloss.JoinHorizontal(lipgloss.Top, left, centerBlock, rightBlock)
 	return headerPanelStyle(m.theme, width).Render(line)
 }
 
+// mainPanelHeight returns the number of rows allocated to the central game
+// panel for the current terminal height. The remaining rows are reserved for
+// the fixed header and footer panels plus the two blank separator lines.
+func (m *model) mainPanelHeight() int {
+	const (
+		headerHeight    = 3 // 1 content row + 2 border rows
+		footerHeight    = 3 // 1 content row + 2 border rows
+		separatorHeight = 1
+	)
+	termHeight := m.height
+	if termHeight == 0 {
+		termHeight = 24
+	}
+	h := termHeight - headerHeight - footerHeight - 2*separatorHeight
+	if h < 3 {
+		return 3
+	}
+	return h
+}
+
 // renderMain renders the central game area. It delegates to the game client
 // once a snapshot has arrived; before then it shows a waiting message.
 func (m *model) renderMain(width int) string {
+	mainHeight := m.mainPanelHeight()
+	contentHeight := max(mainHeight-2, 0) // subtract top and bottom border rows
+	innerWidth := max(width-2, 0)
+
+	style := mainPanelStyle(m.theme, width).Height(mainHeight)
+
 	if m.snapshot == nil {
-		return mainPanelStyle(m.theme, width).Render("Waiting for game state...")
+		return style.Render("Waiting for game state...")
 	}
-	return mainPanelStyle(m.theme, width).Render(m.game.Render(width, m.height))
+	return style.Render(m.game.Render(innerWidth, contentHeight))
 }
 
 // renderFooter renders the status bar (error messages, connection status).
@@ -203,7 +230,7 @@ func layoutStyle(theme Theme, width int) lipgloss.Style {
 }
 
 // headerPanelStyle returns the bordered panel style for the top header bar,
-// sized to the given terminal width.
+// sized to the given terminal width and fixed at headerHeight rows.
 func headerPanelStyle(theme Theme, width int) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Foreground(theme.Accent).
@@ -211,7 +238,8 @@ func headerPanelStyle(theme Theme, width int) lipgloss.Style {
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(theme.PanelBorder).
 		BorderBackground(theme.Background).
-		Width(width)
+		Width(width).
+		Height(3)
 }
 
 // mainPanelStyle returns the bordered panel style for the central game area,
@@ -227,7 +255,7 @@ func mainPanelStyle(theme Theme, width int) lipgloss.Style {
 }
 
 // footerPanelStyle returns the bordered panel style for the bottom status bar,
-// sized to the given terminal width.
+// sized to the given terminal width and fixed at footerHeight rows.
 func footerPanelStyle(theme Theme, width int) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Foreground(theme.Text).
@@ -235,11 +263,12 @@ func footerPanelStyle(theme Theme, width int) lipgloss.Style {
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(theme.PanelBorder).
 		BorderBackground(theme.Background).
-		Width(width)
+		Width(width).
+		Height(3)
 }
 
 // errorPanelStyle returns the bordered panel style for error flash messages,
-// sized to the given terminal width.
+// sized to the given terminal width and fixed at footerHeight rows.
 func errorPanelStyle(theme Theme, width int) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Bold(true).
@@ -248,5 +277,14 @@ func errorPanelStyle(theme Theme, width int) lipgloss.Style {
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(theme.PanelBorder).
 		BorderBackground(theme.Background).
-		Width(width)
+		Width(width).
+		Height(3)
+}
+
+// truncateText returns s truncated to at most maxWidth visible columns.
+func truncateText(s string, maxWidth int) string {
+	if lipgloss.Width(s) <= maxWidth {
+		return s
+	}
+	return ansi.Truncate(s, maxWidth, "")
 }
