@@ -22,7 +22,10 @@ func RenderTrick(
 	theme Theme,
 ) string {
 	if len(trick) == 0 {
-		return "(no cards played yet)"
+		return lipgloss.NewStyle().
+			Foreground(theme.Text).
+			Background(theme.Background).
+			Render("(no cards played yet)")
 	}
 
 	lines := make([]string, len(trick))
@@ -58,10 +61,11 @@ func RenderPassingView(
 	selected []heartsclient.Card,
 	inputDisabled bool,
 	theme Theme,
-	width int,
+	width, height int,
 ) string {
 	dir := formatPassDirection(snap.PassDirection)
-	header := fmt.Sprintf("Round %d — %s", snap.RoundNumber, dir)
+	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
+	header := textStyle.Render(fmt.Sprintf("Round %d — %s", snap.RoundNumber, dir))
 	hand := RenderHand(snap.Hand, cursor, selected, nil, inputDisabled, theme, width)
 
 	remaining := max(3-len(selected), 0)
@@ -76,7 +80,8 @@ func RenderPassingView(
 		status = fmt.Sprintf("Select %d more card(s) to pass", remaining)
 	}
 
-	return joinLines([]string{header, "", hand, "", status})
+	content := joinLines([]string{header, "", hand, "", textStyle.Render(status)})
+	return placeContent(content, width, height, lipgloss.Bottom, theme)
 }
 
 // RenderPlayingView renders the playing phase view for a seated player, using
@@ -90,8 +95,9 @@ func RenderPlayingView(
 	seat, cursor int,
 	inputDisabled bool,
 	theme Theme,
-	width int,
+	width, height int,
 ) string {
+	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
 	trick := RenderTrick(snap.Trick, seat, -1, theme)
 	hand := RenderHand(snap.Hand, cursor, nil, snap.LegalActions, inputDisabled, theme, width)
 
@@ -105,7 +111,8 @@ func RenderPlayingView(
 		status = fmt.Sprintf("Waiting for seat %d…", snap.Turn)
 	}
 
-	return joinLines([]string{trick, "", hand, "", status})
+	content := joinLines([]string{trick, "", hand, "", textStyle.Render(status)})
+	return placeContent(content, width, height, lipgloss.Bottom, theme)
 }
 
 // RenderTrickCompleteView renders the view shown when a trick is complete,
@@ -120,8 +127,9 @@ func RenderTrickCompleteView(
 	snap heartsclient.PlayerSnapshot,
 	seat int,
 	theme Theme,
-	width int,
+	width, height int,
 ) string {
+	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
 	trick := RenderTrick(snap.Trick, seat, snap.TrickWinner, theme)
 
 	var status string
@@ -131,8 +139,9 @@ func RenderTrickCompleteView(
 		status = "Trick complete"
 	}
 
-	content := joinLines([]string{trick, status})
-	return summaryBoxStyle(theme, width).Render(content)
+	content := joinLines([]string{trick, textStyle.Render(status)})
+	boxed := summaryBoxStyle(theme, width).Render(content)
+	return placeContent(boxed, width, height, lipgloss.Bottom, theme)
 }
 
 // RenderRoundCompleteView renders the round scores overlay, using the provided
@@ -145,24 +154,24 @@ func RenderRoundCompleteView(
 	snap heartsclient.PlayerSnapshot,
 	seat int,
 	theme Theme,
-	width int,
+	width, height int,
 ) string {
 	if len(snap.RoundPoints) != len(snap.Scores) {
 		return "ERROR: Invalid snapshot (score data mismatch)"
 	}
 
+	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
 	var lines []string
-	lines = append(lines, fmt.Sprintf("Round %d complete", snap.RoundNumber))
+	lines = append(lines, textStyle.Render(fmt.Sprintf("Round %d complete", snap.RoundNumber)))
 
 	for i := 0; i < len(snap.Scores); i++ {
-		lines = append(lines,
-			fmt.Sprintf("%s: %d (+%d)",
-				seatLabel(i, seat, theme),
-				snap.Scores[i],
-				snap.RoundPoints[i]))
+		label := seatLabel(i, seat, theme)
+		rest := textStyle.Render(fmt.Sprintf(": %d (+%d)", snap.Scores[i], snap.RoundPoints[i]))
+		lines = append(lines, label+rest)
 	}
 
-	return summaryBoxStyle(theme, width).Render(joinLines(lines))
+	boxed := summaryBoxStyle(theme, width).Render(joinLines(lines))
+	return placeContent(boxed, width, height, lipgloss.Center, theme)
 }
 
 // RenderGameOverView renders the final game-over screen, using the provided
@@ -170,27 +179,38 @@ func RenderRoundCompleteView(
 //
 // It shows the final scores for all seats and a prompt to exit inside a
 // bordered box. The viewer's seat is labeled with "(You)".
-func RenderGameOverView(snap heartsclient.PlayerSnapshot, seat int, theme Theme, width int) string {
+func RenderGameOverView(
+	snap heartsclient.PlayerSnapshot,
+	seat int,
+	theme Theme,
+	width, height int,
+) string {
+	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
 	var lines []string
-	lines = append(lines, "Game Over")
+	lines = append(lines, textStyle.Render("Game Over"))
 
 	for i := 0; i < len(snap.Scores); i++ {
-		lines = append(lines, fmt.Sprintf("%s: %d", seatLabel(i, seat, theme), snap.Scores[i]))
+		label := seatLabel(i, seat, theme)
+		rest := textStyle.Render(fmt.Sprintf(": %d", snap.Scores[i]))
+		lines = append(lines, label+rest)
 	}
 
-	lines = append(lines, "Press Enter to exit")
-	return summaryBoxStyle(theme, width).Render(joinLines(lines))
+	lines = append(lines, textStyle.Render("Press Enter to exit"))
+	boxed := summaryBoxStyle(theme, width).Render(joinLines(lines))
+	return placeContent(boxed, width, height, lipgloss.Center, theme)
 }
 
 // RenderPausedView renders the pause overlay, using the provided theme for
 // colors and sizing the summary box to the given terminal width.
-func RenderPausedView(theme Theme, width int) string {
-	return summaryBoxStyle(theme, width).Render("Game paused — press P to resume")
+func RenderPausedView(theme Theme, width, height int) string {
+	boxed := summaryBoxStyle(theme, width).Render("Game paused — press P to resume")
+	return placeContent(boxed, width, height, lipgloss.Center, theme)
 }
 
 // RenderDealView renders a brief overlay shown while the deck is being dealt.
-func RenderDealView() string {
-	return "Dealing..."
+func RenderDealView(theme Theme, width, height int) string {
+	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
+	return placeContent(textStyle.Render("Dealing..."), width, height, lipgloss.Center, theme)
 }
 
 // summaryBoxStyle returns the bordered container style for pause/summary views,
@@ -212,6 +232,38 @@ func joinLines(lines []string) string {
 	return strings.Join(lines, "\n")
 }
 
+// placeContent fills a width×height box with the theme background and places
+// content inside it at the requested vertical position.
+func placeContent(content string, width, height int, vPos lipgloss.Position, theme Theme) string {
+	bgStyle := lipgloss.NewStyle().Background(theme.Background)
+	content = clipLines(content, height, vPos)
+	return lipgloss.Place(
+		width, height,
+		lipgloss.Left, vPos,
+		content,
+		lipgloss.WithWhitespaceStyle(bgStyle),
+	)
+}
+
+// clipLines returns at most height lines of s, choosing the slice based on the
+// requested vertical position so the content that matters stays visible.
+func clipLines(s string, height int, vPos lipgloss.Position) string {
+	lines := strings.Split(s, "\n")
+	if len(lines) <= height {
+		return s
+	}
+	switch vPos {
+	case lipgloss.Top:
+		return strings.Join(lines[:height], "\n")
+	case lipgloss.Bottom:
+		return strings.Join(lines[len(lines)-height:], "\n")
+	default:
+		// Center alignment: keep the middle portion.
+		start := (len(lines) - height) / 2
+		return strings.Join(lines[start:start+height], "\n")
+	}
+}
+
 // seatLabel returns a styled "Seat N" label, appending "(You)" when the seat
 // belongs to the viewer.
 func seatLabel(seat, viewerSeat int, theme Theme) string {
@@ -219,5 +271,9 @@ func seatLabel(seat, viewerSeat int, theme Theme) string {
 	if seat == viewerSeat {
 		label += " (You)"
 	}
-	return lipgloss.NewStyle().Foreground(theme.Text).Bold(true).Render(label)
+	return lipgloss.NewStyle().
+		Foreground(theme.Text).
+		Background(theme.Background).
+		Bold(true).
+		Render(label)
 }

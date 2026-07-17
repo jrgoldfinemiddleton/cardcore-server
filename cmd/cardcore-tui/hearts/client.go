@@ -154,25 +154,25 @@ func (c *Client) Render(width, height int) string {
 	innerWidth := max(width-2, 0)
 
 	if c.observer {
-		return RenderObserverView(c.observerSnap, c.theme, innerWidth)
+		return RenderObserverView(c.observerSnap, c.theme, innerWidth, height)
 	}
 	switch c.phase {
 	case heartsclient.PhaseDeal:
-		return RenderDealView()
+		return RenderDealView(c.theme, innerWidth, height)
 	case heartsclient.PhasePaused:
-		return RenderPausedView(c.theme, innerWidth)
+		return RenderPausedView(c.theme, innerWidth, height)
 	case heartsclient.PhasePassing:
 		return RenderPassingView(c.playerSnap, c.cursor,
-			c.selected, c.inputDisabled, c.theme, innerWidth)
+			c.selected, c.inputDisabled, c.theme, innerWidth, height)
 	case heartsclient.PhasePlaying:
 		return RenderPlayingView(
-			c.playerSnap, c.seat, c.cursor, c.inputDisabled, c.theme, innerWidth)
+			c.playerSnap, c.seat, c.cursor, c.inputDisabled, c.theme, innerWidth, height)
 	case heartsclient.PhaseTrickComplete:
-		return RenderTrickCompleteView(c.playerSnap, c.seat, c.theme, innerWidth)
+		return RenderTrickCompleteView(c.playerSnap, c.seat, c.theme, innerWidth, height)
 	case heartsclient.PhaseRoundComplete:
-		return RenderRoundCompleteView(c.playerSnap, c.seat, c.theme, innerWidth)
+		return RenderRoundCompleteView(c.playerSnap, c.seat, c.theme, innerWidth, height)
 	case heartsclient.PhaseGameOver:
-		return RenderGameOverView(c.playerSnap, c.seat, c.theme, innerWidth)
+		return RenderGameOverView(c.playerSnap, c.seat, c.theme, innerWidth, height)
 	default:
 		return fmt.Sprintf("Phase: %s", c.phase)
 	}

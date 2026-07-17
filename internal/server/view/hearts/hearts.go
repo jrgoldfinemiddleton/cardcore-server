@@ -39,7 +39,7 @@ func PlayerView(vs ViewState, seat hearts.Seat, seq int) *heartsapi.PlayerSnapsh
 		Seq:           seq,
 		Phase:         buildPhase(vs, g),
 		RoundNumber:   g.Round + 1,
-		TrickNumber:   g.TrickNum + 1,
+		TrickNumber:   trickNumber(g.TrickNum),
 		PassDirection: heartsapi.PassDirToWire(g.PassDir),
 		Turn:          int(g.Turn),
 		TrickWinner:   -1,
@@ -89,7 +89,7 @@ func ObserverView(vs ViewState, seq int) *heartsapi.ObserverSnapshot {
 		Seq:           seq,
 		Phase:         buildPhase(vs, g),
 		RoundNumber:   g.Round + 1,
-		TrickNumber:   g.TrickNum + 1,
+		TrickNumber:   trickNumber(g.TrickNum),
 		PassDirection: heartsapi.PassDirToWire(g.PassDir),
 		Turn:          int(g.Turn),
 		TrickWinner:   -1,
@@ -199,6 +199,14 @@ func trickWinner(g *hearts.Game) int {
 		}
 	}
 	return int(winner)
+}
+
+// trickNumber returns the 1-indexed trick number to display for a round, capped
+// at the maximum number of tricks in a Hearts round (the hand size). The engine
+// advances TrickNum to the hand size after the final trick, so without this cap
+// the snapshot would expose a non-existent "trick 14".
+func trickNumber(trickNum int) int {
+	return min(trickNum+1, hearts.HandSize)
 }
 
 // buildTrickHistory converts a slice of completed tricks to wire-format entry slices.

@@ -36,7 +36,7 @@ func TestRenderObserverViewFourHands(t *testing.T) {
 		RoundPoints: []int{11, 0, 0, 0},
 	}
 
-	got := RenderObserverView(snap, NewDarkTheme(), 80)
+	got := RenderObserverView(snap, NewDarkTheme(), 80, 30)
 
 	for i := 0; i < 4; i++ {
 		label := "Seat " + string(rune('0'+i))
@@ -72,7 +72,7 @@ func TestRenderObserverViewFewerHands(t *testing.T) {
 		RoundPoints: []int{0},
 	}
 
-	got := RenderObserverView(snap, NewDarkTheme(), 80)
+	got := RenderObserverView(snap, NewDarkTheme(), 80, 30)
 	if !strings.Contains(got, "Seat 0") {
 		t.Errorf("RenderObserverView with 1 hand = %q, want to contain %q", got, "Seat 0")
 	}
@@ -104,7 +104,7 @@ func TestRenderObserverViewTrickCompleteWinner(t *testing.T) {
 		RoundPoints: []int{0, 0, 0, 0},
 	}
 
-	got := RenderObserverView(snap, NewDarkTheme(), 80)
+	got := RenderObserverView(snap, NewDarkTheme(), 80, 30)
 	want := "Trick complete — Seat 1 won"
 	if !strings.Contains(got, want) {
 		t.Errorf("RenderObserverView = %q, want to contain %q", got, want)
@@ -132,7 +132,7 @@ func TestRenderObserverViewTrickCompleteNoWinner(t *testing.T) {
 		RoundPoints: []int{0},
 	}
 
-	got := RenderObserverView(snap, NewDarkTheme(), 80)
+	got := RenderObserverView(snap, NewDarkTheme(), 80, 30)
 	if strings.Contains(got, "Trick complete") {
 		t.Errorf("RenderObserverView = %q, want no winner line when TrickWinner is -1", got)
 	}

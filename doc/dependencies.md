@@ -13,6 +13,7 @@ New dependencies require discussion and explicit approval before introduction
 | `charm.land/bubbletea/v2` | Terminal UI framework | MIT |
 | `charm.land/bubbles/v2` | Reusable Bubble Tea components | MIT |
 | `charm.land/lipgloss/v2` | Terminal styling | MIT |
+| `github.com/charmbracelet/x/ansi` | ANSI string utilities (used by lipgloss v2) | MIT |
 
 ## Dev Tools
 

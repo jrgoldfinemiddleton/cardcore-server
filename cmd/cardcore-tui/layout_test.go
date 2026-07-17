@@ -1,9 +1,18 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
 )
+
+// tallGameClient is a stub gameClient that renders content taller than the
+// requested height so layout overflow behavior can be tested.
+type tallGameClient struct{}
 
 // TestRenderFooterErrorPriority verifies the error flash takes priority over
 // status messages and connection state.
@@ -76,7 +85,7 @@ func TestRenderFooterConnected(t *testing.T) {
 // TestRenderLayoutPanels verifies the full layout includes three bordered
 // panels (header, main, footer) and two blank separator lines.
 func TestRenderLayoutPanels(t *testing.T) {
-	m := &model{theme: NewDarkTheme()}
+	m := &model{theme: NewDarkTheme(), height: 24}
 
 	got := m.renderLayout()
 	stripped := stripANSILayout(got)
@@ -98,6 +107,18 @@ func TestRenderLayoutPanels(t *testing.T) {
 	}
 	if blankCount != 2 {
 		t.Errorf("renderLayout has %d blank separator lines, want 2", blankCount)
+	}
+}
+
+// TestRenderLayoutHeight verifies the full layout fills the configured
+// terminal height with the fixed panels and separators.
+func TestRenderLayoutHeight(t *testing.T) {
+	m := &model{theme: NewDarkTheme(), height: 24}
+
+	got := m.renderLayout()
+	lines := strings.Split(got, "\n")
+	if len(lines) != 24 {
+		t.Errorf("renderLayout produced %d lines, want 24", len(lines))
 	}
 }
 
@@ -164,6 +185,24 @@ func TestRenderHeaderScoreDangerHighlight(t *testing.T) {
 	}
 }
 
+// TestRenderLayoutClipsTallGameContent verifies that even if the game client
+// returns more rows than the main panel can show, the full layout stays exactly
+// at the configured terminal height so the footer is not pushed off-screen.
+func TestRenderLayoutClipsTallGameContent(t *testing.T) {
+	m := &model{
+		theme:  NewDarkTheme(),
+		width:  80,
+		height: 24,
+		game:   tallGameClient{},
+	}
+
+	got := m.renderLayout()
+	lines := strings.Split(got, "\n")
+	if len(lines) != 24 {
+		t.Errorf("renderLayout produced %d lines, want 24", len(lines))
+	}
+}
+
 // hasPanelBorder reports whether s contains rounded panel border characters.
 func hasPanelBorder(s string) bool {
 	return strings.Contains(s, "╭") && strings.Contains(s, "╮") &&
@@ -188,4 +227,34 @@ func stripANSILayout(s string) string {
 		b.WriteRune(r)
 	}
 	return b.String()
+}
+
+// HandleSnapshot ignores the snapshot for the stub.
+func (tallGameClient) HandleSnapshot(raw json.RawMessage) {}
+
+// LastError returns an empty error for the stub.
+func (tallGameClient) LastError() string { return "" }
+
+// HandleKey ignores key presses for the stub.
+func (tallGameClient) HandleKey(key tea.KeyPressMsg) (client.Command, bool, string) {
+	return client.Command{}, false, ""
+}
+
+// Render returns content twice the requested height to simulate overflow.
+func (tallGameClient) Render(width, height int) string {
+	return strings.Repeat("line\n", height*2)
+}
+
+// ResetSubmitted does nothing for the stub.
+func (tallGameClient) ResetSubmitted() {}
+
+// SetInputDisabled does nothing for the stub.
+func (tallGameClient) SetInputDisabled(disabled bool) {}
+
+// IsHumanTurn always returns false for the stub.
+func (tallGameClient) IsHumanTurn() bool { return false }
+
+// TogglePause returns no command for the stub.
+func (tallGameClient) TogglePause(paused bool) (client.Command, bool) {
+	return client.Command{}, false
 }
