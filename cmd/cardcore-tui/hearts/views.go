@@ -9,6 +9,9 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
 )
 
+// cardBackWidth is the visible width of a single card-back box.
+const cardBackWidth = 4
+
 // RenderTrick renders the cards played to the current trick, in play order.
 // Each card is preceded by a styled seat label on its own line (e.g.,
 // "Seat 2 (You)" followed by the bordered card). An empty trick returns a short
@@ -57,7 +60,7 @@ func RenderTrick(
 // caller violated the contract.
 func RenderPassingView(
 	snap heartsclient.PlayerSnapshot,
-	cursor int,
+	seat, cursor int,
 	selected []heartsclient.Card,
 	inputDisabled bool,
 	theme Theme,
@@ -65,8 +68,17 @@ func RenderPassingView(
 ) string {
 	dir := formatPassDirection(snap.PassDirection)
 	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
+	bgStyle := lipgloss.NewStyle().Background(theme.Background)
 	header := textStyle.Render(fmt.Sprintf("Round %d — %s", snap.RoundNumber, dir))
+	label := lipgloss.NewStyle().
+		Foreground(theme.Text).
+		Background(theme.Background).
+		Width(width).
+		Align(lipgloss.Center).
+		Render(fmt.Sprintf("Seat %d (You)", seat))
 	hand := RenderHand(snap.Hand, cursor, selected, nil, inputDisabled, theme, width)
+	handCentered := lipgloss.Place(width, 3, lipgloss.Center, lipgloss.Center, hand,
+		lipgloss.WithWhitespaceStyle(bgStyle))
 
 	remaining := max(3-len(selected), 0)
 
@@ -80,16 +92,17 @@ func RenderPassingView(
 		status = fmt.Sprintf("Select %d more card(s) to pass", remaining)
 	}
 
-	content := joinLines([]string{header, "", hand, "", textStyle.Render(status)})
+	content := joinLines([]string{header, "", label, handCentered, "", textStyle.Render(status)})
 	return placeContent(content, width, height, lipgloss.Bottom, theme)
 }
 
-// RenderPlayingView renders the playing phase view for a seated player, using
-// the provided theme for colors and scaling the hand to the given terminal
-// width.
-//
-// It shows the current trick on top, the player's hand (with illegal cards
-// dimmed), and a status line indicating whose turn it is.
+// RenderPlayingView renders the playing phase view for a seated player as a
+// cross-shaped table. The viewer is at the bottom, the opposite seat is at the
+// top, and the remaining seats are on the left and right. Non-human seats show
+// card-back visuals instead of real cards. Played cards are arranged in a
+// diamond formation in the center with minimal info text (turn or winner).
+// The view is anchored at the bottom so the player's hand and status line stay
+// fixed as the trick grows.
 func RenderPlayingView(
 	snap heartsclient.PlayerSnapshot,
 	seat, cursor int,
@@ -97,12 +110,36 @@ func RenderPlayingView(
 	theme Theme,
 	width, height int,
 ) string {
-	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
-	trick := RenderTrick(snap.Trick, seat, -1, theme)
-	hand := RenderHand(snap.Hand, cursor, nil, snap.LegalActions, inputDisabled, theme, width)
+	const sideBlockWidth = 26
+	centerWidth := max(width-2*sideBlockWidth, 0)
 
+	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
+	bgStyle := lipgloss.NewStyle().Background(theme.Background)
+	spacer := bgStyle.Render(strings.Repeat(" ", width))
+
+	leftSeat := (seat + 1) % 4
+	topSeat := (seat + 2) % 4
+	rightSeat := (seat + 3) % 4
+
+	// Bottom block: "Seat N (You)" label, hand centered horizontally, and
+	// status. Pinned to the bottom of the play area.
+	label := lipgloss.NewStyle().
+		Foreground(theme.Text).
+		Background(theme.Background).
+		Width(width).
+		Align(lipgloss.Center).
+		Render(fmt.Sprintf("Seat %d (You)", seat))
+	hand := RenderHand(snap.Hand, cursor, nil, snap.LegalActions, inputDisabled, theme, width)
+	handCentered := lipgloss.Place(width, 3, lipgloss.Center, lipgloss.Center, hand,
+		lipgloss.WithWhitespaceStyle(bgStyle))
 	var status string
 	switch {
+	case snap.Phase == heartsclient.PhaseTrickComplete && snap.TrickWinner >= 0:
+		if snap.TrickWinner == seat {
+			status = "You won the trick"
+		} else {
+			status = fmt.Sprintf("Seat %d won the trick", snap.TrickWinner)
+		}
 	case inputDisabled:
 		status = "Waiting for other players…"
 	case snap.Turn == seat:
@@ -110,9 +147,40 @@ func RenderPlayingView(
 	default:
 		status = fmt.Sprintf("Waiting for seat %d…", snap.Turn)
 	}
+	bottomBlock := joinLines([]string{label, handCentered, textStyle.Render(status)})
+	bottomHeight := strings.Count(bottomBlock, "\n") + 1
 
-	content := joinLines([]string{trick, "", hand, "", textStyle.Render(status)})
-	return placeContent(content, width, height, lipgloss.Bottom, theme)
+	// Top block: centered label + optional card-backs. Pinned to the top.
+	const diamondHeight = 9
+	showTopBacks := height >= 1+3+diamondHeight+bottomHeight
+	topBlock := renderTopSeat(topSeat, snap.HandCounts, theme, width, showTopBacks)
+	topHeight := strings.Count(topBlock, "\n") + 1
+
+	// Middle row: left card-backs | center diamond | right card-backs.
+	leftBlock := renderSideSeat(leftSeat, snap.HandCounts, theme, sideBlockWidth, diamondHeight)
+	rightBlock := renderSideSeat(rightSeat, snap.HandCounts, theme, sideBlockWidth, diamondHeight)
+	centerBlock := renderPlayerDiamond(snap, seat, theme, centerWidth)
+	middleRow := lipgloss.JoinHorizontal(lipgloss.Top, leftBlock, centerBlock, rightBlock)
+
+	// Center the trick vertically in the full play area.
+	middleArea := lipgloss.Place(width, diamondHeight, lipgloss.Center, lipgloss.Center, middleRow,
+		lipgloss.WithWhitespaceStyle(bgStyle))
+
+	// Spacers pin the top and bottom blocks to the edges while centering the
+	// trick. If the terminal is too short, the spacers collapse to zero.
+	extra := max(height-topHeight-bottomHeight-diamondHeight, 0)
+	topSpacer := extra / 2
+	bottomSpacer := extra - topSpacer
+
+	parts := make([]string, 0, topHeight+topSpacer+diamondHeight+bottomSpacer+bottomHeight)
+	parts = append(parts, topBlock)
+	parts = append(parts, repeatLines(spacer, topSpacer)...)
+	parts = append(parts, middleArea)
+	parts = append(parts, repeatLines(spacer, bottomSpacer)...)
+	parts = append(parts, bottomBlock)
+
+	content := joinLines(parts)
+	return placeContent(content, width, height, lipgloss.Top, theme)
 }
 
 // RenderTrickCompleteView renders the view shown when a trick is complete,
@@ -134,9 +202,9 @@ func RenderTrickCompleteView(
 
 	var status string
 	if len(snap.Trick) == 4 && snap.TrickWinner >= 0 {
-		status = fmt.Sprintf("Trick complete — Seat %d won", snap.TrickWinner)
+		status = fmt.Sprintf("Trick Completed — Seat %d won", snap.TrickWinner)
 	} else {
-		status = "Trick complete"
+		status = "Trick Completed"
 	}
 
 	content := joinLines([]string{trick, textStyle.Render(status)})
@@ -162,7 +230,7 @@ func RenderRoundCompleteView(
 
 	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
 	var lines []string
-	lines = append(lines, textStyle.Render(fmt.Sprintf("Round %d complete", snap.RoundNumber)))
+	lines = append(lines, textStyle.Render(fmt.Sprintf("Round %d Completed", snap.RoundNumber)))
 
 	for i := 0; i < len(snap.Scores); i++ {
 		label := seatLabel(i, seat, theme)
@@ -203,7 +271,7 @@ func RenderGameOverView(
 // RenderPausedView renders the pause overlay, using the provided theme for
 // colors and sizing the summary box to the given terminal width.
 func RenderPausedView(theme Theme, width, height int) string {
-	boxed := summaryBoxStyle(theme, width).Render("Game paused — press P to resume")
+	boxed := summaryBoxStyle(theme, width).Render("Paused — press P to resume")
 	return placeContent(boxed, width, height, lipgloss.Center, theme)
 }
 
@@ -211,6 +279,146 @@ func RenderPausedView(theme Theme, width, height int) string {
 func RenderDealView(theme Theme, width, height int) string {
 	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
 	return placeContent(textStyle.Render("Dealing..."), width, height, lipgloss.Center, theme)
+}
+
+// PrettyPhase converts a raw snake_case phase string to a human-readable
+// display name. Unknown phases are returned as-is.
+func PrettyPhase(phase string) string {
+	switch phase {
+	case heartsclient.PhaseDeal:
+		return "Dealing"
+	case heartsclient.PhasePassing:
+		return "Passing"
+	case heartsclient.PhasePlaying:
+		return "Playing"
+	case heartsclient.PhaseTrickComplete:
+		return "Trick Completed"
+	case heartsclient.PhaseRoundComplete:
+		return "Round Completed"
+	case heartsclient.PhaseGameOver:
+		return "Game Over"
+	case heartsclient.PhasePaused:
+		return "Paused"
+	default:
+		return phase
+	}
+}
+
+// repeatLines returns a new slice containing s repeated n times.
+func repeatLines(s string, n int) []string {
+	lines := make([]string, n)
+	for i := range lines {
+		lines[i] = s
+	}
+	return lines
+}
+
+// renderCardBack renders a single card-back: a small bordered box with a
+// dimmed fill pattern, matching the height of a normal card (3 lines).
+func renderCardBack(theme Theme) string {
+	return lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(theme.Dimmed).
+		BorderBackground(theme.Background).
+		Foreground(theme.Dimmed).
+		Background(theme.Background).
+		Render("▓▓")
+}
+
+// renderCardBackRow renders a horizontal row of card-backs, clipped to the
+// given maximum width. Returns an empty string when count is zero or negative.
+func renderCardBackRow(count int, theme Theme, maxWidth int) string {
+	if count <= 0 {
+		return ""
+	}
+	back := renderCardBack(theme)
+	const gap = 1
+	maxCards := (maxWidth + gap) / (cardBackWidth + gap)
+	if maxCards < 1 {
+		maxCards = 1
+	}
+	if count > maxCards {
+		count = maxCards
+	}
+	cards := make([]string, count)
+	for i := range cards {
+		cards[i] = back
+	}
+	gapLine := strings.Repeat(" ", gap)
+	margin := gapString(theme)
+	return joinCards(cards, margin, gapLine)
+}
+
+// renderCardBackColumn renders a vertical column of card-backs, clipped to the
+// given maximum height. Each card-back is 3 lines tall. Returns an empty
+// string when count is zero or negative.
+func renderCardBackColumn(count int, theme Theme, width, maxHeight int) string {
+	if count <= 0 {
+		return ""
+	}
+	back := renderCardBack(theme)
+	const cardHeight = 3
+	maxCards := maxHeight / cardHeight
+	if maxCards < 1 {
+		maxCards = 1
+	}
+	if count > maxCards {
+		count = maxCards
+	}
+	bgStyle := lipgloss.NewStyle().Background(theme.Background)
+	lines := make([]string, count)
+	for i := range lines {
+		lines[i] = lipgloss.Place(width, cardHeight, lipgloss.Center, lipgloss.Center, back,
+			lipgloss.WithWhitespaceStyle(bgStyle))
+	}
+	return joinLines(lines)
+}
+
+// renderPlayerDiamond renders the trick cards in a diamond/plus-sign formation
+// for the player view. The top seat's card is at top, the viewer's card at
+// bottom, and the left/right seats' cards on the sides. The center contains
+// minimal info text (whose turn it is).
+func renderPlayerDiamond(
+	snap heartsclient.PlayerSnapshot,
+	seat int,
+	theme Theme,
+	width int,
+) string {
+	bgStyle := lipgloss.NewStyle().Background(theme.Background)
+	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
+
+	leftSeat := (seat + 1) % 4
+	topSeat := (seat + 2) % 4
+	rightSeat := (seat + 3) % 4
+
+	const cardW = 5
+
+	topCard := trickCardForSeat(snap.Trick, topSeat, theme, width)
+	bottomCard := trickCardForSeat(snap.Trick, seat, theme, width)
+	leftCard := trickCardForSeat(snap.Trick, leftSeat, theme, cardW)
+	rightCard := trickCardForSeat(snap.Trick, rightSeat, theme, cardW)
+
+	var infoText string
+	if snap.Phase == heartsclient.PhaseTrickComplete && snap.TrickWinner >= 0 {
+		if snap.TrickWinner == seat {
+			infoText = "You won"
+		} else {
+			infoText = fmt.Sprintf("Seat %d won", snap.TrickWinner)
+		}
+	} else if snap.Turn == seat {
+		infoText = "Your turn"
+	} else {
+		infoText = fmt.Sprintf("Seat %d's turn", snap.Turn)
+	}
+
+	gap := gapString(theme)
+	infoSlot := textStyle.Render(infoText)
+	middleContent := lipgloss.JoinHorizontal(
+		lipgloss.Center, leftCard, gap, infoSlot, gap, rightCard)
+	middleRow := lipgloss.Place(width, 3, lipgloss.Center, lipgloss.Center, middleContent,
+		lipgloss.WithWhitespaceStyle(bgStyle))
+
+	return joinLines([]string{topCard, middleRow, bottomCard})
 }
 
 // summaryBoxStyle returns the bordered container style for pause/summary views,
@@ -276,4 +484,88 @@ func seatLabel(seat, viewerSeat int, theme Theme) string {
 		Background(theme.Background).
 		Bold(true).
 		Render(label)
+}
+
+// safeHandCount returns the hand count for the given seat, or 0 if the seat
+// index is out of range.
+func safeHandCount(counts []int, seat int) int {
+	if seat < 0 || seat >= len(counts) {
+		return 0
+	}
+	return counts[seat]
+}
+
+// trickCardForSeat returns the rendered card for the given seat in the trick,
+// or an invisible placeholder of the requested size if the seat has not played
+// a card yet.
+func trickCardForSeat(trick []heartsclient.TrickEntry, seat int, theme Theme, width int) string {
+	bgStyle := lipgloss.NewStyle().Background(theme.Background)
+	for _, entry := range trick {
+		if entry.Seat == seat {
+			return lipgloss.Place(width, 3, lipgloss.Center, lipgloss.Center,
+				RenderCard(entry.Card, CardNormal, theme),
+				lipgloss.WithWhitespaceStyle(bgStyle))
+		}
+	}
+	return lipgloss.Place(width, 3, lipgloss.Center, lipgloss.Center, "",
+		lipgloss.WithWhitespaceStyle(bgStyle))
+}
+
+// renderSideSeat renders a side seat block (left or right) with a seat label
+// and a vertical column of card-backs representing the hidden hand. The block
+// is sized to fill the given width and height.
+func renderSideSeat(
+	seat int,
+	counts []int,
+	theme Theme,
+	width, height int,
+) string {
+	count := safeHandCount(counts, seat)
+	labelText := fmt.Sprintf("Seat %d — %d cards", seat, count)
+	labelLine := lipgloss.NewStyle().
+		Foreground(theme.Text).
+		Background(theme.Background).
+		Width(width).
+		Align(lipgloss.Center).
+		Render(labelText)
+	backsHeight := max(height-1, 0)
+	backs := renderCardBackColumn(count, theme, width, backsHeight)
+	box := lipgloss.JoinVertical(lipgloss.Left, labelLine, backs)
+	bgStyle := lipgloss.NewStyle().Background(theme.Background)
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Top, box,
+		lipgloss.WithWhitespaceStyle(bgStyle))
+}
+
+// renderTopSeat renders the opposite seat block at the top of the cross
+// layout. When showBacks is true, a horizontal row of card-backs is shown
+// below the label; otherwise only the label is rendered.
+func renderTopSeat(
+	seat int,
+	counts []int,
+	theme Theme,
+	width int,
+	showBacks bool,
+) string {
+	count := safeHandCount(counts, seat)
+	labelText := fmt.Sprintf("Seat %d — %d cards", seat, count)
+	labelLine := lipgloss.NewStyle().
+		Foreground(theme.Text).
+		Background(theme.Background).
+		Width(width).
+		Align(lipgloss.Center).
+		Render(labelText)
+	if !showBacks {
+		return labelLine
+	}
+	backs := renderCardBackRow(count, theme, width)
+	bgStyle := lipgloss.NewStyle().Background(theme.Background)
+	backsBlock := lipgloss.Place(width, 3, lipgloss.Center, lipgloss.Center, backs,
+		lipgloss.WithWhitespaceStyle(bgStyle))
+	return lipgloss.JoinVertical(lipgloss.Left, labelLine, backsBlock)
+}
+
+// gapString returns a horizontal gap string of the given width using the theme
+// background color.
+func gapString(theme Theme) string {
+	return lipgloss.NewStyle().Background(theme.Background).Width(1).Render("")
 }

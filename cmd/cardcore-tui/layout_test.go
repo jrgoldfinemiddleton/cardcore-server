@@ -133,7 +133,7 @@ func TestRenderHeaderScorePresentation(t *testing.T) {
 	}
 
 	got := m.renderHeader(80)
-	wantParts := []string{"Round 2", "Phase: playing", "S0: 5", "S1: 12", "S2: 8", "S3: 3"}
+	wantParts := []string{"Round 2", "Phase: Playing", "S0: 5", "S1: 12", "S2: 8", "S3: 3"}
 	for _, part := range wantParts {
 		if !strings.Contains(got, part) {
 			t.Errorf("renderHeader = %q, want to contain %q", got, part)
@@ -174,7 +174,7 @@ func TestRenderHeaderScoreDangerHighlight(t *testing.T) {
 	}
 
 	got := m.renderHeader(80)
-	wantParts := []string{"Round 4", "Phase: playing", "S0: 12", "S1: 80", "S2: 45", "S3: 73"}
+	wantParts := []string{"Round 4", "Phase: Playing", "S0: 12", "S1: 80", "S2: 45", "S3: 73"}
 	for _, part := range wantParts {
 		if !strings.Contains(got, part) {
 			t.Errorf("renderHeader = %q, want to contain %q", got, part)

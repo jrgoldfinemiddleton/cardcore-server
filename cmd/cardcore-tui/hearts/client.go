@@ -147,32 +147,33 @@ func (c *Client) TogglePause(paused bool) (client.Command, bool) {
 // scaled to the given terminal dimensions, passing the stored theme to all
 // render functions. The width is threaded through to view functions that
 // produce width-dependent output (hand spacing, summary boxes).
+//
+// The caller (layout.renderMain) already subtracts the main panel's one-cell
+// border on each side, so the width here is the inner content width.
 func (c *Client) Render(width, height int) string {
-	// The game area is rendered inside the main panel, which has a one-cell
-	// border on each side. Use the inner content width so nested borders and
-	// the hand do not overlap the main panel border.
-	innerWidth := max(width-2, 0)
-
 	if c.observer {
-		return RenderObserverView(c.observerSnap, c.theme, innerWidth, height)
+		return RenderObserverView(c.observerSnap, c.theme, width, height)
 	}
 	switch c.phase {
 	case heartsclient.PhaseDeal:
-		return RenderDealView(c.theme, innerWidth, height)
+		return RenderDealView(c.theme, width, height)
 	case heartsclient.PhasePaused:
-		return RenderPausedView(c.theme, innerWidth, height)
+		return RenderPausedView(c.theme, width, height)
 	case heartsclient.PhasePassing:
-		return RenderPassingView(c.playerSnap, c.cursor,
-			c.selected, c.inputDisabled, c.theme, innerWidth, height)
+		return RenderPassingView(c.playerSnap, c.seat, c.cursor,
+			c.selected, c.inputDisabled, c.theme, width, height)
 	case heartsclient.PhasePlaying:
 		return RenderPlayingView(
-			c.playerSnap, c.seat, c.cursor, c.inputDisabled, c.theme, innerWidth, height)
+			c.playerSnap, c.seat, c.cursor, c.inputDisabled, c.theme, width, height)
 	case heartsclient.PhaseTrickComplete:
-		return RenderTrickCompleteView(c.playerSnap, c.seat, c.theme, innerWidth, height)
+		// Render the completed trick in the playing layout so the fourth card
+		// is visible in the playing diamond formation before the round/game advances.
+		return RenderPlayingView(
+			c.playerSnap, c.seat, c.cursor, c.inputDisabled, c.theme, width, height)
 	case heartsclient.PhaseRoundComplete:
-		return RenderRoundCompleteView(c.playerSnap, c.seat, c.theme, innerWidth, height)
+		return RenderRoundCompleteView(c.playerSnap, c.seat, c.theme, width, height)
 	case heartsclient.PhaseGameOver:
-		return RenderGameOverView(c.playerSnap, c.seat, c.theme, innerWidth, height)
+		return RenderGameOverView(c.playerSnap, c.seat, c.theme, width, height)
 	default:
 		return fmt.Sprintf("Phase: %s", c.phase)
 	}

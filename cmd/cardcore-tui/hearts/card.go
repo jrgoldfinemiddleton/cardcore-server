@@ -39,6 +39,20 @@ const handGapWidth = 1
 // firstCardMargin is the single space before the first card in the hand.
 const firstCardMargin = 1
 
+// suit names are used when matching card suits and ordering hands.
+// The order matches the cardcore engine: clubs=0, diamonds=1, hearts=2,
+// spades=3.
+const (
+	suitClubs    = "clubs"
+	suitDiamonds = "diamonds"
+	suitHearts   = "hearts"
+	suitSpades   = "spades"
+)
+
+// rankTen is the only rank string whose display symbol is two characters,
+// so it is checked explicitly when computing card widths.
+const rankTen = "ten"
+
 // RankSymbol maps a rank string to its display symbol.
 //
 // Known ranks: "two".."ten", "jack", "queen", "king", "ace".
@@ -61,7 +75,7 @@ func RankSymbol(rank string) string {
 		return "8"
 	case "nine":
 		return "9"
-	case "ten":
+	case rankTen:
 		return "10"
 	case "jack":
 		return "J"
@@ -82,13 +96,13 @@ func RankSymbol(rank string) string {
 // Unknown suits return "?".
 func SuitSymbol(suit string) string {
 	switch suit {
-	case "clubs":
+	case suitClubs:
 		return "♣"
-	case "diamonds":
+	case suitDiamonds:
 		return "♦"
-	case "hearts":
+	case suitHearts:
 		return "♥"
-	case "spades":
+	case suitSpades:
 		return "♠"
 	default:
 		return "?"
@@ -281,7 +295,7 @@ func cardStateFor(
 // Hearts and diamonds are red; clubs and spades are dark.
 func suitColor(suit string, theme Theme) color.Color {
 	switch suit {
-	case "hearts", "diamonds":
+	case suitHearts, suitDiamonds:
 		return theme.RedSuit
 	default:
 		return theme.DarkSuit

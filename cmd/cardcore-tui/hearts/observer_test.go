@@ -8,7 +8,7 @@ import (
 )
 
 // TestRenderObserverViewFourHands verifies that a 4-hand ObserverSnapshot
-// includes all four "Seat N" labels and a scores summary.
+// includes all four "Seat N" labels.
 //
 // Round 2, Trick 13 (final trick), pass right. Scores sum to 26
 // (from round 1). RoundPoints sum to 11 (e.g., 11 hearts taken). One card
@@ -45,11 +45,9 @@ func TestRenderObserverViewFourHands(t *testing.T) {
 		}
 	}
 
-	if !strings.Contains(got, "Scores:") {
-		t.Errorf("RenderObserverView = %q, want to contain %q", got, "Scores:")
-	}
-	if !strings.Contains(got, "S0=13") {
-		t.Errorf("RenderObserverView = %q, want to contain %q", got, "S0=13")
+	lines := strings.Split(got, "\n")
+	if len(lines) != 30 {
+		t.Fatalf("RenderObserverView has %d lines, want 30", len(lines))
 	}
 }
 
@@ -105,7 +103,7 @@ func TestRenderObserverViewTrickCompleteWinner(t *testing.T) {
 	}
 
 	got := RenderObserverView(snap, NewDarkTheme(), 80, 30)
-	want := "Trick complete — Seat 1 won"
+	want := "Seat 1 won"
 	if !strings.Contains(got, want) {
 		t.Errorf("RenderObserverView = %q, want to contain %q", got, want)
 	}
