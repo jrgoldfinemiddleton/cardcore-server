@@ -107,7 +107,7 @@ The server listens on `127.0.0.1:8080` by default. It hosts WebSocket game sessi
 ./bin/cardcore-tui
 ```
 
-Starts an interactive Bubble Tea session. By default it auto-creates a 1-human+3-AI Hearts game, connects as seat 0, and begins play immediately.
+The default invocation shows an interactive menu. From there you can review the server, game, AI difficulty, observer mode, and theme settings before starting. By default the menu starts a 1-human+3-AI Hearts game as seat 0 once you choose Start Game.
 
 Key commands during a game:
 
@@ -115,6 +115,27 @@ Key commands during a game:
 - `Space` — select/deselect a card
 - `Enter` — confirm selection (pass 3 cards or play 1 card)
 - `Esc` — initiate quit, then `Enter` to confirm
+
+#### Initial Menu
+
+When you run the TUI without the flags that start a game directly, it presents an interactive menu:
+
+| Item | Behavior |
+|---|---|
+| Game | Display-only; currently always `hearts`. |
+| Server | The server base URL. Press Enter to edit inline; Esc cancels, Enter confirms. |
+| AI Difficulty | Cycles through Easy (`random`), Medium (`heuristic`), and Hard (`pimc`). |
+| Observer | Toggles receive-only mode with all hands visible. |
+| Theme | Toggles between `dark` and `light`. |
+| Start Game | Starts the game with the selected settings. |
+
+Navigation and controls:
+
+- `↑` / `↓` — move the cursor between items.
+- `Enter` — cycle the value of AI Difficulty, Observer, or Theme; starts the game when Start Game is selected.
+- `Esc` — exit the menu without starting a game.
+
+The menu is skipped and the game starts immediately if you explicitly set any of these flags: `-session`, `-token`, `-observe`, or `-ai-type`.
 
 | Flag | Env Var | Default | Description |
 |---|---|---|---|
@@ -124,7 +145,7 @@ Key commands during a game:
 | `-token` | `CARDCORE_TUI_TOKEN` | — | Bearer token for the seat being joined |
 | `-seat` | `CARDCORE_TUI_SEAT` | `0` | Seat index to join |
 | `-observe` | `CARDCORE_TUI_OBSERVE` | `false` | Observer mode (receive-only) |
-| `-ai-type` | `CARDCORE_TUI_AI_TYPE` | `random` | AI type for auto-created sessions: `random`, `heuristic`, or `pimc` |
+| `-ai-type` | `CARDCORE_TUI_AI_TYPE` | `random` | AI type for auto-created sessions: `random`, `heuristic`, or `pimc`; when set explicitly, skips the menu |
 | `-theme` | `CARDCORE_TUI_THEME` | `dark` | Color theme: `dark` or `light` |
 | `-debug` | `CARDCORE_TUI_DEBUG` | `false` | Enable debug logging to `tui.log` |
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	heartstui "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/hearts"
+	"github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/menu"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
 )
 
@@ -40,20 +42,29 @@ type tuiConfig struct {
 	aiType string
 	// theme selects the color palette: "dark" or "light".
 	theme string
+	// menuSkipped is true when the user explicitly set a game-related flag,
+	// bypassing the interactive menu.
+	menuSkipped bool
 }
+
+const (
+	themeDark  = "dark"
+	themeLight = "light"
+)
 
 // main is the entry point for the cardcore TUI client.
 //
 // The initialization sequence is critical:
 //
 //  1. Parse flags.
-//  2. Create HTTP client (SessionClient) and WebSocket connection (Conn).
-//  3. Connect the WebSocket before starting the TUI program.
-//  4. Create the Bubble Tea model with the connection.
-//  5. Create the program. The model must use a pointer so that setting
+//  2. Run the menu to resolve server, game, AI, observer, theme, and debug.
+//  3. Create HTTP client (SessionClient) and WebSocket connection (Conn).
+//  4. Connect the WebSocket before starting the TUI program.
+//  5. Create the Bubble Tea model with the connection.
+//  6. Create the program. The model must use a pointer so that setting
 //     m.program after tea.NewProgram works (see below).
-//  6. Start the WebSocket reader goroutine.
-//  7. Run the program. This blocks until the user exits.
+//  7. Start the WebSocket reader goroutine.
+//  8. Run the program. This blocks until the user exits.
 //
 // Why connect before starting the program? Bubble Tea's event loop runs
 // in a single goroutine. If we tried to connect inside the model's Init()
@@ -67,7 +78,16 @@ func main() {
 		os.Exit(2)
 	}
 
-	if err := run(cfg); err != nil {
+	resolvedCfg, err := runMenu(cfg)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if resolvedCfg == nil {
+		return
+	}
+
+	if err := runGame(resolvedCfg); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -117,7 +137,7 @@ func parseFlags(args []string) (*tuiConfig, error) {
 		envOrDefault("CARDCORE_TUI_AI_TYPE", "random"),
 		"AI player type (env: CARDCORE_TUI_AI_TYPE)")
 	fs.StringVar(&cfg.theme, "theme",
-		envOrDefault("CARDCORE_TUI_THEME", "dark"),
+		envOrDefault("CARDCORE_TUI_THEME", themeDark),
 		"color theme: dark or light (env: CARDCORE_TUI_THEME)")
 
 	fs.Usage = func() {
@@ -134,6 +154,13 @@ func parseFlags(args []string) (*tuiConfig, error) {
 		return nil, err
 	}
 
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "ai-type", "session", "token", "observe":
+			cfg.menuSkipped = true
+		}
+	})
+
 	if cfg.observer && cfg.session != "" {
 		return nil, fmt.Errorf("-observe and -session are mutually exclusive")
 	}
@@ -146,35 +173,59 @@ func parseFlags(args []string) (*tuiConfig, error) {
 	if cfg.seat < 0 {
 		return nil, fmt.Errorf("-seat must be >= 0")
 	}
-	if cfg.theme != "dark" && cfg.theme != "light" {
+	if cfg.theme != themeDark && cfg.theme != themeLight {
 		return nil, fmt.Errorf("-theme must be 'dark' or 'light'")
 	}
 
 	return cfg, nil
 }
 
-// configureLogging sets up the default slog logger so server and wsbridge
-// log output never corrupts the terminal.
-//
-// When debug is true, logs are written to tui.log in the working directory.
-// When false, logs are discarded entirely. This must be called before any
-// goroutine that uses slog (notably startWSReader and client.Conn) is started.
-func configureLogging(debug bool) {
-	var w io.Writer
-	if debug {
-		f, err := os.Create("tui.log")
-		if err != nil {
-			w = io.Discard
-		} else {
-			w = f
-		}
-	} else {
-		w = io.Discard
+// runMenu starts the interactive menu when no explicit game-related flag was
+// set. If the user pressed Esc, it returns nil, nil so the program exits
+// silently. Otherwise it returns the resolved configuration (a copy of cfg
+// updated with menu selections).
+func runMenu(cfg *tuiConfig) (*tuiConfig, error) {
+	if cfg.menuSkipped {
+		return cfg, nil
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(w, nil)))
+
+	theme := NewDarkTheme()
+	if cfg.theme == themeLight {
+		theme = NewLightTheme()
+	}
+
+	initial := menu.Config{
+		Server:   cfg.server,
+		Game:     cfg.game,
+		AIType:   cfg.aiType,
+		Observer: cfg.observer,
+		Theme:    cfg.theme,
+		Debug:    cfg.debug,
+	}
+
+	result, err := menu.Run(initial, theme)
+	if err != nil {
+		if errors.Is(err, menu.ErrCancelled) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &tuiConfig{
+		server:      result.Server,
+		game:        result.Game,
+		session:     "",
+		token:       "",
+		seat:        0,
+		observer:    result.Observer,
+		debug:       result.Debug,
+		aiType:      result.AIType,
+		theme:       result.Theme,
+		menuSkipped: cfg.menuSkipped,
+	}, nil
 }
 
-// run executes the TUI lifecycle.
+// runGame executes the TUI lifecycle.
 //
 // Step 1: Create HTTP session client and connect context.
 //
@@ -223,7 +274,7 @@ func configureLogging(debug bool) {
 //
 //	p.Run() blocks until the user exits (ctrl+c, game over, etc.).
 //	Cleanup is handled by defer on the connection.
-func run(cfg *tuiConfig) error {
+func runGame(cfg *tuiConfig) error {
 	configureLogging(cfg.debug)
 
 	// The connect context has a 10-second timeout so a hanging dial fails
@@ -276,7 +327,7 @@ func run(cfg *tuiConfig) error {
 	defer func() { _ = conn.Close() }()
 
 	// readCtx is the long-lived context for the WebSocket read loop. It
-	// cancels when run() returns (program exit), stopping the reader.
+	// cancels when runGame() returns (program exit), stopping the reader.
 	readCtx, readCancel := context.WithCancel(context.Background())
 	defer readCancel()
 
@@ -298,7 +349,7 @@ func run(cfg *tuiConfig) error {
 	// Construct the theme from the configured string. The value is
 	// validated by parseFlags, so only "dark" or "light" reach here.
 	theme := NewDarkTheme()
-	if cfg.theme == "light" {
+	if cfg.theme == themeLight {
 		theme = NewLightTheme()
 	}
 
@@ -338,6 +389,27 @@ func run(cfg *tuiConfig) error {
 	}
 
 	return nil
+}
+
+// configureLogging sets up the default slog logger so server and wsbridge
+// log output never corrupts the terminal.
+//
+// When debug is true, logs are written to tui.log in the working directory.
+// When false, logs are discarded entirely. This must be called before any
+// goroutine that uses slog (notably startWSReader and client.Conn) is started.
+func configureLogging(debug bool) {
+	var w io.Writer
+	if debug {
+		f, err := os.Create("tui.log")
+		if err != nil {
+			w = io.Discard
+		} else {
+			w = f
+		}
+	} else {
+		w = io.Discard
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(w, nil)))
 }
 
 // newGameClient constructs the game-specific client for the named game. It is

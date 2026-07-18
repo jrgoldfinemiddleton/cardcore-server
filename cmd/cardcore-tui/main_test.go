@@ -209,3 +209,123 @@ func TestParseFlagsAITypeNoSession(t *testing.T) {
 		t.Errorf("aiType got %q, want %q", cfg.aiType, "heuristic")
 	}
 }
+
+// TestParseFlagsMenuSkippedExplicitFlags verifies that explicit game-related
+// flags cause parseFlags to set menuSkipped to true.
+func TestParseFlagsMenuSkippedExplicitFlags(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "ai-type pimc",
+			args: []string{"-ai-type", "pimc"},
+		},
+		{
+			name: "ai-type heuristic",
+			args: []string{"-ai-type", "heuristic"},
+		},
+		{
+			name: "session and token",
+			args: []string{"-session", "session-123", "-token", "token-123"},
+		},
+		{
+			name: "token and session reversed",
+			args: []string{"-token", "token-123", "-session", "session-123"},
+		},
+		{
+			name: "observe",
+			args: []string{"-observe"},
+		},
+		{
+			name: "observe with ai-type heuristic",
+			args: []string{"-observe", "-ai-type", "heuristic"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := parseFlags(tt.args)
+			if err != nil {
+				t.Fatalf("parseFlags: %v", err)
+			}
+
+			if cfg.menuSkipped != true {
+				t.Errorf("menuSkipped got %v, want true", cfg.menuSkipped)
+			}
+		})
+	}
+}
+
+// TestParseFlagsMenuNotSkippedDefaults verifies that flags unrelated to game
+// mode and environment-derived defaults do not set menuSkipped.
+func TestParseFlagsMenuNotSkippedDefaults(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		env  map[string]string
+	}{
+		{
+			name: "no args",
+			args: []string{},
+		},
+		{
+			name: "theme light",
+			args: []string{"-theme", "light"},
+		},
+		{
+			name: "server",
+			args: []string{"-server", "http://localhost:9090"},
+		},
+		{
+			name: "debug",
+			args: []string{"-debug"},
+		},
+		{
+			name: "seat",
+			args: []string{"-seat", "2"},
+		},
+		{
+			name: "ai-type env only",
+			args: []string{},
+			env:  map[string]string{"CARDCORE_TUI_AI_TYPE": "pimc"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+
+			cfg, err := parseFlags(tt.args)
+			if err != nil {
+				t.Fatalf("parseFlags: %v", err)
+			}
+
+			if cfg.menuSkipped != false {
+				t.Errorf("menuSkipped got %v, want false", cfg.menuSkipped)
+			}
+		})
+	}
+}
+
+// TestRunMenuReturnsOriginalWhenSkipped verifies that runMenu returns the
+// original config unchanged when the menu is skipped.
+func TestRunMenuReturnsOriginalWhenSkipped(t *testing.T) {
+	cfg := &tuiConfig{
+		server:      "http://localhost:9090",
+		game:        "hearts",
+		aiType:      "pimc",
+		theme:       "light",
+		menuSkipped: true,
+	}
+
+	got, err := runMenu(cfg)
+	if err != nil {
+		t.Fatalf("runMenu got error %v, want nil", err)
+	}
+	if got != cfg {
+		t.Errorf("runMenu returned %p, want %p", got, cfg)
+	}
+}

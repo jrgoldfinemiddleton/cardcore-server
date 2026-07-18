@@ -9,6 +9,34 @@
 //   - Observer: connect to a session in receive-only mode to watch all
 //     hands and game state.
 //
+// Running the binary without explicit game-related flags opens an interactive
+// menu. The menu lets you review or change the connection and game settings
+// before starting:
+//
+//   - Game            Display-only game name (currently "hearts").
+//   - Server          Server base URL. Press Enter to edit inline; Esc cancels
+//     the edit, Enter confirms it.
+//   - AI Difficulty   Difficulty shown as Easy, Medium, or Hard; these map to
+//     the server AI types random, heuristic, and pimc.
+//   - Observer        Toggle receive-only mode with all hands visible.
+//   - Theme           Color theme: dark or light.
+//   - Start Game      Start the game with the selected settings.
+//
+// Menu controls:
+//
+//   - Up/Down — move the cursor between items.
+//   - Enter   — cycle the value of AI Difficulty, Observer, or Theme, or start
+//     the game when Start Game is selected.
+//   - Esc     — exit the menu without starting a game.
+//
+// Explicitly providing any of these flags skips the menu and starts the game
+// directly:
+//
+//   - -session  Session ID to join.
+//   - -token    Seat bearer token (required when -session is set).
+//   - -observe  Observer mode.
+//   - -ai-type  AI player type; when set explicitly, the menu is skipped.
+//
 // Usage:
 //
 //	go run ./cmd/cardcore-tui -server http://localhost:8080 -session <id> -token <token> -seat 0
@@ -20,6 +48,8 @@
 //	-token    Seat bearer token (required when joining)
 //	-seat     Seat index (game-dependent, default: 0)
 //	-observe  Observer mode: receive-only, all hands visible
+//	-ai-type  AI player type for auto-created sessions: random, heuristic, or
+//	          pimc; when set explicitly, skips the interactive menu
 //	-theme    Color theme: dark or light (default: dark)
 //	-debug    Enable debug logging to tui.log
 //

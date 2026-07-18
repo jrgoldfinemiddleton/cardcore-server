@@ -10,6 +10,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- TUI initial menu: interactive pre-game wizard that runs before the game when no explicit join/create flags are provided. The menu lets users review or change the server URL (inline editing with Enter/Esc), AI difficulty (Easy/Medium/Hard mapped to random/heuristic/pimc), observer mode, and theme, then start the game. Explicit `-session`, `-token`, `-observe`, or `-ai-type` flags skip the menu. The menu uses the alternate screen and theme background color so it renders correctly in both dark and light modes
 - TUI Hearts visual refresh: seated cross layout for the player view and square layout for the observer view; both use suit-sorted vertical side hands, a centered diamond trick, and the player's hand is labeled "Seat # (You)"
 - TUI layout stability: fixed-height header, main, and footer regions; the Hearts hand is anchored to the bottom of the main panel; the entire screen fills with the theme background; and the layout clips content to its allocated height so resizes cannot push the footer off-screen
 - TUI ANSI-aware header truncation: header text is now truncated using `github.com/charmbracelet/x/ansi` so narrow terminals keep the header to a single line without corrupting lipgloss ANSI style codes
