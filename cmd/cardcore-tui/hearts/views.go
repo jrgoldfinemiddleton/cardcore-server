@@ -238,6 +238,14 @@ func RenderRoundCompleteView(
 		lines = append(lines, label+rest)
 	}
 
+	moonShooter := moonShotSeat(snap.RoundPoints)
+	if moonShooter >= 0 {
+		lines = append(lines, "")
+		lines = append(lines, textStyle.Render(
+			fmt.Sprintf("🐄 Seat %d shot the moon! 🌙", moonShooter),
+		))
+	}
+
 	boxed := summaryBoxStyle(theme, width).Render(joinLines(lines))
 	return placeContent(boxed, width, height, lipgloss.Center, theme)
 }
@@ -302,6 +310,29 @@ func PrettyPhase(phase string) string {
 	default:
 		return phase
 	}
+}
+
+// moonShotSeat returns the seat that shot the moon, or -1 if no moon shot was
+// detected. A moon shot is detected during round_complete when exactly one seat
+// has a delta of 0 and the other three seats have a delta of 26.
+func moonShotSeat(roundPoints []int) int {
+	if len(roundPoints) != 4 {
+		return -1
+	}
+	shooter := -1
+	for i, pts := range roundPoints {
+		switch pts {
+		case 0:
+			if shooter >= 0 {
+				return -1
+			}
+			shooter = i
+		case 26:
+		default:
+			return -1
+		}
+	}
+	return shooter
 }
 
 // repeatLines returns a new slice containing s repeated n times.

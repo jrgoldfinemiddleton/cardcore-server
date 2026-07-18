@@ -29,8 +29,8 @@ func TestClientHandleSnapshotPlayer(t *testing.T) {
 	}
 }
 
-// TestClientNavigation verifies that Right and Left move the cursor, clamped to
-// the hand bounds.
+// TestClientNavigation verifies that Right and Left move the cursor and wrap
+// around the hand in the passing phase.
 func TestClientNavigation(t *testing.T) {
 	c := newPassingClient(t)
 
@@ -41,17 +41,13 @@ func TestClientNavigation(t *testing.T) {
 
 	c.HandleKey(tea.KeyPressMsg{Code: tea.KeyLeft})
 	c.HandleKey(tea.KeyPressMsg{Code: tea.KeyLeft})
-	if c.cursor != 0 {
-		t.Errorf("got cursor %d after clamping left, want 0", c.cursor)
+	if c.cursor != 3 {
+		t.Errorf("got cursor %d after wrapping left twice, want 3", c.cursor)
 	}
 
-	// Test clamping at the max card index.
-	for range 10 {
-		c.HandleKey(tea.KeyPressMsg{Code: tea.KeyRight})
-	}
-	wantMax := len(c.playerSnap.Hand) - 1
-	if c.cursor != wantMax {
-		t.Errorf("got cursor %d after clamping right, want %d", c.cursor, wantMax)
+	c.HandleKey(tea.KeyPressMsg{Code: tea.KeyRight})
+	if c.cursor != 0 {
+		t.Errorf("got cursor %d after wrapping right from last card, want 0", c.cursor)
 	}
 }
 
