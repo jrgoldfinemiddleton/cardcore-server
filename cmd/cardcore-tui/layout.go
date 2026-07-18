@@ -6,6 +6,8 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	heartstui "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/hearts"
 )
 
 // renderLayout renders the full screen layout.
@@ -59,7 +61,7 @@ func (m *model) renderHeader(width int) string {
 		Bold(true).
 		Foreground(m.theme.Accent).
 		Background(m.theme.Background).
-		Render(fmt.Sprintf("Phase: %s", m.phase))
+		Render(fmt.Sprintf("Phase: %s", heartstui.PrettyPhase(m.phase)))
 
 	var right string
 	if len(m.scores) > 0 {

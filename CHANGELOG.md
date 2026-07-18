@@ -10,6 +10,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- TUI Hearts visual refresh: seated cross layout for the player view and square layout for the observer view; both use suit-sorted vertical side hands, a centered diamond trick, and the player's hand is labeled "Seat # (You)"
 - TUI layout stability: fixed-height header, main, and footer regions; the Hearts hand is anchored to the bottom of the main panel; the entire screen fills with the theme background; and the layout clips content to its allocated height so resizes cannot push the footer off-screen
 - TUI ANSI-aware header truncation: header text is now truncated using `github.com/charmbracelet/x/ansi` so narrow terminals keep the header to a single line without corrupting lipgloss ANSI style codes
 - TUI full-screen theme background: `tea.View.BackgroundColor` is set to the active theme background so the whole terminal surface renders consistently in both dark and light themes
@@ -79,6 +80,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- TUI observer side-hand gap: the main-panel border width was subtracted twice, so the right-side hand was inset from the right border. `Client.Render` now uses the inner width already provided by `layout.renderMain`
 - TUI observer view showed "Trick 14" after the last trick in a round; the server Hearts view now caps the displayed trick number at `hearts.HandSize` (13), and both `PlayerView` and `ObserverView` are covered by `TestTrickNumberCapped`
 - TUI footer pushed off-screen by tall content in narrow terminals; the new `placeContent` / `clipLines` helpers in the Hearts view layer ensure every fixed-height region renders exactly its allocated height
 - TUI light-mode horizontal black lines behind the header; fixed by truncating the header to the available width with ANSI-aware width counting and by setting `tea.View.BackgroundColor` to the theme background

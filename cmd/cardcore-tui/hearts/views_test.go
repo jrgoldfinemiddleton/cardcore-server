@@ -27,7 +27,7 @@ func TestRenderPassingViewThreeSelected(t *testing.T) {
 		{Rank: "ace", Suit: "spades"},
 	}
 
-	got := RenderPassingView(snap, 0, selected, false, NewDarkTheme(), 80, 14)
+	got := RenderPassingView(snap, 0, 0, selected, false, NewDarkTheme(), 80, 14)
 	want := "Press Enter to pass"
 	if !strings.Contains(got, want) {
 		t.Errorf("RenderPassingView with 3 selected = %q, want to contain %q", got, want)
@@ -50,7 +50,7 @@ func TestRenderPassingViewOneSelected(t *testing.T) {
 		{Rank: "queen", Suit: "diamonds"},
 	}
 
-	got := RenderPassingView(snap, 0, selected, false, NewDarkTheme(), 80, 14)
+	got := RenderPassingView(snap, 0, 0, selected, false, NewDarkTheme(), 80, 14)
 	want := "Select 2 more card(s) to pass"
 	if !strings.Contains(got, want) {
 		t.Errorf("RenderPassingView with 1 selected = %q, want to contain %q", got, want)
@@ -68,7 +68,7 @@ func TestRenderPlayingViewYourTurn(t *testing.T) {
 		LegalActions: []heartsclient.Card{{Rank: "ace", Suit: "spades"}},
 	}
 
-	got := RenderPlayingView(snap, 0, 0, false, NewDarkTheme(), 80, 14)
+	got := RenderPlayingView(snap, 0, 0, false, NewDarkTheme(), 80, 15)
 	want := "Your turn"
 	if !strings.Contains(got, want) {
 		t.Errorf("RenderPlayingView(your turn) = %q, want to contain %q", got, want)
@@ -86,7 +86,7 @@ func TestRenderPlayingViewWaiting(t *testing.T) {
 		LegalActions: []heartsclient.Card{},
 	}
 
-	got := RenderPlayingView(snap, 0, 0, false, NewDarkTheme(), 80, 14)
+	got := RenderPlayingView(snap, 0, 0, false, NewDarkTheme(), 80, 15)
 	want := "Waiting for seat 2"
 	if !strings.Contains(got, want) {
 		t.Errorf("RenderPlayingView(waiting) = %q, want to contain %q", got, want)
@@ -171,8 +171,8 @@ func TestRenderTrickCompleteViewIncomplete(t *testing.T) {
 	if strings.Contains(got, "won") {
 		t.Errorf("RenderTrickCompleteView = %q, should not claim winner for incomplete trick", got)
 	}
-	if !strings.Contains(got, "Trick complete") {
-		t.Errorf("RenderTrickCompleteView = %q, want to contain 'Trick complete'", got)
+	if !strings.Contains(got, "Trick Completed") {
+		t.Errorf("RenderTrickCompleteView = %q, want to contain 'Trick Completed'", got)
 	}
 }
 
@@ -185,8 +185,8 @@ func TestRenderRoundCompleteView(t *testing.T) {
 		RoundPoints: []int{11, 0, 0, 0},
 	}
 	got := RenderRoundCompleteView(snap, 0, NewDarkTheme(), 80, 14)
-	if !strings.Contains(got, "Round 1 complete") {
-		t.Errorf("RenderRoundCompleteView = %q, want 'Round 1 complete'", got)
+	if !strings.Contains(got, "Round 1 Completed") {
+		t.Errorf("RenderRoundCompleteView = %q, want 'Round 1 Completed'", got)
 	}
 	if !strings.Contains(stripANSI(got), "Seat 0 (You): 13 (+11)") {
 		t.Errorf("RenderRoundCompleteView = %q, want Seat 0 score", got)
@@ -255,7 +255,7 @@ func TestRenderPassingViewInputDisabled(t *testing.T) {
 		{Rank: "ace", Suit: "spades"},
 	}
 
-	got := RenderPassingView(snap, 0, selected, true, NewDarkTheme(), 80, 14)
+	got := RenderPassingView(snap, 0, 0, selected, true, NewDarkTheme(), 80, 14)
 	want := "Waiting for other players"
 	if !strings.Contains(got, want) {
 		t.Errorf("RenderPassingView(inputDisabled) = %q, want to contain %q", got, want)
@@ -273,39 +273,54 @@ func TestRenderPlayingViewInputDisabled(t *testing.T) {
 		LegalActions: []heartsclient.Card{{Rank: "ace", Suit: "spades"}},
 	}
 
-	got := RenderPlayingView(snap, 0, 0, true, NewDarkTheme(), 80, 14)
+	got := RenderPlayingView(snap, 0, 0, true, NewDarkTheme(), 80, 15)
 	want := "Waiting for other players"
 	if !strings.Contains(got, want) {
 		t.Errorf("RenderPlayingView(inputDisabled) = %q, want to contain %q", got, want)
 	}
 }
 
+// TestRenderPassingViewSeatLabel verifies that the human player's seat label
+// appears above the hand in the passing view.
+func TestRenderPassingViewSeatLabel(t *testing.T) {
+	snap := heartsclient.PlayerSnapshot{
+		RoundNumber:   1,
+		PassDirection: "left",
+		Hand:          []heartsclient.Card{{Rank: "ace", Suit: "spades"}},
+	}
+
+	got := RenderPassingView(snap, 2, 0, nil, false, NewDarkTheme(), 80, 14)
+	want := "Seat 2 (You)"
+	if !strings.Contains(got, want) {
+		t.Errorf("RenderPassingView = %q, want to contain %q", got, want)
+	}
+}
+
 // TestRenderPassingViewBlankLines verifies blank lines between the header,
-// hand, and status sections. The bordered hand is rendered as a 3-line block,
-// so the blank separator lines are at positions 1 and 5.
+// label, hand, and status sections. The bordered hand is rendered as a 3-line
+// block, so the blank separator lines are at positions 1 and 6.
 func TestRenderPassingViewBlankLines(t *testing.T) {
 	snap := heartsclient.PlayerSnapshot{
 		RoundNumber:   1,
 		PassDirection: "left",
 		Hand:          []heartsclient.Card{{Rank: "ace", Suit: "spades"}},
 	}
-	got := RenderPassingView(snap, -1, nil, false, NewDarkTheme(), 80, 14)
+	got := RenderPassingView(snap, 0, -1, nil, false, NewDarkTheme(), 80, 14)
 	lines := strings.Split(got, "\n")
 	if len(lines) != 14 {
 		t.Fatalf("RenderPassingView has %d lines, want 14", len(lines))
 	}
-	contentLines := lines[len(lines)-7:]
+	contentLines := lines[len(lines)-8:]
 	blankOne := strings.TrimSpace(stripANSI(contentLines[1])) == ""
-	blankFive := strings.TrimSpace(stripANSI(contentLines[5])) == ""
-	if !blankOne || !blankFive {
+	blankSix := strings.TrimSpace(stripANSI(contentLines[6])) == ""
+	if !blankOne || !blankSix {
 		t.Errorf("RenderPassingView blank lines missing: %q", got)
 	}
 }
 
-// TestRenderPlayingViewBlankLines verifies blank lines between the trick,
-// hand, and status sections. The bordered hand is rendered as a 3-line block,
-// so the blank separator lines are at positions 1 and 5.
-func TestRenderPlayingViewBlankLines(t *testing.T) {
+// TestRenderPlayingViewSeatLabel verifies that the human player's seat label
+// appears above the hand in the playing view.
+func TestRenderPlayingViewSeatLabel(t *testing.T) {
 	snap := heartsclient.PlayerSnapshot{
 		Phase:        "playing",
 		Turn:         0,
@@ -313,16 +328,49 @@ func TestRenderPlayingViewBlankLines(t *testing.T) {
 		Trick:        []heartsclient.TrickEntry{},
 		LegalActions: []heartsclient.Card{{Rank: "ace", Suit: "spades"}},
 	}
-	got := RenderPlayingView(snap, 0, 0, false, NewDarkTheme(), 80, 14)
-	lines := strings.Split(got, "\n")
-	if len(lines) != 14 {
-		t.Fatalf("RenderPlayingView has %d lines, want 14", len(lines))
+
+	got := RenderPlayingView(snap, 2, 0, false, NewDarkTheme(), 80, 15)
+	want := "Seat 2 (You)"
+	if !strings.Contains(got, want) {
+		t.Errorf("RenderPlayingView = %q, want to contain %q", got, want)
 	}
-	contentLines := lines[len(lines)-7:]
-	blankOne := strings.TrimSpace(stripANSI(contentLines[1])) == ""
-	blankFive := strings.TrimSpace(stripANSI(contentLines[5])) == ""
-	if !blankOne || !blankFive {
-		t.Errorf("RenderPlayingView blank lines missing: %q", got)
+}
+
+// TestRenderPlayingViewCrossLayout verifies the cross-table geometry of the
+// playing view: the opposite seat at the top, the left and right seats on the
+// sides, the player's hand at the bottom, and the status line as the last line.
+func TestRenderPlayingViewCrossLayout(t *testing.T) {
+	snap := heartsclient.PlayerSnapshot{
+		Phase:        "playing",
+		Turn:         0,
+		Hand:         []heartsclient.Card{{Rank: "ace", Suit: "spades"}},
+		Trick:        []heartsclient.TrickEntry{},
+		LegalActions: []heartsclient.Card{{Rank: "ace", Suit: "spades"}},
+	}
+	got := RenderPlayingView(snap, 0, 0, false, NewDarkTheme(), 80, 15)
+	lines := strings.Split(got, "\n")
+	if len(lines) != 15 {
+		t.Fatalf("RenderPlayingView has %d lines, want 15", len(lines))
+	}
+
+	plain := stripANSI(got)
+	if !strings.Contains(plain, "Seat 2") {
+		t.Errorf("RenderPlayingView missing opposite seat label")
+	}
+	if !strings.Contains(plain, "Seat 1") {
+		t.Errorf("RenderPlayingView missing left seat label")
+	}
+	if !strings.Contains(plain, "Seat 3") {
+		t.Errorf("RenderPlayingView missing right seat label")
+	}
+	if !strings.Contains(plain, "Seat 0 (You)") {
+		t.Errorf("RenderPlayingView missing player seat label")
+	}
+	if !strings.Contains(plain, "Your turn") {
+		t.Errorf("RenderPlayingView missing status line")
+	}
+	if !strings.Contains(plain, "╭") {
+		t.Errorf("RenderPlayingView missing card borders")
 	}
 }
 
@@ -331,7 +379,7 @@ func TestRenderPlayingViewBlankLines(t *testing.T) {
 func TestRenderPlayingViewHandAnchoredAtBottom(t *testing.T) {
 	theme := NewDarkTheme()
 	width := 80
-	height := 10
+	height := 17
 
 	baseSnap := heartsclient.PlayerSnapshot{
 		Phase:        "playing",
@@ -384,8 +432,8 @@ func TestPlaceContentClipsTallContent(t *testing.T) {
 // resume prompt.
 func TestRenderPausedView(t *testing.T) {
 	got := RenderPausedView(NewDarkTheme(), 80, 14)
-	if !strings.Contains(got, "paused") {
-		t.Errorf("RenderPausedView = %q, want to contain 'paused'", got)
+	if !strings.Contains(got, "Paused") {
+		t.Errorf("RenderPausedView = %q, want to contain 'Paused'", got)
 	}
 	if !strings.Contains(got, "resume") {
 		t.Errorf("RenderPausedView = %q, want resume prompt", got)
@@ -396,7 +444,7 @@ func TestRenderPausedView(t *testing.T) {
 // box.
 func TestRenderPausedViewBordered(t *testing.T) {
 	got := RenderPausedView(NewDarkTheme(), 80, 14)
-	plain := "Game paused — press P to resume"
+	plain := "Paused — press P to resume"
 	if got == plain {
 		t.Errorf("RenderPausedView should add a border around the content")
 	}
@@ -414,11 +462,11 @@ func TestRenderTrickCompleteViewBordered(t *testing.T) {
 	if !strings.Contains(stripANSI(got), "Seat 0") {
 		t.Errorf("RenderTrickCompleteView = %q, want to contain 'Seat 0'", got)
 	}
-	if !strings.Contains(stripANSI(got), "Trick complete") {
-		t.Errorf("RenderTrickCompleteView = %q, want to contain 'Trick complete'", got)
+	if !strings.Contains(stripANSI(got), "Trick Completed") {
+		t.Errorf("RenderTrickCompleteView = %q, want to contain 'Trick Completed'", got)
 	}
 	// The box adds border characters to the output.
-	if got == RenderTrick(snap.Trick, -1, -1, NewDarkTheme())+"\nTrick complete" {
+	if got == RenderTrick(snap.Trick, -1, -1, NewDarkTheme())+"\nTrick Completed" {
 		t.Errorf("RenderTrickCompleteView should add a border around the content")
 	}
 }
@@ -429,8 +477,8 @@ func TestRenderPausedViewLightTheme(t *testing.T) {
 	dark := RenderPausedView(NewDarkTheme(), 80, 14)
 	light := RenderPausedView(NewLightTheme(), 80, 14)
 
-	if !strings.Contains(light, "paused") {
-		t.Errorf("RenderPausedView(light) = %q, want to contain 'paused'", light)
+	if !strings.Contains(light, "Paused") {
+		t.Errorf("RenderPausedView(light) = %q, want to contain 'Paused'", light)
 	}
 	if !strings.Contains(light, "resume") {
 		t.Errorf("RenderPausedView(light) = %q, want to contain 'resume'", light)
