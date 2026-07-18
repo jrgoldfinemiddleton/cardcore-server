@@ -45,6 +45,45 @@ func RenderObserverView(snap heartsclient.ObserverSnapshot, theme Theme, width, 
 	return placeContent(content, width, height, lipgloss.Center, theme)
 }
 
+// RenderObserverRoundCompleteView renders the round-complete overlay for an
+// observer, showing the cumulative scores and the points each seat took this
+// round inside a bordered box.
+func RenderObserverRoundCompleteView(
+	snap heartsclient.ObserverSnapshot,
+	theme Theme,
+	width, height int,
+) string {
+	if len(snap.RoundPoints) != len(snap.Scores) {
+		return "ERROR: Invalid snapshot (score data mismatch)"
+	}
+
+	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
+	labelStyle := lipgloss.NewStyle().
+		Foreground(theme.Text).
+		Background(theme.Background).
+		Bold(true)
+
+	var lines []string
+	lines = append(lines, textStyle.Render(fmt.Sprintf("Round %d Completed", snap.RoundNumber)))
+
+	for i := 0; i < len(snap.Scores); i++ {
+		label := labelStyle.Render(fmt.Sprintf("Seat %d", i))
+		rest := textStyle.Render(fmt.Sprintf(": %d (+%d)", snap.Scores[i], snap.RoundPoints[i]))
+		lines = append(lines, label+rest)
+	}
+
+	moonShooter := moonShotSeat(snap.RoundPoints)
+	if moonShooter >= 0 {
+		lines = append(lines, "")
+		lines = append(lines, textStyle.Render(
+			fmt.Sprintf("🐄 Seat %d shot the moon! 🌙", moonShooter),
+		))
+	}
+
+	boxed := summaryBoxStyle(theme, width).Render(joinLines(lines))
+	return placeContent(boxed, width, height, lipgloss.Center, theme)
+}
+
 // safeHand returns the hand for the given seat, or nil if the seat index is
 // out of range.
 func safeHand(hands [][]heartsclient.Card, seat int) []heartsclient.Card {
@@ -257,7 +296,8 @@ func renderObserverCenter(
 // renderObserverDiamond renders the trick cards in a diamond/plus-sign
 // formation for the observer view. Seat 0 is top, seat 1 is right, seat 2 is
 // bottom, seat 3 is left. The center contains minimal info text (turn or
-// winner).
+// winner). The trick is cleared during the passing phase so the previous
+// round's final trick is not carried over.
 func renderObserverDiamond(snap heartsclient.ObserverSnapshot, theme Theme, width int) string {
 	bgStyle := lipgloss.NewStyle().Background(theme.Background)
 	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
@@ -269,15 +309,23 @@ func renderObserverDiamond(snap heartsclient.ObserverSnapshot, theme Theme, widt
 		winnerSeat = snap.TrickWinner
 	}
 
-	topCard := observerTrickCard(snap.Trick, 0, winnerSeat, theme, width)
-	bottomCard := observerTrickCard(snap.Trick, 2, winnerSeat, theme, width)
-	leftCard := observerTrickCard(snap.Trick, 3, winnerSeat, theme, cardW)
-	rightCard := observerTrickCard(snap.Trick, 1, winnerSeat, theme, cardW)
+	trick := snap.Trick
+	if snap.Phase == heartsclient.PhasePassing {
+		trick = nil
+	}
+
+	topCard := observerTrickCard(trick, 0, winnerSeat, theme, width)
+	bottomCard := observerTrickCard(trick, 2, winnerSeat, theme, width)
+	leftCard := observerTrickCard(trick, 3, winnerSeat, theme, cardW)
+	rightCard := observerTrickCard(trick, 1, winnerSeat, theme, cardW)
 
 	var infoText string
-	if snap.Phase == heartsclient.PhaseTrickComplete && snap.TrickWinner >= 0 {
+	switch {
+	case snap.Phase == heartsclient.PhaseTrickComplete && snap.TrickWinner >= 0:
 		infoText = fmt.Sprintf("Seat %d won", snap.TrickWinner)
-	} else {
+	case snap.Phase == heartsclient.PhasePassing:
+		infoText = formatObserverPassDirection(snap.PassDirection)
+	default:
 		infoText = fmt.Sprintf("Seat %d's turn", snap.Turn)
 	}
 
@@ -289,6 +337,23 @@ func renderObserverDiamond(snap heartsclient.ObserverSnapshot, theme Theme, widt
 		lipgloss.WithWhitespaceStyle(bgStyle))
 
 	return joinLines([]string{topCard, middleRow, bottomCard})
+}
+
+// formatObserverPassDirection returns the central info text for the observer
+// view during the passing phase, capitalizing the direction.
+func formatObserverPassDirection(dir string) string {
+	switch dir {
+	case "left":
+		return "Players Passing Left"
+	case "right":
+		return "Players Passing Right"
+	case "across":
+		return "Players Passing Across"
+	case "none":
+		return "No Passing"
+	default:
+		return fmt.Sprintf("Players Passing %s", dir)
+	}
 }
 
 // observerTrickCard renders a single trick card for the given seat in a

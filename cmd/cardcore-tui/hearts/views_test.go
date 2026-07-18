@@ -215,6 +215,49 @@ func TestRenderRoundCompleteViewMismatch(t *testing.T) {
 	}
 }
 
+// TestRenderRoundCompleteViewMoonShot verifies the round-complete view shows
+// a celebratory cow and moon emoji line when a player shoots the moon.
+func TestRenderRoundCompleteViewMoonShot(t *testing.T) {
+	snap := heartsclient.PlayerSnapshot{
+		RoundNumber: 1,
+		Scores:      []int{0, 26, 26, 26},
+		RoundPoints: []int{0, 26, 26, 26},
+	}
+	got := RenderRoundCompleteView(snap, 0, NewDarkTheme(), 80, 16)
+	if !strings.Contains(got, "🐄") {
+		t.Errorf("RenderRoundCompleteView(moon) = %q, want cow emoji", got)
+	}
+	if !strings.Contains(got, "🌙") {
+		t.Errorf("RenderRoundCompleteView(moon) = %q, want moon emoji", got)
+	}
+	if !strings.Contains(stripANSI(got), "Seat 0 shot the moon") {
+		t.Errorf("RenderRoundCompleteView(moon) = %q, want moon shot message", got)
+	}
+}
+
+// TestMoonShotSeat verifies moon-shot detection from round point deltas.
+func TestMoonShotSeat(t *testing.T) {
+	tests := []struct {
+		name   string
+		points []int
+		want   int
+	}{
+		{"shooter seat 0", []int{0, 26, 26, 26}, 0},
+		{"shooter seat 2", []int{26, 26, 0, 26}, 2},
+		{"normal round", []int{11, 0, 0, 15}, -1},
+		{"all zeros", []int{0, 0, 0, 0}, -1},
+		{"wrong length", []int{0, 26, 26}, -1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := moonShotSeat(tt.points)
+			if got != tt.want {
+				t.Errorf("moonShotSeat(%v) = %d, want %d", tt.points, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestRenderGameOverView verifies the game-over view shows final scores and
 // an exit prompt inside a bordered box.
 func TestRenderGameOverView(t *testing.T) {

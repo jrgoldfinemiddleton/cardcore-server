@@ -10,6 +10,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- TUI Hearts moon-shot celebration: both player and observer round-complete views display `🐄 Seat N shot the moon! 🌙` when a round's score deltas show a successful moon shot (one seat `+0`, the other three seats `+26`)
+- TUI Hearts observer round summary: `RenderObserverRoundCompleteView` shows the round number, cumulative scores, and round point deltas for all seats during the `round_complete` phase, matching the player round-complete view
 - TUI initial menu: interactive pre-game wizard that runs before the game when no explicit join/create flags are provided. The menu lets users review or change the server URL (inline editing with Enter/Esc), AI difficulty (Easy/Medium/Hard mapped to random/heuristic/pimc), observer mode, and theme, then start the game. Explicit `-session`, `-token`, `-observe`, or `-ai-type` flags skip the menu. The menu uses the alternate screen and theme background color so it renders correctly in both dark and light modes
 - TUI Hearts visual refresh: seated cross layout for the player view and square layout for the observer view; both use suit-sorted vertical side hands, a centered diamond trick, and the player's hand is labeled "Seat # (You)"
 - TUI layout stability: fixed-height header, main, and footer regions; the Hearts hand is anchored to the bottom of the main panel; the entire screen fills with the theme background; and the layout clips content to its allocated height so resizes cannot push the footer off-screen
@@ -81,6 +83,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- TUI Hearts observer passing phase: the previous round's final trick is cleared from the central diamond and the central info text now reads `Players Passing <Direction>` instead of `Seat N's turn`
+- TUI Hearts passing phase cursor wrapping: `Left`/`Right` navigation in the player hand wraps around the full hand instead of clamping to the first/last card during the passing phase
 - TUI observer side-hand gap: the main-panel border width was subtracted twice, so the right-side hand was inset from the right border. `Client.Render` now uses the inner width already provided by `layout.renderMain`
 - TUI observer view showed "Trick 14" after the last trick in a round; the server Hearts view now caps the displayed trick number at `hearts.HandSize` (13), and both `PlayerView` and `ObserverView` are covered by `TestTrickNumberCapped`
 - TUI footer pushed off-screen by tall content in narrow terminals; the new `placeContent` / `clipLines` helpers in the Hearts view layer ensure every fixed-height region renders exactly its allocated height

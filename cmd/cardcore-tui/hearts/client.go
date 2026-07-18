@@ -152,6 +152,9 @@ func (c *Client) TogglePause(paused bool) (client.Command, bool) {
 // border on each side, so the width here is the inner content width.
 func (c *Client) Render(width, height int) string {
 	if c.observer {
+		if c.phase == heartsclient.PhaseRoundComplete {
+			return RenderObserverRoundCompleteView(c.observerSnap, c.theme, width, height)
+		}
 		return RenderObserverView(c.observerSnap, c.theme, width, height)
 	}
 	switch c.phase {
@@ -279,8 +282,9 @@ func (c *Client) submitPlay() (client.Command, bool, string) {
 	return cmd, true, ""
 }
 
-// moveCursor moves the hand cursor by delta, skipping illegal cards in the
-// playing phase and clamping to the hand bounds otherwise.
+// moveCursor moves the hand cursor by delta, wrapping in the passing phase,
+// skipping illegal cards in the playing phase, and clamping to the hand
+// bounds otherwise.
 func (c *Client) moveCursor(delta int) {
 	n := len(c.playerSnap.Hand)
 	if n == 0 {
@@ -289,6 +293,10 @@ func (c *Client) moveCursor(delta int) {
 	if c.phase == heartsclient.PhasePlaying && len(c.playerSnap.LegalActions) > 0 {
 		legalSet := cardSet(c.playerSnap.LegalActions)
 		c.cursor = nextLegalIndex(c.playerSnap.Hand, c.cursor, delta, legalSet)
+		return
+	}
+	if c.phase == heartsclient.PhasePassing {
+		c.cursor = ((c.cursor+delta)%n + n) % n
 		return
 	}
 	c.cursor += delta
