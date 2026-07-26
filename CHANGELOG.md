@@ -10,6 +10,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- Server `-log-file` flag and `CARDCORE_SERVER_LOG_FILE` environment variable for persistent file logging instead of stderr
 - TUI Hearts moon-shot celebration: both player and observer round-complete views display `🐄 Seat N shot the moon! 🌙` when a round's score deltas show a successful moon shot (one seat `+0`, the other three seats `+26`)
 - TUI Hearts observer round summary: `RenderObserverRoundCompleteView` shows the round number, cumulative scores, and round point deltas for all seats during the `round_complete` phase, matching the player round-complete view
 - TUI initial menu: interactive pre-game wizard that runs before the game when no explicit join/create flags are provided. The menu lets users review or change the server URL (inline editing with Enter/Esc), AI difficulty (Easy/Medium/Hard mapped to random/heuristic/pimc), observer mode, and theme, then start the game. Explicit `-session`, `-token`, `-observe`, or `-ai-type` flags skip the menu. The menu uses the alternate screen and theme background color so it renders correctly in both dark and light modes
@@ -83,6 +84,11 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- Documentation accuracy: corrected `internal/api/` description in `README.md`, updated stale command directory names in `doc/architecture.md`, and removed unused `bubbles/v2` from `doc/dependencies.md`
+- `action_id` length validation: `ValidateInboundMessage` now rejects action IDs longer than 256 characters, matching the protocol spec in `doc/api.md`
+- TUI default server URL now uses `127.0.0.1` instead of `localhost` to match the README and avoid IPv6 resolution surprises
+- Server shutdown cleanup: `cmd/cardcore-server/main.go` now returns an exit code from `run()` so `defer cancel()` executes before `os.Exit`, and server start failures surface cleanly without bypassing defers
+- Removed unused `session.ErrNotReady` sentinel error
 - TUI Hearts observer passing phase: the previous round's final trick is cleared from the central diamond and the central info text now reads `Players Passing <Direction>` instead of `Seat N's turn`
 - TUI Hearts passing phase cursor wrapping: `Left`/`Right` navigation in the player hand wraps around the full hand instead of clamping to the first/last card during the passing phase
 - TUI observer side-hand gap: the main-panel border width was subtracted twice, so the right-side hand was inset from the right border. `Client.Render` now uses the inner width already provided by `layout.renderMain`

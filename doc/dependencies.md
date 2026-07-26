@@ -11,7 +11,6 @@ New dependencies require discussion and explicit approval before introduction
 | `github.com/jrgoldfinemiddleton/cardcore` | Card game engine | MIT |
 | `github.com/coder/websocket` | WebSocket server (context-aware, net/http native) | ISC |
 | `charm.land/bubbletea/v2` | Terminal UI framework | MIT |
-| `charm.land/bubbles/v2` | Reusable Bubble Tea components | MIT |
 | `charm.land/lipgloss/v2` | Terminal styling | MIT |
 | `github.com/charmbracelet/x/ansi` | ANSI string utilities (used by lipgloss v2) | MIT |
 

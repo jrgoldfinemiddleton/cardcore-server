@@ -29,7 +29,7 @@ cardcore-server/
 │   └── cardcore-cli/    # Non-TTY CLI client binary
 │       └── <game>/      # Game-specific command builders and formatters
 └── internal/
-    ├── api/              # Shared protocol-agnostic client engine
+    ├── api/              # Shared wire-format envelopes and error codes
     │   └── games/<game>/ # Game-specific wire-format types
     ├── client/           # Shared protocol-agnostic client engine
     │   └── <game>/       # Game-specific adapter and DTOs
@@ -94,6 +94,7 @@ The server listens on `127.0.0.1:8080` by default. It hosts WebSocket game sessi
 |---|---|---|---|
 | `-addr` | `CARDCORE_SERVER_ADDR` | `127.0.0.1:8080` | Listen address |
 | `-log-level` | `CARDCORE_SERVER_LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error` |
+| `-log-file` | `CARDCORE_SERVER_LOG_FILE` | — | Log file path (empty logs to stderr) |
 | `-shutdown-timeout` | `CARDCORE_SERVER_SHUTDOWN_TIMEOUT` | `10` | Graceful shutdown timeout in seconds |
 | `-ai-action-delay` | `CARDCORE_SERVER_AI_ACTION_DELAY_MS` | `1000` | AI action delay in milliseconds |
 | `-deal-display-delay` | `CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS` | `1500` | Deal display delay in milliseconds |

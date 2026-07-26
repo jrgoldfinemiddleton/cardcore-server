@@ -115,10 +115,32 @@ func TestParseFlagsInvalidFlag(t *testing.T) {
 	}
 }
 
+// TestParseFlagsLogFile verifies that the -log-file flag and its environment
+// variable are parsed correctly.
+func TestParseFlagsLogFile(t *testing.T) {
+	cfg, err := parseFlags([]string{"-log-file", "/tmp/server.log"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	if cfg.logFile != "/tmp/server.log" {
+		t.Errorf("logFile got %q, want %q", cfg.logFile, "/tmp/server.log")
+	}
+
+	t.Setenv("CARDCORE_SERVER_LOG_FILE", "/env/server.log")
+	cfg, err = parseFlags([]string{})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	if cfg.logFile != "/env/server.log" {
+		t.Errorf("logFile got %q, want %q", cfg.logFile, "/env/server.log")
+	}
+}
+
 // serverConfigsEqual reports whether two serverConfig values are identical.
 func serverConfigsEqual(a, b *serverConfig) bool {
 	return a.addr == b.addr &&
 		a.logLevel == b.logLevel &&
+		a.logFile == b.logFile &&
 		a.shutdownTimeout == b.shutdownTimeout &&
 		a.aiActionDelay == b.aiActionDelay &&
 		a.dealDisplayDelay == b.dealDisplayDelay &&

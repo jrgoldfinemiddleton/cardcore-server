@@ -24,7 +24,7 @@ import (
 // Using a dedicated struct (rather than bare variables) makes it easy to
 // pass configuration around and keeps the flag surface area explicit.
 type tuiConfig struct {
-	// server is the base URL of the cardcore server (e.g., "http://localhost:8080").
+	// server is the base URL of the cardcore server (e.g., "http://127.0.0.1:8080").
 	server string
 	// game selects which game client to render (e.g., "hearts").
 	game string
@@ -113,7 +113,7 @@ func parseFlags(args []string) (*tuiConfig, error) {
 
 	fs := flag.NewFlagSet("cardcore-tui", flag.ContinueOnError)
 	fs.StringVar(&cfg.server, "server",
-		envOrDefault("CARDCORE_TUI_SERVER", "http://localhost:8080"),
+		envOrDefault("CARDCORE_TUI_SERVER", "http://127.0.0.1:8080"),
 		"server base URL (env: CARDCORE_TUI_SERVER)")
 	fs.StringVar(&cfg.game, "game",
 		envOrDefault("CARDCORE_TUI_GAME", "hearts"),
