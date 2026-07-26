@@ -230,18 +230,18 @@ func stripANSILayout(s string) string {
 }
 
 // HandleSnapshot ignores the snapshot for the stub.
-func (tallGameClient) HandleSnapshot(raw json.RawMessage) {}
+func (tallGameClient) HandleSnapshot(_ json.RawMessage) {}
 
 // LastError returns an empty error for the stub.
 func (tallGameClient) LastError() string { return "" }
 
 // HandleKey ignores key presses for the stub.
-func (tallGameClient) HandleKey(key tea.KeyPressMsg) (client.Command, bool, string) {
+func (tallGameClient) HandleKey(_ tea.KeyPressMsg) (client.Command, bool, string) {
 	return client.Command{}, false, ""
 }
 
 // Render returns content twice the requested height to simulate overflow.
-func (tallGameClient) Render(width, height int) string {
+func (tallGameClient) Render(_, height int) string {
 	return strings.Repeat("line\n", height*2)
 }
 
@@ -249,12 +249,12 @@ func (tallGameClient) Render(width, height int) string {
 func (tallGameClient) ResetSubmitted() {}
 
 // SetInputDisabled does nothing for the stub.
-func (tallGameClient) SetInputDisabled(disabled bool) {}
+func (tallGameClient) SetInputDisabled(_ bool) {}
 
 // IsHumanTurn always returns false for the stub.
 func (tallGameClient) IsHumanTurn() bool { return false }
 
 // TogglePause returns no command for the stub.
-func (tallGameClient) TogglePause(paused bool) (client.Command, bool) {
+func (tallGameClient) TogglePause(_ bool) (client.Command, bool) {
 	return client.Command{}, false
 }

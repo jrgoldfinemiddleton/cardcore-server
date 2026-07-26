@@ -12,7 +12,7 @@ import (
 // TestCreateReturnsTokensForHumanSeats verifies that Create issues
 // tokens only for human seats.
 func TestCreateReturnsTokensForHumanSeats(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	info, seats, err := m.Create(cfg)
@@ -38,7 +38,7 @@ func TestCreateReturnsTokensForHumanSeats(t *testing.T) {
 
 // TestCreateInvalidConfig verifies that Create rejects bad configs.
 func TestCreateInvalidConfig(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 
 	tests := []struct {
 		name string
@@ -81,7 +81,7 @@ func TestCreateInvalidConfig(t *testing.T) {
 // TestCreateAIActionDelayDefault verifies that omitting AIActionDelayMS uses
 // the default value.
 func TestCreateAIActionDelayDefault(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := Config{
 		Game: "hearts",
 		Seats: []SeatConfig{
@@ -112,7 +112,7 @@ func TestCreateAIActionDelayDefault(t *testing.T) {
 // TestCreateAIActionDelayZero verifies that explicitly setting AIActionDelayMS
 // to 0 is preserved.
 func TestCreateAIActionDelayZero(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	delay := 0
 	cfg := Config{
 		Game: "hearts",
@@ -142,7 +142,7 @@ func TestCreateAIActionDelayZero(t *testing.T) {
 // TestGetReturnsSessionInfo verifies that Get returns details matching
 // the created session.
 func TestGetReturnsSessionInfo(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	info, _, err := m.Create(cfg)
@@ -190,7 +190,7 @@ func TestGetReturnsSessionInfo(t *testing.T) {
 
 // TestGetNotFound verifies that Get returns ErrNotFound for unknown IDs.
 func TestGetNotFound(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	_, err := m.Get("nonexistent")
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("got error %v, want ErrNotFound", err)
@@ -200,7 +200,7 @@ func TestGetNotFound(t *testing.T) {
 // TestListExcludesExpired verifies that deleted sessions are excluded
 // from List results.
 func TestListExcludesExpired(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	info1, _, err := m.Create(cfg)
@@ -229,7 +229,7 @@ func TestListExcludesExpired(t *testing.T) {
 // TestUpdateDraftSucceeds verifies that Update modifies config in
 // draft state.
 func TestUpdateDraftSucceeds(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	info, _, err := m.Create(cfg)
@@ -254,7 +254,7 @@ func TestUpdateDraftSucceeds(t *testing.T) {
 // TestCreateDealDisplayDelayDefault verifies that omitting DealDisplayDelayMS
 // uses the default value.
 func TestCreateDealDisplayDelayDefault(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := Config{
 		Game: "hearts",
 		Seats: []SeatConfig{
@@ -285,7 +285,7 @@ func TestCreateDealDisplayDelayDefault(t *testing.T) {
 // TestCreateDealDisplayDelayZero verifies that explicitly setting
 // DealDisplayDelayMS to 0 is preserved.
 func TestCreateDealDisplayDelayZero(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	dealDelay := 0
 	cfg := Config{
 		Game: "hearts",
@@ -315,7 +315,7 @@ func TestCreateDealDisplayDelayZero(t *testing.T) {
 // TestCreateTurnTimeoutDefault verifies that omitting TurnTimeoutMS uses
 // the default value.
 func TestCreateTurnTimeoutDefault(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := Config{
 		Game: "hearts",
 		Seats: []SeatConfig{
@@ -346,7 +346,7 @@ func TestCreateTurnTimeoutDefault(t *testing.T) {
 // TestCreateTurnTimeoutZero verifies that explicitly setting TurnTimeoutMS
 // to 0 is preserved.
 func TestCreateTurnTimeoutZero(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	timeout := 0
 	cfg := Config{
 		Game: "hearts",
@@ -376,7 +376,7 @@ func TestCreateTurnTimeoutZero(t *testing.T) {
 // TestUpdateDealDisplayDelay verifies that PATCH can update
 // DealDisplayDelayMS.
 func TestUpdateDealDisplayDelay(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	info, _, err := m.Create(cfg)
@@ -397,7 +397,7 @@ func TestUpdateDealDisplayDelay(t *testing.T) {
 
 // TestUpdateTurnTimeout verifies that PATCH can update TurnTimeoutMS.
 func TestUpdateTurnTimeout(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	info, _, err := m.Create(cfg)
@@ -419,7 +419,7 @@ func TestUpdateTurnTimeout(t *testing.T) {
 // TestUpdateSeatConfigRegeneratesTokens verifies that changing seats
 // produces new tokens and returns them to the caller.
 func TestUpdateSeatConfigRegeneratesTokens(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	info, originalSeats, err := m.Create(cfg)
@@ -455,7 +455,7 @@ func TestUpdateSeatConfigRegeneratesTokens(t *testing.T) {
 // TestUpdateNotFound verifies that Update returns ErrNotFound for
 // unknown IDs.
 func TestUpdateNotFound(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	_, _, err := m.Update("nonexistent", PatchConfig{})
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("got error %v, want ErrNotFound", err)
@@ -465,7 +465,7 @@ func TestUpdateNotFound(t *testing.T) {
 // TestUpdateNonDraftFails verifies that Update rejects changes to
 // non-draft sessions.
 func TestUpdateNonDraftFails(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	info, _, err := m.Create(cfg)
@@ -497,7 +497,7 @@ func TestUpdateNonDraftFails(t *testing.T) {
 // TestDeleteTransitionsToExpired verifies that Delete makes a session
 // inaccessible.
 func TestDeleteTransitionsToExpired(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	info, _, err := m.Create(cfg)
@@ -518,7 +518,7 @@ func TestDeleteTransitionsToExpired(t *testing.T) {
 // TestDeleteNotFound verifies that deleting a nonexistent session
 // returns ErrNotFound.
 func TestDeleteNotFound(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	err := m.Delete("nonexistent")
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("got error %v, want ErrNotFound", err)
@@ -528,7 +528,7 @@ func TestDeleteNotFound(t *testing.T) {
 // TestDeleteIdempotent verifies that deleting the same session twice
 // returns ErrNotFound without panicking.
 func TestDeleteIdempotent(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	info, _, err := m.Create(cfg)
@@ -553,8 +553,8 @@ func TestDeleteIdempotent(t *testing.T) {
 // TestManagerConcurrency exercises Create, Get, List, Update, and
 // Delete from multiple goroutines to surface race conditions under
 // go test -race.
-func TestManagerConcurrency(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+func TestManagerConcurrency(_ *testing.T) {
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	var wg sync.WaitGroup
@@ -580,7 +580,7 @@ func TestManagerConcurrency(t *testing.T) {
 // TestManagerStartCreatesSession verifies that Start creates a game
 // session and transitions to active.
 func TestManagerStartCreatesSession(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	id := mustCreateAndStart(t, m, cfg)
@@ -597,7 +597,7 @@ func TestManagerStartCreatesSession(t *testing.T) {
 // TestManagerSubscribePlayerReturnsChannel verifies that SubscribePlayer
 // returns a channel for receiving snapshots.
 func TestManagerSubscribePlayerReturnsChannel(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	id := mustCreateAndStart(t, m, cfg)
@@ -614,7 +614,7 @@ func TestManagerSubscribePlayerReturnsChannel(t *testing.T) {
 // TestManagerSubscribeObserverReturnsChannel verifies that SubscribeObserver
 // returns a channel for receiving snapshots.
 func TestManagerSubscribeObserverReturnsChannel(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	id := mustCreateAndStart(t, m, cfg)
@@ -631,7 +631,7 @@ func TestManagerSubscribeObserverReturnsChannel(t *testing.T) {
 // TestManagerSubmitActionRejectsNotActive verifies that SubmitAction rejects commands
 // when the session is not active.
 func TestManagerSubmitActionRejectsNotActive(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	info, _, err := m.Create(cfg)
@@ -653,7 +653,7 @@ func TestManagerSubmitActionRejectsNotActive(t *testing.T) {
 // TestManagerSubmitActionActiveSucceeds verifies that SubmitAction accepts
 // a command when the session is active and returns a successful result.
 func TestManagerSubmitActionActiveSucceeds(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	id := mustCreateAndStart(t, m, cfg)
@@ -674,7 +674,7 @@ func TestManagerSubmitActionActiveSucceeds(t *testing.T) {
 // TestManagerUnsubscribePlayerSendsCommand verifies that UnsubscribePlayer
 // sends an unsubscribe command to the session goroutine.
 func TestManagerUnsubscribePlayerSendsCommand(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	id := mustCreateAndStart(t, m, cfg)
@@ -692,7 +692,7 @@ func TestManagerUnsubscribePlayerSendsCommand(t *testing.T) {
 // TestManagerUnsubscribeObserverSendsCommand verifies that UnsubscribeObserver
 // sends an unsubscribe command to the session goroutine.
 func TestManagerUnsubscribeObserverSendsCommand(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	id := mustCreateAndStart(t, m, cfg)
@@ -710,7 +710,7 @@ func TestManagerUnsubscribeObserverSendsCommand(t *testing.T) {
 // TestManagerSubmitActionRejectsFinished verifies that SubmitAction
 // rejects commands when the session has finished.
 func TestManagerSubmitActionRejectsFinished(t *testing.T) {
-	m := NewManager(stepFinishedGameFactory(), DefaultServerDelays)
+	m := NewManager(stepFinishedGameRegistry(), DefaultServerDelays)
 	id := mustCreateAndStart(t, m, validHeartsCfg())
 
 	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
@@ -737,7 +737,7 @@ func TestManagerSubmitActionRejectsFinished(t *testing.T) {
 // TestManagerSubscribePlayerRejectsFinished verifies that SubscribePlayer
 // rejects new subscriptions when the session has finished.
 func TestManagerSubscribePlayerRejectsFinished(t *testing.T) {
-	m := NewManager(stepFinishedGameFactory(), DefaultServerDelays)
+	m := NewManager(stepFinishedGameRegistry(), DefaultServerDelays)
 	id := mustCreateAndStart(t, m, validHeartsCfg())
 
 	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
@@ -761,7 +761,7 @@ func TestManagerSubscribePlayerRejectsFinished(t *testing.T) {
 // SubscribeObserver rejects new subscriptions when the session has
 // finished.
 func TestManagerSubscribeObserverRejectsFinished(t *testing.T) {
-	m := NewManager(stepFinishedGameFactory(), DefaultServerDelays)
+	m := NewManager(stepFinishedGameRegistry(), DefaultServerDelays)
 	id := mustCreateAndStart(t, m, validHeartsCfg())
 
 	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
@@ -784,7 +784,7 @@ func TestManagerSubscribeObserverRejectsFinished(t *testing.T) {
 // TestManagerUnsubscribePlayerRejectsFinished verifies that
 // UnsubscribePlayer rejects unsubscribes when the session has finished.
 func TestManagerUnsubscribePlayerRejectsFinished(t *testing.T) {
-	m := NewManager(stepFinishedGameFactory(), DefaultServerDelays)
+	m := NewManager(stepFinishedGameRegistry(), DefaultServerDelays)
 	id := mustCreateAndStart(t, m, validHeartsCfg())
 
 	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
@@ -808,7 +808,7 @@ func TestManagerUnsubscribePlayerRejectsFinished(t *testing.T) {
 // UnsubscribeObserver rejects unsubscribes when the session has
 // finished.
 func TestManagerUnsubscribeObserverRejectsFinished(t *testing.T) {
-	m := NewManager(stepFinishedGameFactory(), DefaultServerDelays)
+	m := NewManager(stepFinishedGameRegistry(), DefaultServerDelays)
 	id := mustCreateAndStart(t, m, validHeartsCfg())
 
 	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
@@ -833,7 +833,7 @@ func TestManagerUnsubscribeObserverRejectsFinished(t *testing.T) {
 // goroutine has finished naturally, instead of blocking forever on the
 // response channel.
 func TestSubmitActionDoesNotBlockAfterGoroutineExits(t *testing.T) {
-	m := NewManager(stepFinishedGameFactory(), DefaultServerDelays)
+	m := NewManager(stepFinishedGameRegistry(), DefaultServerDelays)
 	id := mustCreateAndStart(t, m, validHeartsCfg())
 
 	_, err := m.SubmitAction(id, 0, &api.InboundMessage{
@@ -872,7 +872,7 @@ func TestSubmitActionDoesNotBlockAfterGoroutineExits(t *testing.T) {
 // callback only transitions state from Active, preventing a race where
 // Delete sets Expired and a late onDone(Finished) overwrites it.
 func TestOnDoneGuardDoesNotOverwriteExpired(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 
 	// Manually create an entry in Expired state.
 	m.mu.Lock()
@@ -903,7 +903,7 @@ func TestOnDoneGuardDoesNotOverwriteExpired(t *testing.T) {
 // TestLookupTokenValid verifies that LookupToken returns the correct
 // session and seat for a valid human seat token.
 func TestLookupTokenValid(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	info, seats, err := m.Create(cfg)
@@ -940,7 +940,7 @@ func TestLookupTokenValid(t *testing.T) {
 // TestLookupTokenInvalid verifies that LookupToken returns ErrNotFound
 // for a non-existent token.
 func TestLookupTokenInvalid(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 
 	_, _, err := m.LookupToken("invalid-token")
 	if !errors.Is(err, ErrNotFound) {
@@ -951,7 +951,7 @@ func TestLookupTokenInvalid(t *testing.T) {
 // TestLookupTokenAfterDelete verifies that LookupToken returns
 // ErrNotFound after the session is deleted.
 func TestLookupTokenAfterDelete(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
 
 	info, seats, err := m.Create(cfg)
@@ -984,7 +984,7 @@ func TestLookupTokenAfterDelete(t *testing.T) {
 // TestLookupTokenAfterUpdate verifies that old tokens become invalid
 // and new tokens are valid after updating seat configuration.
 func TestLookupTokenAfterUpdate(t *testing.T) {
-	m := NewManager(mockGameFactory(), DefaultServerDelays)
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := Config{
 		Game: "hearts",
 		Seats: []SeatConfig{
@@ -1047,7 +1047,7 @@ func TestLookupTokenAfterUpdate(t *testing.T) {
 // state transitions to Finished so that subsequent commands are
 // rejected with ErrNotActive.
 func TestManagerMarshalFailureTransitionsToFinished(t *testing.T) {
-	m := NewManager(unmarshalableGameFactory(), DefaultServerDelays)
+	m := NewManager(unmarshalableGameRegistry(), DefaultServerDelays)
 	id := mustCreateAndStart(t, m, validHeartsCfg())
 
 	_, err := m.SubmitAction(id, 0, &api.InboundMessage{

@@ -14,14 +14,14 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
 )
 
-var _ session.Game = (*Adapter)(nil)
+var _ session.Game = (*GameAdapter)(nil)
 
-// TestNewAdapterValid verifies that a valid 4-seat config creates an
+// TestNewGameAdapterValid verifies that a valid 4-seat config creates an
 // adapter in the pass or play phase.
-func TestNewAdapterValid(t *testing.T) {
-	a, err := NewAdapter(validSeats(), testRNG(), 0, 0, 0)
+func TestNewGameAdapterValid(t *testing.T) {
+	a, err := NewGameAdapter(validSeats(), testRNG(), 0, 0, 0)
 	if err != nil {
-		t.Fatalf("NewAdapter: %v", err)
+		t.Fatalf("NewGameAdapter: %v", err)
 	}
 	phase := a.game.Phase
 	if phase != hearts.PhasePass && phase != hearts.PhasePlay {
@@ -29,12 +29,12 @@ func TestNewAdapterValid(t *testing.T) {
 	}
 }
 
-// TestNewAdapterCapturesPreviousScores verifies that previousScores is set to
+// TestNewGameAdapterCapturesPreviousScores verifies that previousScores is set to
 // the initial cumulative scores after the first deal.
-func TestNewAdapterCapturesPreviousScores(t *testing.T) {
-	a, err := NewAdapter(validSeats(), testRNG(), 0, 0, 0)
+func TestNewGameAdapterCapturesPreviousScores(t *testing.T) {
+	a, err := NewGameAdapter(validSeats(), testRNG(), 0, 0, 0)
 	if err != nil {
-		t.Fatalf("NewAdapter: %v", err)
+		t.Fatalf("NewGameAdapter: %v", err)
 	}
 	if a.previousScores != a.game.Scores {
 		t.Errorf("previousScores = %v, want %v", a.previousScores, a.game.Scores)
@@ -44,9 +44,9 @@ func TestNewAdapterCapturesPreviousScores(t *testing.T) {
 // TestResumeUpdatesPreviousScores verifies that previousScores is refreshed to
 // the cumulative scores when Resume deals a new round.
 func TestResumeUpdatesPreviousScores(t *testing.T) {
-	a, err := NewAdapter(validSeats(), testRNG(), 0, 0, 0)
+	a, err := NewGameAdapter(validSeats(), testRNG(), 0, 0, 0)
 	if err != nil {
-		t.Fatalf("NewAdapter: %v", err)
+		t.Fatalf("NewGameAdapter: %v", err)
 	}
 	a.game.Scores = [hearts.NumPlayers]int{13, 5, 5, 3}
 	a.game.Phase = hearts.PhaseScore
@@ -63,9 +63,9 @@ func TestResumeUpdatesPreviousScores(t *testing.T) {
 // TestSetPausedAndPaused verifies that SetPaused stores the external pause
 // state and that the flag is reflected in viewState.
 func TestSetPausedAndPaused(t *testing.T) {
-	a, err := NewAdapter(validSeats(), testRNG(), 0, 0, 0)
+	a, err := NewGameAdapter(validSeats(), testRNG(), 0, 0, 0)
 	if err != nil {
-		t.Fatalf("NewAdapter: %v", err)
+		t.Fatalf("NewGameAdapter: %v", err)
 	}
 
 	if a.Paused() {
@@ -86,14 +86,14 @@ func TestSetPausedAndPaused(t *testing.T) {
 	}
 }
 
-// TestNewAdapterWrongSeatCount verifies that non-4-seat configs are
+// TestNewGameAdapterWrongSeatCount verifies that non-4-seat configs are
 // rejected.
-func TestNewAdapterWrongSeatCount(t *testing.T) {
+func TestNewGameAdapterWrongSeatCount(t *testing.T) {
 	seats := []session.SeatConfig{
 		{Type: session.SeatHuman},
 		{Type: session.SeatAI, AIType: "random"},
 	}
-	_, err := NewAdapter(seats, testRNG(), 0, 0, 0)
+	_, err := NewGameAdapter(seats, testRNG(), 0, 0, 0)
 	if err == nil {
 		t.Fatal("got nil error, want seat count error")
 	}
@@ -102,18 +102,51 @@ func TestNewAdapterWrongSeatCount(t *testing.T) {
 	}
 }
 
-// TestNewAdapterUnknownAIType verifies that an unknown ai_type is
+// TestNewGameAdapterUnknownAIType verifies that an unknown ai_type is
 // rejected.
-func TestNewAdapterUnknownAIType(t *testing.T) {
+func TestNewGameAdapterUnknownAIType(t *testing.T) {
 	seats := []session.SeatConfig{
 		{Type: session.SeatHuman},
 		{Type: session.SeatAI, AIType: "unknown"},
 		{Type: session.SeatAI, AIType: "random"},
 		{Type: session.SeatAI, AIType: "random"},
 	}
-	_, err := NewAdapter(seats, testRNG(), 0, 0, 0)
+	_, err := NewGameAdapter(seats, testRNG(), 0, 0, 0)
 	if err == nil {
 		t.Fatal("got nil error, want unknown ai_type error")
+	}
+	if !errors.Is(err, session.ErrInvalidConfig) {
+		t.Errorf("got error %v, want wrapping ErrInvalidConfig", err)
+	}
+}
+
+// TestNewGameAdapterHumanFallbackAITypeValid verifies that a human seat may
+// specify an ai_type to override the default random fallback.
+func TestNewGameAdapterHumanFallbackAITypeValid(t *testing.T) {
+	seats := []session.SeatConfig{
+		{Type: session.SeatHuman, AIType: "heuristic"},
+		{Type: session.SeatAI, AIType: "random"},
+		{Type: session.SeatAI, AIType: "random"},
+		{Type: session.SeatAI, AIType: "random"},
+	}
+	_, err := NewGameAdapter(seats, testRNG(), 0, 0, 0)
+	if err != nil {
+		t.Fatalf("NewGameAdapter with heuristic human fallback: %v", err)
+	}
+}
+
+// TestNewGameAdapterHumanFallbackAITypeInvalid verifies that an invalid
+// ai_type on a human seat is rejected.
+func TestNewGameAdapterHumanFallbackAITypeInvalid(t *testing.T) {
+	seats := []session.SeatConfig{
+		{Type: session.SeatHuman, AIType: "unknown"},
+		{Type: session.SeatAI, AIType: "random"},
+		{Type: session.SeatAI, AIType: "random"},
+		{Type: session.SeatAI, AIType: "random"},
+	}
+	_, err := NewGameAdapter(seats, testRNG(), 0, 0, 0)
+	if err == nil {
+		t.Fatal("got nil error, want invalid human ai_type error")
 	}
 	if !errors.Is(err, session.ErrInvalidConfig) {
 		t.Errorf("got error %v, want wrapping ErrInvalidConfig", err)
@@ -263,7 +296,7 @@ func TestHandleActionGameOver(t *testing.T) {
 // and the adapter processes it (hand size decreases). Card legality is
 // enforced by the engine, not verified here.
 func TestAIPlay(t *testing.T) {
-	a := allAIAdapter(t)
+	a := allAIGameAdapter(t)
 	advanceToPlayPhase(t, a, allAISeats())
 	seat := int(a.game.Turn)
 	handBefore := a.game.Hands[seat].Len()
@@ -286,7 +319,7 @@ func TestAIPlay(t *testing.T) {
 
 // TestAIPlayPass verifies that an AI seat can pass cards.
 func TestAIPlayPass(t *testing.T) {
-	a := allAIAdapter(t)
+	a := allAIGameAdapter(t)
 	if a.game.Phase != hearts.PhasePass {
 		t.Skip("deal produced hold round, no pass phase")
 	}
@@ -324,7 +357,7 @@ func TestAIPlayHumanSeatTimeout(t *testing.T) {
 // TestResumeAfterTrickComplete verifies the pause-resume cycle after a
 // trick completes.
 func TestResumeAfterTrickComplete(t *testing.T) {
-	a := allAIAdapter(t)
+	a := allAIGameAdapter(t)
 	advanceToPlayPhase(t, a, allAISeats())
 
 	// Play a full trick (4 cards).
@@ -362,10 +395,10 @@ func TestResumeAfterTrickComplete(t *testing.T) {
 	}
 }
 
-// TestAdapterPlayCardPausesAfterFourthCard verifies that playing the fourth
+// TestGameAdapterPlayCardPausesAfterFourthCard verifies that playing the fourth
 // card of a trick leaves the engine trick pending and pauses the adapter.
-func TestAdapterPlayCardPausesAfterFourthCard(t *testing.T) {
-	a := allAIAdapter(t)
+func TestGameAdapterPlayCardPausesAfterFourthCard(t *testing.T) {
+	a := allAIGameAdapter(t)
 	advanceToPlayPhase(t, a, allAISeats())
 
 	// Play the first three cards of the trick.
@@ -397,10 +430,10 @@ func TestAdapterPlayCardPausesAfterFourthCard(t *testing.T) {
 	}
 }
 
-// TestAdapterResumeResolvesTrick verifies that Resume calls ResolveTrick()
+// TestGameAdapterResumeResolvesTrick verifies that Resume calls ResolveTrick()
 // and advances the engine to the next trick or the round-complete pause.
-func TestAdapterResumeResolvesTrick(t *testing.T) {
-	a := allAIAdapter(t)
+func TestGameAdapterResumeResolvesTrick(t *testing.T) {
+	a := allAIGameAdapter(t)
 	advanceToPlayPhase(t, a, allAISeats())
 
 	// Play the first trick to the pending-resolution state.
@@ -496,7 +529,7 @@ func TestSnapshotSerializable(t *testing.T) {
 // TestTrickCompletePauseShowsCompletedTrick verifies that during a
 // trick_complete pause, the snapshot phase is "trick_complete".
 func TestTrickCompletePauseShowsCompletedTrick(t *testing.T) {
-	a := allAIAdapter(t)
+	a := allAIGameAdapter(t)
 	advanceToPlayPhase(t, a, allAISeats())
 
 	// Play a full trick.
@@ -524,9 +557,9 @@ func TestTrickCompletePauseShowsCompletedTrick(t *testing.T) {
 	}
 }
 
-// TestAdapterTurnDeadlineRoundTrip verifies that SetTurnDeadline stores the
+// TestGameAdapterTurnDeadlineRoundTrip verifies that SetTurnDeadline stores the
 // deadline and TurnDeadline returns it, with a zero value meaning none.
-func TestAdapterTurnDeadlineRoundTrip(t *testing.T) {
+func TestGameAdapterTurnDeadlineRoundTrip(t *testing.T) {
 	a := adapterInPlayPhase(t)
 
 	if !a.TurnDeadline().IsZero() {
@@ -545,9 +578,9 @@ func TestAdapterTurnDeadlineRoundTrip(t *testing.T) {
 	}
 }
 
-// TestAdapterSnapshotCarriesTurnDeadline verifies that the deadline is forwarded
+// TestGameAdapterSnapshotCarriesTurnDeadline verifies that the deadline is forwarded
 // to the view layer and appears in both player and observer snapshots.
-func TestAdapterSnapshotCarriesTurnDeadline(t *testing.T) {
+func TestGameAdapterSnapshotCarriesTurnDeadline(t *testing.T) {
 	a := adapterInPlayPhase(t)
 	deadline := time.Now().Add(30 * time.Second).Truncate(time.Millisecond)
 	a.SetTurnDeadline(deadline)
@@ -571,15 +604,15 @@ func TestAdapterSnapshotCarriesTurnDeadline(t *testing.T) {
 	}
 }
 
-// TestAdapterDisplayDelay verifies that DisplayDelay returns the correct
+// TestGameAdapterDisplayDelay verifies that DisplayDelay returns the correct
 // delay based on the current game phase and pause state.
-func TestAdapterDisplayDelay(t *testing.T) {
+func TestGameAdapterDisplayDelay(t *testing.T) {
 	dealDelay := 1500
 	trickDelay := 3000
 	roundDelay := 5000
-	a, err := NewAdapter(validSeats(), testRNG(), dealDelay, trickDelay, roundDelay)
+	a, err := NewGameAdapter(validSeats(), testRNG(), dealDelay, trickDelay, roundDelay)
 	if err != nil {
-		t.Fatalf("NewAdapter: %v", err)
+		t.Fatalf("NewGameAdapter: %v", err)
 	}
 
 	// Initial state (Round 0, no tricks) returns deal delay.
@@ -624,15 +657,15 @@ func TestAdapterDisplayDelay(t *testing.T) {
 	}
 }
 
-// TestAdapterDisplayDelayRoundComplete verifies that DisplayDelay returns
+// TestGameAdapterDisplayDelayRoundComplete verifies that DisplayDelay returns
 // the round delay when the adapter is in a round-complete pause state.
-func TestAdapterDisplayDelayRoundComplete(t *testing.T) {
+func TestGameAdapterDisplayDelayRoundComplete(t *testing.T) {
 	dealDelay := 1500
 	trickDelay := 3000
 	roundDelay := 5000
-	a, err := NewAdapter(validSeats(), testRNG(), dealDelay, trickDelay, roundDelay)
+	a, err := NewGameAdapter(validSeats(), testRNG(), dealDelay, trickDelay, roundDelay)
 	if err != nil {
-		t.Fatalf("NewAdapter: %v", err)
+		t.Fatalf("NewGameAdapter: %v", err)
 	}
 
 	// Consume the initial dealPending so it doesn't shadow the pause check.
@@ -648,10 +681,10 @@ func TestAdapterDisplayDelayRoundComplete(t *testing.T) {
 	// This unit test verifies only the DisplayDelay mapping.
 }
 
-// TestFullGameThroughAdapterIntegration plays a complete game through the adapter
+// TestFullGameThroughGameAdapterIntegration plays a complete game through the adapter
 // using all-AI players, verifying that it terminates with StepFinished.
-func TestFullGameThroughAdapterIntegration(t *testing.T) {
-	a := allAIAdapter(t)
+func TestFullGameThroughGameAdapterIntegration(t *testing.T) {
+	a := allAIGameAdapter(t)
 
 	const maxSteps = 10000
 	steps := 0
@@ -734,7 +767,7 @@ func passCardsMsg(
 
 // firstThreeCards returns the first three cards from a seat's hand as
 // wire-format cards.
-func firstThreeCards(a *Adapter, seat int) []heartsapi.Card {
+func firstThreeCards(a *GameAdapter, seat int) []heartsapi.Card {
 	h := a.game.Hands[seat]
 	return []heartsapi.Card{
 		heartsapi.CardFromEngine(h.Cards[0]),
@@ -768,12 +801,12 @@ func testRNG() *rand.Rand {
 	return rand.New(rand.NewPCG(42, 43))
 }
 
-// allAIAdapter creates an adapter with 4 AI players.
-func allAIAdapter(t *testing.T) *Adapter {
+// allAIGameAdapter creates an adapter with 4 AI players.
+func allAIGameAdapter(t *testing.T) *GameAdapter {
 	t.Helper()
-	a, err := NewAdapter(allAISeats(), testRNG(), 0, 0, 0)
+	a, err := NewGameAdapter(allAISeats(), testRNG(), 0, 0, 0)
 	if err != nil {
-		t.Fatalf("NewAdapter: %v", err)
+		t.Fatalf("NewGameAdapter: %v", err)
 	}
 	return a
 }
@@ -781,11 +814,11 @@ func allAIAdapter(t *testing.T) *Adapter {
 // adapterInPlayPhase creates a 1-human + 3-AI adapter and advances
 // past the pass phase using AI players for AI seats and manual passes
 // for the human seat.
-func adapterInPlayPhase(t *testing.T) *Adapter {
+func adapterInPlayPhase(t *testing.T) *GameAdapter {
 	t.Helper()
-	a, err := NewAdapter(validSeats(), testRNG(), 0, 0, 0)
+	a, err := NewGameAdapter(validSeats(), testRNG(), 0, 0, 0)
 	if err != nil {
-		t.Fatalf("NewAdapter: %v", err)
+		t.Fatalf("NewGameAdapter: %v", err)
 	}
 	advanceToPlayPhase(t, a, validSeats())
 	return a
@@ -793,11 +826,11 @@ func adapterInPlayPhase(t *testing.T) *Adapter {
 
 // adapterInPassPhase creates a 1-human + 3-AI adapter that is in the
 // pass phase. Skips the test if the deal produced a hold round.
-func adapterInPassPhase(t *testing.T) *Adapter {
+func adapterInPassPhase(t *testing.T) *GameAdapter {
 	t.Helper()
-	a, err := NewAdapter(validSeats(), testRNG(), 0, 0, 0)
+	a, err := NewGameAdapter(validSeats(), testRNG(), 0, 0, 0)
 	if err != nil {
-		t.Fatalf("NewAdapter: %v", err)
+		t.Fatalf("NewGameAdapter: %v", err)
 	}
 	if a.game.Phase != hearts.PhasePass {
 		t.Skip("deal produced hold round, no pass phase")
@@ -808,7 +841,7 @@ func adapterInPassPhase(t *testing.T) *Adapter {
 // advanceToPlayPhase advances the adapter past the pass phase. For
 // human seats, it submits the first three cards. For AI seats, it
 // calls AIPlay.
-func advanceToPlayPhase(t *testing.T, a *Adapter, seats []session.SeatConfig) {
+func advanceToPlayPhase(t *testing.T, a *GameAdapter, seats []session.SeatConfig) {
 	t.Helper()
 	if a.game.Phase == hearts.PhasePlay {
 		return

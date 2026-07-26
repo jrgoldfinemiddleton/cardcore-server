@@ -2,11 +2,14 @@ package session
 
 import (
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
+	mathrand "math/rand/v2"
 	"sync"
+	"time"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
 )
@@ -57,8 +60,9 @@ type Manager struct {
 	// tokenIndex maps bearer token to session and seat for WebSocket
 	// authentication. Populated on Create/Update, cleaned on Delete.
 	tokenIndex map[string]tokenInfo
-	// factory creates Game adapters from a Config.
-	factory func(Config) (Game, error)
+	// registry creates Game adapters from a Config and validates
+	// game-specific configuration.
+	registry *Registry
 	// defaultDelays holds the server-wide default delay values.
 	defaultDelays DefaultDelays
 }
@@ -70,14 +74,14 @@ type DefaultDelays struct {
 	TurnTimeoutMS      int
 }
 
-// NewManager creates an empty session manager. The factory creates a
-// Game adapter from a Config. Defaults are applied when config fields
-// are nil.
-func NewManager(factory func(Config) (Game, error), defaults DefaultDelays) *Manager {
+// NewManager creates an empty session manager. The registry creates and
+// validates Game adapters from a Config. Defaults are applied when config
+// fields are nil.
+func NewManager(registry *Registry, defaults DefaultDelays) *Manager {
 	return &Manager{
 		sessions:      make(map[string]*entry),
 		tokenIndex:    make(map[string]tokenInfo),
-		factory:       factory,
+		registry:      registry,
 		defaultDelays: defaults,
 	}
 }
@@ -89,6 +93,9 @@ func NewManager(factory func(Config) (Game, error), defaults DefaultDelays) *Man
 // validation or token-generation failure.
 func (m *Manager) Create(cfg Config) (*SessionInfo, []SeatInfo, error) {
 	if err := validateConfig(cfg); err != nil {
+		return nil, nil, err
+	}
+	if err := m.registry.ValidateConfig(cfg); err != nil {
 		return nil, nil, err
 	}
 
@@ -248,7 +255,8 @@ func (m *Manager) Start(id string) error {
 		return ErrNotDraft
 	}
 
-	game, err := m.factory(e.config)
+	resolvedCfg := resolveConfig(e.config, e.defaults)
+	game, err := m.registry.NewGame(resolvedCfg, newRNG())
 	if err != nil {
 		return fmt.Errorf("creating game: %w", err)
 	}
@@ -542,6 +550,26 @@ func (e *entry) turnTimeout() int {
 	return e.defaults.TurnTimeoutMS
 }
 
+// resolveConfig returns a copy of cfg with nil override pointers replaced
+// by the corresponding server-wide defaults. Game adapters receive a fully
+// resolved config so they do not need to know the default values.
+func resolveConfig(cfg Config, defaults DefaultDelays) Config {
+	resolved := cfg
+	if resolved.AIActionDelayMS == nil {
+		v := defaults.AIActionDelayMS
+		resolved.AIActionDelayMS = &v
+	}
+	if resolved.DealDisplayDelayMS == nil {
+		v := defaults.DealDisplayDelayMS
+		resolved.DealDisplayDelayMS = &v
+	}
+	if resolved.TurnTimeoutMS == nil {
+		v := defaults.TurnTimeoutMS
+		resolved.TurnTimeoutMS = &v
+	}
+	return resolved
+}
+
 // generateSessionID returns a 32-character hex string from 16 random
 // bytes.
 func generateSessionID() (string, error) {
@@ -603,4 +631,16 @@ func validateConfig(cfg Config) error {
 		}
 	}
 	return nil
+}
+
+// newRNG returns a math/rand/v2.Rand seeded from crypto/rand. If
+// crypto/rand fails, it falls back to a time-based seed.
+func newRNG() *mathrand.Rand {
+	var seed [16]byte
+	if _, err := rand.Read(seed[:]); err != nil {
+		return mathrand.New(mathrand.NewPCG(uint64(time.Now().UnixNano()), 0))
+	}
+	s1 := binary.LittleEndian.Uint64(seed[:8])
+	s2 := binary.LittleEndian.Uint64(seed[8:])
+	return mathrand.New(mathrand.NewPCG(s1, s2))
 }

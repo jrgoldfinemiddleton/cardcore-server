@@ -225,7 +225,7 @@ func (m *testModel) waitForMsg(t *testing.T) tea.Msg {
 }
 
 // ReadSnapshot implements WSReader for testing.
-func (m *mockWSReader) ReadSnapshot(ctx context.Context) (json.RawMessage, error) {
+func (m *mockWSReader) ReadSnapshot(_ context.Context) (json.RawMessage, error) {
 	if m.err != nil {
 		return nil, m.err
 	}

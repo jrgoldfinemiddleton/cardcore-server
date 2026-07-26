@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"hash/fnv"
 	"math/rand/v2"
@@ -16,6 +17,12 @@ import (
 	heartssession "github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session/games/hearts"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/transport"
 )
+
+// testHeartsConfig is a session.GameConfig for integration tests that
+// creates real Hearts adapters with a deterministic RNG.
+type testHeartsConfig struct {
+	rng *rand.Rand
+}
 
 // TestIntegrationFullLifecycle connects a human player and plays a full game,
 // verifying snapshot delivery, seq monotonicity, and phase progression.
@@ -716,7 +723,26 @@ func TestIntegrationErrorResponse(t *testing.T) {
 	}
 }
 
-// setupTestServer creates a real server with a Hearts game factory,
+// Name returns the game name for the test config.
+func (c *testHeartsConfig) Name() string { return "hearts" }
+
+// RegisterFlags is a no-op for the test config.
+func (c *testHeartsConfig) RegisterFlags(*flag.FlagSet) {}
+
+// Validate is a no-op for the test config.
+func (c *testHeartsConfig) Validate() error { return nil }
+
+// NewGame creates a real Hearts adapter using the deterministic RNG.
+func (c *testHeartsConfig) NewGame(cfg session.Config, _ *rand.Rand) (session.Game, error) {
+	return heartssession.NewGameAdapter(cfg.Seats, c.rng, 0, 0, 0)
+}
+
+// ValidateConfig delegates to the Hearts config validator.
+func (c *testHeartsConfig) ValidateConfig(cfg session.Config) error {
+	return heartssession.NewGameConfig().ValidateConfig(cfg)
+}
+
+// setupTestServer creates a real server with a Hearts game registry,
 // starts it on an ephemeral port, and registers cleanup.
 //
 // We use a real transport.Server (not httptest) because integration
@@ -724,8 +750,8 @@ func TestIntegrationErrorResponse(t *testing.T) {
 // upgrade handshake, per ADR-004's strict transport boundary.
 func setupTestServer(t *testing.T) *transport.Server {
 	t.Helper()
-	factory := heartsFactory(t)
-	mgr := session.NewManager(factory, session.DefaultServerDelays)
+	registry := heartsRegistry(t)
+	mgr := session.NewManager(registry, session.DefaultServerDelays)
 	srv := transport.NewServer(transport.Config{Manager: mgr})
 	go func() {
 		_ = srv.Start() // Server exited (usually on Shutdown).
@@ -744,19 +770,19 @@ func setupTestServer(t *testing.T) *transport.Server {
 	return srv
 }
 
-// heartsFactory returns a session game factory that creates real Hearts
-// adapters with a deterministic RNG seeded from the test name.
+// heartsRegistry returns a session registry containing a real Hearts game
+// config with a deterministic RNG seeded from the test name.
 //
 // A deterministic seed makes failures reproducible across runs. The
 // seed is derived from the test name so different tests get different
 // game sequences while the same test always produces the same sequence.
-func heartsFactory(t *testing.T) func(session.Config) (session.Game, error) {
+func heartsRegistry(t *testing.T) *session.Registry {
 	t.Helper()
 	seed := hashTestName(t.Name())
 	rng := rand.New(rand.NewPCG(seed, seed+1))
-	return func(cfg session.Config) (session.Game, error) {
-		return heartssession.NewAdapter(cfg.Seats, rng, 0, 0, 0)
-	}
+	registry := session.NewRegistry()
+	registry.Register(&testHeartsConfig{rng: rng})
+	return registry
 }
 
 // hashTestName converts a test name string into a deterministic uint64

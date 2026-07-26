@@ -430,15 +430,16 @@ func renderPlayerDiamond(
 	rightCard := trickCardForSeat(snap.Trick, rightSeat, theme, cardW)
 
 	var infoText string
-	if snap.Phase == heartsclient.PhaseTrickComplete && snap.TrickWinner >= 0 {
+	switch {
+	case snap.Phase == heartsclient.PhaseTrickComplete && snap.TrickWinner >= 0:
 		if snap.TrickWinner == seat {
 			infoText = "You won"
 		} else {
 			infoText = fmt.Sprintf("Seat %d won", snap.TrickWinner)
 		}
-	} else if snap.Turn == seat {
+	case snap.Turn == seat:
 		infoText = "Your turn"
-	} else {
+	default:
 		infoText = fmt.Sprintf("Seat %d's turn", snap.Turn)
 	}
 

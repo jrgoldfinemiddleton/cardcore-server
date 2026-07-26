@@ -293,7 +293,7 @@ func TestConnReadSnapshotContextCancel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
-	url := mustStartWSServer(t, func(conn *websocket.Conn) {
+	url := mustStartWSServer(t, func(_ *websocket.Conn) {
 		<-ctx.Done()
 	})
 

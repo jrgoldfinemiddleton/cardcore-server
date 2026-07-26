@@ -22,7 +22,9 @@ type SeatConfig struct {
 	// Type is "human" or "ai".
 	Type string `json:"type"`
 	// AIType is the AI implementation name (e.g., "random", "heuristic").
-	// Only meaningful when Type is "ai".
+	// For AI seats it drives that seat's play. For human seats it is the
+	// fallback AI used when the human turn times out or auto-play is
+	// needed; empty means the game's default fallback ("random" for Hearts).
 	AIType string `json:"ai_type,omitempty"`
 }
 
@@ -77,7 +79,8 @@ type SeatDetail struct {
 	Index int `json:"index"`
 	// Type is "human" or "ai".
 	Type string `json:"type"`
-	// AIType is the AI implementation name. Empty for human seats.
+	// AIType is the AI implementation name. For human seats this is the
+	// configured fallback AI type (empty when no override was requested).
 	AIType string `json:"ai_type,omitempty"`
 }
 

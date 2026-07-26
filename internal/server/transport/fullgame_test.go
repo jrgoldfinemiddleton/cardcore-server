@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"hash/fnv"
 	"math/rand/v2"
@@ -18,6 +19,12 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
 	heartssession "github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session/games/hearts"
 )
+
+// testHeartsConfig is a session.GameConfig for integration tests that
+// creates real Hearts adapters with a deterministic RNG.
+type testHeartsConfig struct {
+	rng *rand.Rand
+}
 
 // TestAllAIObserverSeesFourCardTrick verifies that when a trick completes,
 // the observer sees a trick_complete snapshot with all four cards and then
@@ -594,6 +601,25 @@ func trickLengthFromSnap(t *testing.T, snap map[string]any) int {
 	return len(raw)
 }
 
+// Name returns the game name for the test config.
+func (c *testHeartsConfig) Name() string { return "hearts" }
+
+// RegisterFlags is a no-op for the test config.
+func (c *testHeartsConfig) RegisterFlags(*flag.FlagSet) {}
+
+// Validate is a no-op for the test config.
+func (c *testHeartsConfig) Validate() error { return nil }
+
+// NewGame creates a real Hearts adapter using the deterministic RNG.
+func (c *testHeartsConfig) NewGame(cfg session.Config, _ *rand.Rand) (session.Game, error) {
+	return heartssession.NewGameAdapter(cfg.Seats, c.rng, 0, 0, 0)
+}
+
+// ValidateConfig delegates to the Hearts config validator.
+func (c *testHeartsConfig) ValidateConfig(cfg session.Config) error {
+	return heartssession.NewGameConfig().ValidateConfig(cfg)
+}
+
 // hashTestName returns a deterministic uint64 seed derived from the test name.
 func hashTestName(name string) uint64 {
 	h := fnv.New64a()
@@ -601,15 +627,15 @@ func hashTestName(name string) uint64 {
 	return h.Sum64()
 }
 
-// heartsFactory returns a session factory that creates real Hearts game
-// adapters using a deterministic RNG seeded from t.Name().
-func heartsFactory(t *testing.T) func(session.Config) (session.Game, error) {
+// heartsRegistry returns a session registry containing a real Hearts game
+// config with a deterministic RNG seeded from t.Name().
+func heartsRegistry(t *testing.T) *session.Registry {
 	t.Helper()
 	seed := hashTestName(t.Name())
 	rng := rand.New(rand.NewPCG(seed, seed+1))
-	return func(cfg session.Config) (session.Game, error) {
-		return heartssession.NewAdapter(cfg.Seats, rng, 0, 0, 0)
-	}
+	registry := session.NewRegistry()
+	registry.Register(&testHeartsConfig{rng: rng})
+	return registry
 }
 
 // allAIHeartsConfig returns a 4-seat all-AI Hearts config with a small
@@ -628,11 +654,11 @@ func allAIHeartsConfig() session.Config {
 	}
 }
 
-// setupHeartsServer creates a Server with a real Hearts game factory.
+// setupHeartsServer creates a Server with a real Hearts game registry.
 func setupHeartsServer(t *testing.T) (*Server, *session.Manager) {
 	t.Helper()
-	factory := heartsFactory(t)
-	mgr := session.NewManager(factory, session.DefaultServerDelays)
+	registry := heartsRegistry(t)
+	mgr := session.NewManager(registry, session.DefaultServerDelays)
 	cfg := Config{Manager: mgr}
 	srv := NewServer(cfg)
 	return srv, mgr

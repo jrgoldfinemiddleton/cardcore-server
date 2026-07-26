@@ -19,8 +19,8 @@ import (
 	heartsview "github.com/jrgoldfinemiddleton/cardcore-server/internal/server/view/hearts"
 )
 
-// Adapter implements [session.Game] for Hearts.
-type Adapter struct {
+// GameAdapter implements [session.Game] for Hearts.
+type GameAdapter struct {
 	// game is the underlying Hearts engine instance.
 	game *hearts.Game
 	// players holds the AI player for each seat. Human seats receive a
@@ -57,22 +57,24 @@ type pauseState struct {
 	roundComplete bool
 }
 
-// NewAdapter creates a Hearts game adapter. It validates the seat
+// defaultHumanAIType is the fallback AI type used for human seats when a
+// timeout auto-play is needed.
+const defaultHumanAIType = "random"
+
+// NewGameAdapter creates a Hearts game adapter. It validates the seat
 // configuration, creates AI players for all seats (using the configured
 // ai_type for AI seats and a "random" fallback for human seats), and deals
 // the first hand.
-func NewAdapter(
+func NewGameAdapter(
 	seats []session.SeatConfig, rng *rand.Rand,
 	dealDelay, trickDelay, roundDelay int,
-) (*Adapter, error) {
-	if len(seats) != hearts.NumPlayers {
-		return nil, fmt.Errorf(
-			"%w: hearts requires %d seats, got %d",
-			session.ErrInvalidConfig, hearts.NumPlayers, len(seats),
-		)
+) (*GameAdapter, error) {
+	cfg := session.Config{Seats: seats}
+	if err := validateConfig(cfg); err != nil {
+		return nil, err
 	}
 
-	a := &Adapter{
+	a := &GameAdapter{
 		dealDelay:   dealDelay,
 		trickDelay:  trickDelay,
 		roundDelay:  roundDelay,
@@ -81,8 +83,8 @@ func NewAdapter(
 	}
 	for i, sc := range seats {
 		aiType := sc.AIType
-		if sc.Type != session.SeatAI {
-			aiType = "random"
+		if sc.Type != session.SeatAI && aiType == "" {
+			aiType = defaultHumanAIType
 		}
 		p, err := newPlayer(aiType, rng)
 		if err != nil {
@@ -100,10 +102,15 @@ func NewAdapter(
 	return a, nil
 }
 
+// ValidateConfig implements [session.Game].ValidateConfig for Hearts.
+func (a *GameAdapter) ValidateConfig(cfg session.Config) error {
+	return validateConfig(cfg)
+}
+
 // HandleAction processes an inbound player action. It validates turn
 // order, phase, and legality, returning a CommandError for rejected
 // actions.
-func (a *Adapter) HandleAction(
+func (a *GameAdapter) HandleAction(
 	seat int, msg *api.InboundMessage,
 ) (session.StepResult, *session.CommandError) {
 	a.logger.Debug("HandleAction", "seat", seat, "type", msg.Type)
@@ -135,7 +142,7 @@ func (a *Adapter) HandleAction(
 }
 
 // AIPlay executes the AI player's move for the given seat.
-func (a *Adapter) AIPlay(seat int) (session.StepResult, error) {
+func (a *GameAdapter) AIPlay(seat int) (session.StepResult, error) {
 	a.logger.Debug("AIPlay", "seat", seat, "phase", heartsapi.PhaseToWire(a.game.Phase))
 
 	s := hearts.Seat(seat)
@@ -177,7 +184,7 @@ func (a *Adapter) AIPlay(seat int) (session.StepResult, error) {
 
 // Resume advances the game past a pausable state. Only valid when the
 // adapter is paused after returning StepPause.
-func (a *Adapter) Resume() (session.StepResult, error) {
+func (a *GameAdapter) Resume() (session.StepResult, error) {
 	a.logger.Debug("Resume", "paused", a.paused != nil)
 
 	if a.paused == nil {
@@ -239,34 +246,34 @@ func (a *Adapter) Resume() (session.StepResult, error) {
 }
 
 // Turn returns the seat index whose turn it is.
-func (a *Adapter) Turn() int {
+func (a *GameAdapter) Turn() int {
 	return int(a.game.Turn)
 }
 
 // SetTurnDeadline stores the authoritative deadline for the current
 // human turn. It is forwarded to the view layer via ViewState.
-func (a *Adapter) SetTurnDeadline(deadline time.Time) {
+func (a *GameAdapter) SetTurnDeadline(deadline time.Time) {
 	a.turnDeadline = deadline
 }
 
 // TurnDeadline returns the last deadline passed to SetTurnDeadline.
-func (a *Adapter) TurnDeadline() time.Time {
+func (a *GameAdapter) TurnDeadline() time.Time {
 	return a.turnDeadline
 }
 
 // SetPaused sets the external UX pause state.
-func (a *Adapter) SetPaused(paused bool) {
+func (a *GameAdapter) SetPaused(paused bool) {
 	a.isPaused = paused
 }
 
 // Paused reports the external UX pause state.
-func (a *Adapter) Paused() bool {
+func (a *GameAdapter) Paused() bool {
 	return a.isPaused
 }
 
 // DisplayDelay returns the number of milliseconds to wait before
 // advancing past the current game state.
-func (a *Adapter) DisplayDelay() int {
+func (a *GameAdapter) DisplayDelay() int {
 	if a.dealPending {
 		a.dealPending = false
 		return a.dealDelay
@@ -283,17 +290,17 @@ func (a *Adapter) DisplayDelay() int {
 }
 
 // PlayerSnapshot builds a seat-filtered snapshot for the given player.
-func (a *Adapter) PlayerSnapshot(seat int, seq int) any {
+func (a *GameAdapter) PlayerSnapshot(seat int, seq int) any {
 	return heartsview.PlayerView(a.viewState(), hearts.Seat(seat), seq)
 }
 
 // ObserverSnapshot builds a full-information snapshot.
-func (a *Adapter) ObserverSnapshot(seq int) any {
+func (a *GameAdapter) ObserverSnapshot(seq int) any {
 	return heartsview.ObserverView(a.viewState(), seq)
 }
 
 // handlePlayCard processes a play_card action.
-func (a *Adapter) handlePlayCard(
+func (a *GameAdapter) handlePlayCard(
 	seat int, payload json.RawMessage,
 ) (session.StepResult, *session.CommandError) {
 	s := hearts.Seat(seat)
@@ -349,7 +356,7 @@ func (a *Adapter) handlePlayCard(
 }
 
 // handlePassCards processes a pass_cards action.
-func (a *Adapter) handlePassCards(
+func (a *GameAdapter) handlePassCards(
 	seat int, payload json.RawMessage,
 ) (session.StepResult, *session.CommandError) {
 	s := hearts.Seat(seat)
@@ -420,7 +427,7 @@ func (a *Adapter) handlePassCards(
 
 // playCard applies a card play and determines the step outcome. If the
 // play completes a trick, the adapter enters a paused state.
-func (a *Adapter) playCard(
+func (a *GameAdapter) playCard(
 	seat int, card cardcore.Card,
 ) (session.StepResult, error) {
 	willCompleteTrick := a.game.Trick.Count == hearts.NumPlayers-1
@@ -440,13 +447,13 @@ func (a *Adapter) playCard(
 }
 
 // advanceTurn moves Turn to the next seat in cyclic order.
-func (a *Adapter) advanceTurn() {
+func (a *GameAdapter) advanceTurn() {
 	a.game.Turn = (a.game.Turn + 1) % hearts.NumPlayers
 }
 
 // viewState builds the ViewState for snapshot generation, reflecting
 // the current pause state.
-func (a *Adapter) viewState() heartsview.ViewState {
+func (a *GameAdapter) viewState() heartsview.ViewState {
 	vs := heartsview.ViewState{
 		Game:           a.game,
 		TurnDeadline:   a.turnDeadline,
@@ -460,10 +467,49 @@ func (a *Adapter) viewState() heartsview.ViewState {
 	return vs
 }
 
+// validateConfig checks game-specific constraints for a Hearts session.
+// It validates that exactly four seats are configured and that every seat
+// has a supported ai_type. For human seats an empty ai_type falls back to
+// the default fallback AI ("random"). This matches the validation
+// performed by NewGameAdapter without mutating engine state.
+func validateConfig(cfg session.Config) error {
+	if len(cfg.Seats) != hearts.NumPlayers {
+		return fmt.Errorf(
+			"%w: hearts requires %d seats, got %d",
+			session.ErrInvalidConfig, hearts.NumPlayers, len(cfg.Seats),
+		)
+	}
+	for i, sc := range cfg.Seats {
+		aiType := sc.AIType
+		if sc.Type != session.SeatAI && aiType == "" {
+			aiType = defaultHumanAIType
+		}
+		if err := validateAIType(aiType); err != nil {
+			return fmt.Errorf("seat %d: %w", i, err)
+		}
+	}
+	return nil
+}
+
+// validateAIType returns an error if aiType is not a supported Hearts AI type.
+func validateAIType(aiType string) error {
+	switch aiType {
+	case "random", "heuristic", "pimc":
+		return nil
+	default:
+		return fmt.Errorf(
+			"%w: unknown ai_type: %q", session.ErrInvalidConfig, aiType,
+		)
+	}
+}
+
 // newPlayer creates an AI player from the ai_type string.
 func newPlayer(
 	aiType string, rng *rand.Rand,
 ) (hearts.Player, error) {
+	if err := validateAIType(aiType); err != nil {
+		return nil, err
+	}
 	switch aiType {
 	case "random":
 		return ai.NewRandom(rng), nil

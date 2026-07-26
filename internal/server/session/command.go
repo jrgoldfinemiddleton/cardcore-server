@@ -63,14 +63,18 @@ type unsubscribeCmd struct {
 	ch chan SubscriberMessage
 }
 
-// isCommand marks playCmd as a command.
+// isCommand is the marker method that satisfies the sealed command interface
+// for playCmd.
 func (playCmd) isCommand() {}
 
-// isCommand marks subscribePlayerCmd as a command.
+// isCommand is the marker method that satisfies the sealed command interface
+// for subscribePlayerCmd.
 func (subscribePlayerCmd) isCommand() {}
 
-// isCommand marks subscribeObserverCmd as a command.
+// isCommand is the marker method that satisfies the sealed command interface
+// for subscribeObserverCmd.
 func (subscribeObserverCmd) isCommand() {}
 
-// isCommand marks unsubscribeCmd as a command.
+// isCommand is the marker method that satisfies the sealed command interface
+// for unsubscribeCmd.
 func (unsubscribeCmd) isCommand() {}

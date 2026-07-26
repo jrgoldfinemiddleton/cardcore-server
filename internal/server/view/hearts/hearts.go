@@ -6,6 +6,7 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore/games/hearts"
 
 	heartsapi "github.com/jrgoldfinemiddleton/cardcore-server/internal/api/games/hearts"
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/view"
 )
 
 // ViewState wraps a Hearts game with server-synthesized phase transition flags.
@@ -27,6 +28,19 @@ type ViewState struct {
 	TurnDeadline time.Time
 	// Paused indicates whether the game is currently paused by the UX/view layer.
 	Paused bool `json:"paused"`
+}
+
+// Compile-time check that ViewState implements the generic view.View interface.
+var _ view.View = ViewState{}
+
+// PlayerSnapshot implements [view.View].PlayerSnapshot for Hearts.
+func (vs ViewState) PlayerSnapshot(seat, seq int) any {
+	return PlayerView(vs, hearts.Seat(seat), seq)
+}
+
+// ObserverSnapshot implements [view.View].ObserverSnapshot for Hearts.
+func (vs ViewState) ObserverSnapshot(seq int) any {
+	return ObserverView(vs, seq)
 }
 
 // PlayerView generates a seat-filtered snapshot for the given player.

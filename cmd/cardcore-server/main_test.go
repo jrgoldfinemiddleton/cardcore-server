@@ -2,25 +2,26 @@ package main
 
 import (
 	"testing"
+
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
+	heartssession "github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session/games/hearts"
 )
 
 // TestParseFlagsDefaults verifies default flag values when no arguments or
 // environment variables are provided.
 func TestParseFlagsDefaults(t *testing.T) {
-	cfg, err := parseFlags([]string{})
+	cfg, err := parseFlags([]string{}, testRegistry())
 	if err != nil {
 		t.Fatalf("parseFlags: %v", err)
 	}
 
 	want := &serverConfig{
-		addr:                    "127.0.0.1:8080",
-		logLevel:                "info",
-		shutdownTimeout:         10,
-		aiActionDelay:           1000,
-		dealDisplayDelay:        1500,
-		turnTimeout:             30000,
-		heartsTrickDisplayDelay: 3000,
-		heartsRoundDisplayDelay: 5000,
+		addr:             "127.0.0.1:8080",
+		logLevel:         "info",
+		shutdownTimeout:  10,
+		aiActionDelay:    1000,
+		dealDisplayDelay: 1500,
+		turnTimeout:      30000,
 	}
 	if !serverConfigsEqual(cfg, want) {
 		t.Errorf("got %+v, want %+v", cfg, want)
@@ -36,23 +37,19 @@ func TestParseFlagsEnvFallback(t *testing.T) {
 	t.Setenv("CARDCORE_SERVER_AI_ACTION_DELAY_MS", "2000")
 	t.Setenv("CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS", "2500")
 	t.Setenv("CARDCORE_SERVER_TURN_TIMEOUT_MS", "60000")
-	t.Setenv("CARDCORE_SERVER_HEARTS_TRICK_DISPLAY_DELAY_MS", "4000")
-	t.Setenv("CARDCORE_SERVER_HEARTS_ROUND_DISPLAY_DELAY_MS", "6000")
 
-	cfg, err := parseFlags([]string{})
+	cfg, err := parseFlags([]string{}, testRegistry())
 	if err != nil {
 		t.Fatalf("parseFlags: %v", err)
 	}
 
 	want := &serverConfig{
-		addr:                    "0.0.0.0:9090",
-		logLevel:                "debug",
-		shutdownTimeout:         30,
-		aiActionDelay:           2000,
-		dealDisplayDelay:        2500,
-		turnTimeout:             60000,
-		heartsTrickDisplayDelay: 4000,
-		heartsRoundDisplayDelay: 6000,
+		addr:             "0.0.0.0:9090",
+		logLevel:         "debug",
+		shutdownTimeout:  30,
+		aiActionDelay:    2000,
+		dealDisplayDelay: 2500,
+		turnTimeout:      60000,
 	}
 	if !serverConfigsEqual(cfg, want) {
 		t.Errorf("got %+v, want %+v", cfg, want)
@@ -68,7 +65,7 @@ func TestParseFlagsFlagOverride(t *testing.T) {
 	cfg, err := parseFlags([]string{
 		"-addr", "127.0.0.1:7777",
 		"-ai-action-delay", "500",
-	})
+	}, testRegistry())
 	if err != nil {
 		t.Fatalf("parseFlags: %v", err)
 	}
@@ -88,7 +85,7 @@ func TestParseFlagsInvalidEnv(t *testing.T) {
 	t.Setenv("CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS", "-1")
 	t.Setenv("CARDCORE_SERVER_SHUTDOWN_TIMEOUT", "-1")
 
-	cfg, err := parseFlags([]string{})
+	cfg, err := parseFlags([]string{}, testRegistry())
 	if err != nil {
 		t.Fatalf("parseFlags: %v", err)
 	}
@@ -107,10 +104,10 @@ func TestParseFlagsInvalidEnv(t *testing.T) {
 // TestParseFlagsInvalidFlag verifies validation of invalid explicit flag
 // values.
 func TestParseFlagsInvalidFlag(t *testing.T) {
-	if _, err := parseFlags([]string{"-shutdown-timeout", "0"}); err == nil {
+	if _, err := parseFlags([]string{"-shutdown-timeout", "0"}, testRegistry()); err == nil {
 		t.Errorf("parseFlags got nil error, want error for shutdown-timeout=0")
 	}
-	if _, err := parseFlags([]string{"-ai-action-delay", "-1"}); err == nil {
+	if _, err := parseFlags([]string{"-ai-action-delay", "-1"}, testRegistry()); err == nil {
 		t.Errorf("parseFlags got nil error, want error for negative delay")
 	}
 }
@@ -118,7 +115,7 @@ func TestParseFlagsInvalidFlag(t *testing.T) {
 // TestParseFlagsLogFile verifies that the -log-file flag and its environment
 // variable are parsed correctly.
 func TestParseFlagsLogFile(t *testing.T) {
-	cfg, err := parseFlags([]string{"-log-file", "/tmp/server.log"})
+	cfg, err := parseFlags([]string{"-log-file", "/tmp/server.log"}, testRegistry())
 	if err != nil {
 		t.Fatalf("parseFlags: %v", err)
 	}
@@ -127,7 +124,7 @@ func TestParseFlagsLogFile(t *testing.T) {
 	}
 
 	t.Setenv("CARDCORE_SERVER_LOG_FILE", "/env/server.log")
-	cfg, err = parseFlags([]string{})
+	cfg, err = parseFlags([]string{}, testRegistry())
 	if err != nil {
 		t.Fatalf("parseFlags: %v", err)
 	}
@@ -144,7 +141,12 @@ func serverConfigsEqual(a, b *serverConfig) bool {
 		a.shutdownTimeout == b.shutdownTimeout &&
 		a.aiActionDelay == b.aiActionDelay &&
 		a.dealDisplayDelay == b.dealDisplayDelay &&
-		a.turnTimeout == b.turnTimeout &&
-		a.heartsTrickDisplayDelay == b.heartsTrickDisplayDelay &&
-		a.heartsRoundDisplayDelay == b.heartsRoundDisplayDelay
+		a.turnTimeout == b.turnTimeout
+}
+
+// testRegistry returns a registry with the Hearts game config for tests.
+func testRegistry() *session.Registry {
+	r := session.NewRegistry()
+	r.Register(heartssession.NewGameConfig())
+	return r
 }

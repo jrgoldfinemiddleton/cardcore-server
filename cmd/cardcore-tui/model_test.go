@@ -760,7 +760,7 @@ func runCmd(t *testing.T, cmd tea.Cmd) tea.Msg {
 }
 
 // HandleSnapshot records the snapshot delegation call.
-func (f *fakeGame) HandleSnapshot(raw json.RawMessage) {
+func (f *fakeGame) HandleSnapshot(_ json.RawMessage) {
 	f.snapshotCalls++
 }
 
@@ -770,13 +770,13 @@ func (f *fakeGame) LastError() string {
 }
 
 // HandleKey records the key delegation call and returns configured results.
-func (f *fakeGame) HandleKey(key tea.KeyPressMsg) (client.Command, bool, string) {
+func (f *fakeGame) HandleKey(_ tea.KeyPressMsg) (client.Command, bool, string) {
 	f.keyCalls++
 	return f.keyCmd, f.keySend, f.keyStatus
 }
 
 // Render returns the configured render output.
-func (f *fakeGame) Render(width, height int) string {
+func (f *fakeGame) Render(_, _ int) string {
 	return f.renderOut
 }
 

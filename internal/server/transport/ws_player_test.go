@@ -3,6 +3,8 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"flag"
+	"math/rand/v2"
 	"testing"
 	"time"
 
@@ -11,6 +13,9 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
 )
+
+// errorGameConfig is a minimal [session.GameConfig] that creates errorGame.
+type errorGameConfig struct{}
 
 // errorGame is a stub Game implementation that rejects every action with
 // an illegal_move error.
@@ -101,9 +106,9 @@ func TestPlayerWSKickedOnSecondConnectionIntegration(t *testing.T) {
 // TestPlayerWSReceivesGameErrorIntegration verifies that a game error is returned
 // as an error message on the WebSocket.
 func TestPlayerWSReceivesGameErrorIntegration(t *testing.T) {
-	mgr := session.NewManager(func(_ session.Config) (session.Game, error) {
-		return errorGame{}, nil
-	}, session.DefaultServerDelays)
+	r := session.NewRegistry()
+	r.Register(&errorGameConfig{})
+	mgr := session.NewManager(r, session.DefaultServerDelays)
 	srv := NewServer(Config{Manager: mgr, Addr: ":0"})
 
 	cfg := session.Config{
@@ -192,7 +197,24 @@ func TestPlayerWSCleanupOnDisconnectIntegration(t *testing.T) {
 	}
 }
 
-// HandleAction implements session.Game for errorGame.
+// Name returns the game name for the error game config.
+func (errorGameConfig) Name() string { return "hearts" }
+
+// RegisterFlags registers no flags for the error game config.
+func (errorGameConfig) RegisterFlags(*flag.FlagSet) {}
+
+// Validate always succeeds for the error game config.
+func (errorGameConfig) Validate() error { return nil }
+
+// NewGame returns an errorGame for the error game config.
+func (errorGameConfig) NewGame(_ session.Config, _ *rand.Rand) (session.Game, error) {
+	return errorGame{}, nil
+}
+
+// ValidateConfig always succeeds for the error game config.
+func (errorGameConfig) ValidateConfig(_ session.Config) error { return nil }
+
+// HandleAction implements [session.Game] for errorGame.
 func (errorGame) HandleAction(
 	int, *api.InboundMessage,
 ) (session.StepResult, *session.CommandError) {
@@ -202,40 +224,43 @@ func (errorGame) HandleAction(
 	}
 }
 
-// AIPlay implements session.Game for errorGame.
+// AIPlay implements [session.Game] for errorGame.
 func (errorGame) AIPlay(int) (session.StepResult, error) {
 	return session.StepResult{}, nil
 }
 
-// Resume implements session.Game for errorGame.
+// Resume implements [session.Game] for errorGame.
 func (errorGame) Resume() (session.StepResult, error) {
 	return session.StepResult{}, nil
 }
 
-// Turn implements session.Game for errorGame.
+// Turn implements [session.Game] for errorGame.
 func (errorGame) Turn() int { return 0 }
 
-// PlayerSnapshot implements session.Game for errorGame.
-func (errorGame) PlayerSnapshot(seat, seq int) any {
+// PlayerSnapshot implements [session.Game] for errorGame.
+func (errorGame) PlayerSnapshot(_, seq int) any {
 	return map[string]any{"type": "snapshot", "seq": seq}
 }
 
-// ObserverSnapshot implements session.Game for errorGame.
+// ObserverSnapshot implements [session.Game] for errorGame.
 func (errorGame) ObserverSnapshot(seq int) any {
 	return map[string]any{"type": "snapshot", "seq": seq}
 }
 
-// DisplayDelay implements session.Game for errorGame.
+// DisplayDelay implements [session.Game] for errorGame.
 func (errorGame) DisplayDelay() int { return 0 }
 
-// SetPaused implements session.Game for errorGame.
+// SetPaused implements [session.Game] for errorGame.
 func (errorGame) SetPaused(bool) {}
 
-// Paused implements session.Game for errorGame.
+// Paused implements [session.Game] for errorGame.
 func (errorGame) Paused() bool { return false }
 
-// SetTurnDeadline implements session.Game for errorGame.
+// ValidateConfig implements [session.Game] for errorGame.
+func (errorGame) ValidateConfig(_ session.Config) error { return nil }
+
+// SetTurnDeadline implements [session.Game] for errorGame.
 func (errorGame) SetTurnDeadline(time.Time) {}
 
-// TurnDeadline implements session.Game for errorGame.
+// TurnDeadline implements [session.Game] for errorGame.
 func (errorGame) TurnDeadline() time.Time { return time.Time{} }
