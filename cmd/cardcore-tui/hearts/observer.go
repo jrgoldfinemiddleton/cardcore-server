@@ -96,13 +96,13 @@ func safeHand(hands [][]heartsclient.Card, seat int) []heartsclient.Card {
 // maxLineWidth returns the maximum visual width of any line in the given
 // multi-line string, accounting for ANSI escape sequences.
 func maxLineWidth(s string) int {
-	max := 0
+	widest := 0
 	for _, line := range strings.Split(s, "\n") {
-		if w := lipgloss.Width(line); w > max {
-			max = w
+		if w := lipgloss.Width(line); w > widest {
+			widest = w
 		}
 	}
-	return max
+	return widest
 }
 
 // centeredSeatLabel renders a "Seat N" label centered across the given width.
@@ -212,7 +212,9 @@ func groupAndSortHand(hand []heartsclient.Card) map[string][]heartsclient.Card {
 			}
 		}
 		sort.Slice(result[suit], func(i, j int) bool {
-			return rankValue(result[suit][i].Rank) < rankValue(result[suit][j].Rank)
+			ri := heartsclient.RankValue(result[suit][i].Rank)
+			rj := heartsclient.RankValue(result[suit][j].Rank)
+			return ri < rj
 		})
 	}
 	return result
@@ -234,40 +236,6 @@ func renderCardRows(cards []heartsclient.Card, theme Theme) []string {
 		rows = append(rows, joinCards(rendered, "", ""))
 	}
 	return rows
-}
-
-// rankValue returns a numeric value for a rank string, used for sorting.
-func rankValue(rank string) int {
-	switch rank {
-	case "two":
-		return 2
-	case "three":
-		return 3
-	case "four":
-		return 4
-	case "five":
-		return 5
-	case "six":
-		return 6
-	case "seven":
-		return 7
-	case "eight":
-		return 8
-	case "nine":
-		return 9
-	case rankTen:
-		return 10
-	case "jack":
-		return 11
-	case "queen":
-		return 12
-	case "king":
-		return 13
-	case "ace":
-		return 14
-	default:
-		return 0
-	}
 }
 
 // renderObserverCenter renders the central information area for the observer
@@ -337,23 +305,6 @@ func renderObserverDiamond(snap heartsclient.ObserverSnapshot, theme Theme, widt
 		lipgloss.WithWhitespaceStyle(bgStyle))
 
 	return joinLines([]string{topCard, middleRow, bottomCard})
-}
-
-// formatObserverPassDirection returns the central info text for the observer
-// view during the passing phase, capitalizing the direction.
-func formatObserverPassDirection(dir string) string {
-	switch dir {
-	case "left":
-		return "Players Passing Left"
-	case "right":
-		return "Players Passing Right"
-	case "across":
-		return "Players Passing Across"
-	case "none":
-		return "No Passing"
-	default:
-		return fmt.Sprintf("Players Passing %s", dir)
-	}
 }
 
 // observerTrickCard renders a single trick card for the given seat in a

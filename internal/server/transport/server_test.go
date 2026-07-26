@@ -320,22 +320,22 @@ func TestHandleCreateSession(t *testing.T) {
 					}
 				}
 				// Verify response has correct number of human seats.
-				var expectedHumans int
+				var wantHumans int
 				if tc.name == "valid with human" {
-					expectedHumans = 1
+					wantHumans = 1
 				}
-				if humanCount != expectedHumans {
-					t.Errorf("got %d human seats, want %d", humanCount, expectedHumans)
+				if humanCount != wantHumans {
+					t.Errorf("got %d human seats, want %d", humanCount, wantHumans)
 				}
 				// Verify response has correct number of seats.
-				var expectedSeats int
+				var wantSeats int
 				if tc.name == "valid with human" {
-					expectedSeats = 2
+					wantSeats = 2
 				} else {
-					expectedSeats = 1
+					wantSeats = 1
 				}
-				if len(resp.Seats) != expectedSeats {
-					t.Errorf("got %d seats, want %d", len(resp.Seats), expectedSeats)
+				if len(resp.Seats) != wantSeats {
+					t.Errorf("got %d seats, want %d", len(resp.Seats), wantSeats)
 				}
 			}
 		})

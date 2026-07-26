@@ -9,19 +9,18 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
 	heartscli "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-cli/hearts"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
+	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/flags"
 )
 
 const (
-	aiTypeRandom   = "random"
-	gameNameHearts = "hearts"
-	phaseGameOver  = "game_over"
+	aiTypeRandom  = "random"
+	phaseGameOver = "game_over"
 )
 
 var errBrokenPipe = errors.New("broken pipe")
@@ -84,37 +83,37 @@ func parseFlags(args []string) (*cliConfig, error) {
 
 	fs := flag.NewFlagSet("cardcore-cli", flag.ContinueOnError)
 	fs.StringVar(&cfg.script, "script",
-		envOrDefault("CARDCORE_CLI_SCRIPT", ""),
+		flags.EnvOrDefault("CARDCORE_CLI_SCRIPT", ""),
 		"path to JSON script file (env: CARDCORE_CLI_SCRIPT)")
 	fs.StringVar(&cfg.addr, "addr",
-		envOrDefault("CARDCORE_CLI_ADDR", "http://127.0.0.1:8080"),
+		flags.EnvOrDefault("CARDCORE_CLI_ADDR", "http://127.0.0.1:8080"),
 		"server address (env: CARDCORE_CLI_ADDR)")
 	fs.StringVar(&cfg.game, "game",
-		envOrDefault("CARDCORE_CLI_GAME", gameNameHearts),
+		flags.EnvOrDefault("CARDCORE_CLI_GAME", heartsclient.GameName),
 		"game to play (env: CARDCORE_CLI_GAME)")
 	fs.BoolVar(&cfg.observe, "observe",
-		boolEnvOrDefault("CARDCORE_CLI_OBSERVE", false),
+		flags.BoolEnvOrDefault("CARDCORE_CLI_OBSERVE", false),
 		"create 4-AI session and observe (env: CARDCORE_CLI_OBSERVE)")
 	fs.StringVar(&cfg.sessionID, "session-id",
-		envOrDefault("CARDCORE_CLI_SESSION_ID", ""),
+		flags.EnvOrDefault("CARDCORE_CLI_SESSION_ID", ""),
 		"existing session ID to join (env: CARDCORE_CLI_SESSION_ID)")
 	fs.StringVar(&cfg.token, "token",
-		envOrDefault("CARDCORE_CLI_TOKEN", ""),
+		flags.EnvOrDefault("CARDCORE_CLI_TOKEN", ""),
 		"bearer token for the seat being joined (env: CARDCORE_CLI_TOKEN)")
 	fs.IntVar(&cfg.seat, "seat",
-		intEnvOrDefault("CARDCORE_CLI_SEAT", 0),
+		flags.IntEnvOrDefault("CARDCORE_CLI_SEAT", 0),
 		"seat index to join (0-based) (env: CARDCORE_CLI_SEAT)")
 	fs.BoolVar(&cfg.deleteOnExit, "delete-on-exit",
-		boolEnvOrDefault("CARDCORE_CLI_DELETE_ON_EXIT", false),
+		flags.BoolEnvOrDefault("CARDCORE_CLI_DELETE_ON_EXIT", false),
 		"delete session on exit (env: CARDCORE_CLI_DELETE_ON_EXIT)")
 	fs.IntVar(&cfg.pacing, "pacing",
-		intEnvOrDefault("CARDCORE_CLI_PACING_MS", 500),
+		flags.IntEnvOrDefault("CARDCORE_CLI_PACING_MS", 500),
 		"pacing delay in milliseconds (env: CARDCORE_CLI_PACING_MS)")
 	fs.StringVar(&cfg.aiType, "ai-type",
-		envOrDefault("CARDCORE_CLI_AI_TYPE", aiTypeRandom),
+		flags.EnvOrDefault("CARDCORE_CLI_AI_TYPE", aiTypeRandom),
 		"AI player type (env: CARDCORE_CLI_AI_TYPE)")
 	fs.IntVar(&cfg.exitDelay, "exit-delay",
-		intEnvOrDefault("CARDCORE_CLI_EXIT_DELAY_MS", 1000),
+		flags.IntEnvOrDefault("CARDCORE_CLI_EXIT_DELAY_MS", 1000),
 		"exit delay in milliseconds (env: CARDCORE_CLI_EXIT_DELAY_MS)")
 
 	fs.Usage = func() {
@@ -377,7 +376,7 @@ func createHumanSession(
 	pacing int,
 ) (string, string, error) {
 	switch game {
-	case gameNameHearts:
+	case heartsclient.GameName:
 		return heartscli.CreateHumanSession(ctx, sc, aiType, pacing)
 	default:
 		return "", "", fmt.Errorf("unsupported game: %q", game)
@@ -392,7 +391,7 @@ func createObserverSession(
 	pacing int,
 ) (string, []client.SeatInfo, error) {
 	switch game {
-	case gameNameHearts:
+	case heartsclient.GameName:
 		return heartscli.CreateObserverSession(ctx, sc, aiType, pacing)
 	default:
 		return "", nil, fmt.Errorf("unsupported game: %q", game)
@@ -402,7 +401,7 @@ func createObserverSession(
 // newGameBuilder returns the command builder for the named game.
 func newGameBuilder(game string) (GameBuilder, error) {
 	switch game {
-	case gameNameHearts:
+	case heartsclient.GameName:
 		return heartscli.NewBuilder(), nil
 	default:
 		return nil, fmt.Errorf("unsupported game: %q", game)
@@ -412,7 +411,7 @@ func newGameBuilder(game string) (GameBuilder, error) {
 // newGameFormatter returns the snapshot formatter for the named game.
 func newGameFormatter(game string) (GameFormatter, error) {
 	switch game {
-	case gameNameHearts:
+	case heartsclient.GameName:
 		return heartscli.NewFormatter(), nil
 	default:
 		return nil, fmt.Errorf("unsupported game: %q", game)
@@ -426,39 +425,4 @@ func deleteSession(ctx context.Context, sc *client.SessionClient, sessionID stri
 	if err := sc.DeleteSession(ctx, sessionID); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: delete session: %v\n", err)
 	}
-}
-
-// boolEnvOrDefault returns true if the environment variable is set to
-// "true", "1", "yes", or "on" (case-insensitive); otherwise it returns
-// defaultValue.
-func boolEnvOrDefault(envVar string, defaultValue bool) bool {
-	if v := os.Getenv(envVar); v != "" {
-		switch strings.ToLower(v) {
-		case "true", "1", "yes", "on":
-			return true
-		default:
-			return false
-		}
-	}
-	return defaultValue
-}
-
-// envOrDefault returns the environment variable value if set and non-empty,
-// otherwise the default.
-func envOrDefault(envVar, defaultValue string) string {
-	if v := os.Getenv(envVar); v != "" {
-		return v
-	}
-	return defaultValue
-}
-
-// intEnvOrDefault returns the environment variable value parsed as an int if
-// set and valid (>= 0), otherwise the default.
-func intEnvOrDefault(envVar string, defaultValue int) int {
-	if v := os.Getenv(envVar); v != "" {
-		if d, err := strconv.Atoi(v); err == nil && d >= 0 {
-			return d
-		}
-	}
-	return defaultValue
 }

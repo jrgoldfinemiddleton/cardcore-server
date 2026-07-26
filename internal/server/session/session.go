@@ -1,8 +1,5 @@
 package session
 
-// Turn timeout resolution moved to session.turnTimeout() in goroutine.go
-// so the goroutine can use server-wide defaults instead of a hardcoded constant.
-
 // State represents a session's position in its lifecycle.
 type State string
 

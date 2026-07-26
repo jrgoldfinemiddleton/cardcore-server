@@ -183,7 +183,7 @@ The CLI prints each snapshot in compact notation to stdout. Use `-observe` to wa
 | `-script` | `CARDCORE_CLI_SCRIPT` | — | Path to JSON script file |
 | `-addr` | `CARDCORE_CLI_ADDR` | `http://127.0.0.1:8080` | Server address |
 | `-game` | `CARDCORE_CLI_GAME` | `hearts` | Game to play |
-| `-ai-type` | `CARDCORE_CLI_AI_TYPE` | `random` | AI player type (`random` or `pimc`) |
+| `-ai-type` | `CARDCORE_CLI_AI_TYPE` | `random` | AI player type (`random`, `heuristic`, or `pimc`) |
 | `-pacing` | `CARDCORE_CLI_PACING_MS` | `500` | Pacing delay between snapshots (ms) |
 | `-exit-delay` | `CARDCORE_CLI_EXIT_DELAY_MS` | `1000` | Wait after `game_over` before exiting (ms) |
 | `-observe` | `CARDCORE_CLI_OBSERVE` | `false` | Create 4-AI session and observe |
@@ -214,9 +214,12 @@ All flags and environment variables described in the binary usage sections above
 | `make lint` | Run [golangci-lint](https://golangci-lint.run/) |
 | `make lint-extra` | Run golangci-lint with the extra-strict config |
 | `make build` | Compile all packages and binaries |
+| `make race` | Run all tests with the race detector |
 | `make doc` | Browse docs locally via [pkgsite](https://pkg.go.dev/golang.org/x/pkgsite) |
 | `make check` | Run fmt, vet, lint, and test |
 | `make clean` | Remove build output directory |
+| `make create-labels` | Provision the repository label set |
+| `make apply-labels` | Compute and apply labels for `PR=<n>` |
 | `make help` | Show available targets |
 
 ## License

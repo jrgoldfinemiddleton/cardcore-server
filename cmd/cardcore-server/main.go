@@ -13,11 +13,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/flags"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
 	heartssession "github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session/games/hearts"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/transport"
@@ -135,31 +135,31 @@ func parseFlags(args []string) (*serverConfig, error) {
 
 	fs := flag.NewFlagSet("cardcore-server", flag.ContinueOnError)
 	fs.StringVar(&cfg.addr, "addr",
-		envOrDefault("CARDCORE_SERVER_ADDR", "127.0.0.1:8080"),
+		flags.EnvOrDefault("CARDCORE_SERVER_ADDR", "127.0.0.1:8080"),
 		"listen address (env: CARDCORE_SERVER_ADDR)")
 	fs.StringVar(&cfg.logLevel, "log-level",
-		envOrDefault("CARDCORE_SERVER_LOG_LEVEL", "info"),
+		flags.EnvOrDefault("CARDCORE_SERVER_LOG_LEVEL", "info"),
 		"log level: debug, info, warn, error (env: CARDCORE_SERVER_LOG_LEVEL)")
 	fs.StringVar(&cfg.logFile, "log-file",
-		envOrDefault("CARDCORE_SERVER_LOG_FILE", ""),
+		flags.EnvOrDefault("CARDCORE_SERVER_LOG_FILE", ""),
 		"log file path (empty logs to stderr) (env: CARDCORE_SERVER_LOG_FILE)")
 	fs.IntVar(&cfg.shutdownTimeout, "shutdown-timeout",
-		intEnvOrDefault("CARDCORE_SERVER_SHUTDOWN_TIMEOUT", 10),
+		flags.IntEnvOrDefault("CARDCORE_SERVER_SHUTDOWN_TIMEOUT", 10),
 		"graceful shutdown timeout in seconds (env: CARDCORE_SERVER_SHUTDOWN_TIMEOUT)")
 	fs.IntVar(&cfg.aiActionDelay, "ai-action-delay",
-		intEnvOrDefault("CARDCORE_SERVER_AI_ACTION_DELAY_MS", 1000),
+		flags.IntEnvOrDefault("CARDCORE_SERVER_AI_ACTION_DELAY_MS", 1000),
 		"AI action delay in milliseconds (env: CARDCORE_SERVER_AI_ACTION_DELAY_MS)")
 	fs.IntVar(&cfg.dealDisplayDelay, "deal-display-delay",
-		intEnvOrDefault("CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS", 1500),
+		flags.IntEnvOrDefault("CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS", 1500),
 		"deal display delay in milliseconds (env: CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS)")
 	fs.IntVar(&cfg.turnTimeout, "turn-timeout",
-		intEnvOrDefault("CARDCORE_SERVER_TURN_TIMEOUT_MS", 30000),
+		flags.IntEnvOrDefault("CARDCORE_SERVER_TURN_TIMEOUT_MS", 30000),
 		"human turn timeout in milliseconds (env: CARDCORE_SERVER_TURN_TIMEOUT_MS)")
 	fs.IntVar(&cfg.heartsTrickDisplayDelay, "hearts-trick-display-delay",
-		intEnvOrDefault("CARDCORE_SERVER_HEARTS_TRICK_DISPLAY_DELAY_MS", 3000),
+		flags.IntEnvOrDefault("CARDCORE_SERVER_HEARTS_TRICK_DISPLAY_DELAY_MS", 3000),
 		"Hearts trick delay in ms (env: CARDCORE_SERVER_HEARTS_TRICK_DISPLAY_DELAY_MS)")
 	fs.IntVar(&cfg.heartsRoundDisplayDelay, "hearts-round-display-delay",
-		intEnvOrDefault("CARDCORE_SERVER_HEARTS_ROUND_DISPLAY_DELAY_MS", 5000),
+		flags.IntEnvOrDefault("CARDCORE_SERVER_HEARTS_ROUND_DISPLAY_DELAY_MS", 5000),
 		"Hearts round delay in ms (env: CARDCORE_SERVER_HEARTS_ROUND_DISPLAY_DELAY_MS)")
 
 	fs.Usage = func() {
@@ -199,26 +199,6 @@ func parseLogLevel(level string) slog.Level {
 	default:
 		return slog.LevelInfo
 	}
-}
-
-// envOrDefault returns the environment variable value if set and non-empty,
-// otherwise the default.
-func envOrDefault(envVar string, defaultValue string) string {
-	if v := os.Getenv(envVar); v != "" {
-		return v
-	}
-	return defaultValue
-}
-
-// intEnvOrDefault returns the environment variable value parsed as an
-// int if set and valid (>= 0), otherwise the default.
-func intEnvOrDefault(envVar string, defaultValue int) int {
-	if v := os.Getenv(envVar); v != "" {
-		if d, err := strconv.Atoi(v); err == nil && d >= 0 {
-			return d
-		}
-	}
-	return defaultValue
 }
 
 // intPtrOrDefault returns the value pointed to by p, or defaultValue

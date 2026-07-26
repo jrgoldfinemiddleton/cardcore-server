@@ -8,8 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -17,6 +15,7 @@ import (
 	heartstui "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/hearts"
 	"github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/menu"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/flags"
 )
 
 // tuiConfig holds all command-line flag values after parsing.
@@ -113,31 +112,31 @@ func parseFlags(args []string) (*tuiConfig, error) {
 
 	fs := flag.NewFlagSet("cardcore-tui", flag.ContinueOnError)
 	fs.StringVar(&cfg.server, "server",
-		envOrDefault("CARDCORE_TUI_SERVER", "http://127.0.0.1:8080"),
+		flags.EnvOrDefault("CARDCORE_TUI_SERVER", "http://127.0.0.1:8080"),
 		"server base URL (env: CARDCORE_TUI_SERVER)")
 	fs.StringVar(&cfg.game, "game",
-		envOrDefault("CARDCORE_TUI_GAME", "hearts"),
+		flags.EnvOrDefault("CARDCORE_TUI_GAME", "hearts"),
 		"game to play (env: CARDCORE_TUI_GAME)")
 	fs.StringVar(&cfg.session, "session",
-		envOrDefault("CARDCORE_TUI_SESSION", ""),
+		flags.EnvOrDefault("CARDCORE_TUI_SESSION", ""),
 		"session ID to join (env: CARDCORE_TUI_SESSION)")
 	fs.StringVar(&cfg.token, "token",
-		envOrDefault("CARDCORE_TUI_TOKEN", ""),
+		flags.EnvOrDefault("CARDCORE_TUI_TOKEN", ""),
 		"seat bearer token (env: CARDCORE_TUI_TOKEN)")
 	fs.IntVar(&cfg.seat, "seat",
-		intEnvOrDefault("CARDCORE_TUI_SEAT", 0),
+		flags.IntEnvOrDefault("CARDCORE_TUI_SEAT", 0),
 		"seat index (game-dependent) (env: CARDCORE_TUI_SEAT)")
 	fs.BoolVar(&cfg.observer, "observe",
-		boolEnvOrDefault("CARDCORE_TUI_OBSERVE", false),
+		flags.BoolEnvOrDefault("CARDCORE_TUI_OBSERVE", false),
 		"observer mode (receive-only) (env: CARDCORE_TUI_OBSERVE)")
 	fs.BoolVar(&cfg.debug, "debug",
-		boolEnvOrDefault("CARDCORE_TUI_DEBUG", false),
+		flags.BoolEnvOrDefault("CARDCORE_TUI_DEBUG", false),
 		"enable debug logging (env: CARDCORE_TUI_DEBUG)")
 	fs.StringVar(&cfg.aiType, "ai-type",
-		envOrDefault("CARDCORE_TUI_AI_TYPE", "random"),
+		flags.EnvOrDefault("CARDCORE_TUI_AI_TYPE", "random"),
 		"AI player type (env: CARDCORE_TUI_AI_TYPE)")
 	fs.StringVar(&cfg.theme, "theme",
-		envOrDefault("CARDCORE_TUI_THEME", themeDark),
+		flags.EnvOrDefault("CARDCORE_TUI_THEME", themeDark),
 		"color theme: dark or light (env: CARDCORE_TUI_THEME)")
 
 	fs.Usage = func() {
@@ -346,6 +345,7 @@ func runGame(cfg *tuiConfig) error {
 	// (interface{} holds the pointer value). The program and your local
 	// variable both point to the same struct. Setting m.program = p modifies
 	// the shared struct, so the goroutine sees the correct program reference.
+
 	// Construct the theme from the configured string. The value is
 	// validated by parseFlags, so only "dark" or "light" reach here.
 	theme := NewDarkTheme()
@@ -423,39 +423,4 @@ func newGameClient(game string, seat int, observer bool, theme Theme) (gameClien
 	default:
 		return nil, fmt.Errorf("unsupported game: %q", game)
 	}
-}
-
-// boolEnvOrDefault returns true if the environment variable is set to
-// "true", "1", "yes", or "on" (case-insensitive); otherwise it returns
-// defaultValue.
-func boolEnvOrDefault(envVar string, defaultValue bool) bool {
-	if v := os.Getenv(envVar); v != "" {
-		switch strings.ToLower(v) {
-		case "true", "1", "yes", "on":
-			return true
-		default:
-			return false
-		}
-	}
-	return defaultValue
-}
-
-// envOrDefault returns the environment variable value if set and non-empty,
-// otherwise the default.
-func envOrDefault(envVar, defaultValue string) string {
-	if v := os.Getenv(envVar); v != "" {
-		return v
-	}
-	return defaultValue
-}
-
-// intEnvOrDefault returns the environment variable value parsed as an int if
-// set and valid (>= 0), otherwise the default.
-func intEnvOrDefault(envVar string, defaultValue int) int {
-	if v := os.Getenv(envVar); v != "" {
-		if d, err := strconv.Atoi(v); err == nil && d >= 0 {
-			return d
-		}
-	}
-	return defaultValue
 }
