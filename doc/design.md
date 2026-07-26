@@ -24,7 +24,7 @@ Each game session owns a single goroutine that serializes all engine mutations. 
 The server follows `cardcore`'s error-handling convention: functions return errors for conditions the caller cannot prevent; precondition violations trigger panics. WebSocket command errors are typed events sent over the connection — the connection stays open. Close frames are reserved for unrecoverable protocol violations.
 
 ## Logging
-Structured logging via `log/slog` (stdlib). Per-component prefixes (`server`, `tui`). The server logs to stderr or a file via `--log-file`; the TUI logs to a file via `tea.LogToFile()` since stdout is the terminal UI.
+Structured logging via `log/slog` (stdlib). Per-component prefixes (`server`, `tui`). The server logs to stderr by default and to a file via the `-log-file` flag; the TUI logs to a file via `tea.LogToFile()` since stdout is the terminal UI.
 
 ## Testing
 Multiple layers: unit tests per internal package, integration tests that spin up a real server on a random port and connect real WebSocket clients, and protocol conformance tests that validate the API contract from `doc/api.md`. The strict transport boundary pays off here — integration tests exercise the same code path as production.

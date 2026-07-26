@@ -5,6 +5,9 @@ import (
 	"errors"
 )
 
+// MaxActionIDLength is the maximum allowed length for an action_id value.
+const MaxActionIDLength = 256
+
 // Error code constants for client command rejection.
 const (
 	ErrStaleSeq         = "stale_seq"
@@ -48,6 +51,9 @@ func ValidateInboundMessage(msg *InboundMessage) error {
 	}
 	if msg.ActionID == "" {
 		return errors.New("missing action_id")
+	}
+	if len(msg.ActionID) > MaxActionIDLength {
+		return errors.New("action_id exceeds 256 characters")
 	}
 	if msg.Seq < 0 {
 		return errors.New("negative seq")

@@ -541,7 +541,7 @@ spades").
 - Per-component prefix: `server`, `tui`.
 - Log level configurable via flag or environment variable. Default:
   `info`.
-- Server logs to stderr by default. Optional `--log-file` flag for
+- Server logs to stderr by default. Optional `-log-file` flag for
   persistent file output.
 - TUI logs to a file (not stdout, which is the terminal UI). Bubble
   Tea provides `tea.LogToFile()` for this purpose.

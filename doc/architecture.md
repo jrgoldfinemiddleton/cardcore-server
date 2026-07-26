@@ -7,9 +7,9 @@ The project uses a `cmd/` + `internal/` layout: `cmd/` holds thin entry points f
 ```
 github.com/jrgoldfinemiddleton/cardcore-server
 ├── cmd/
-│   ├── server/              ← entry point: parse flags, wire deps, start HTTP listener
-│   ├── tui/                 ← entry point: parse flags, connect WS, run Bubble Tea
-│   └── client/              ← entry point: scripted or batch CLI client
+│   ├── cardcore-server/     ← entry point: parse flags, wire deps, start HTTP listener
+│   ├── cardcore-tui/        ← entry point: parse flags, connect WS, run Bubble Tea
+│   └── cardcore-cli/        ← entry point: scripted or batch CLI client
 ├── internal/
 │   ├── api/                 ← wire DTOs shared by server and clients (JSON structs)
 │   ├── client/              ← shared client engine: HTTP lifecycle, WS connection, messages, errors

@@ -12,8 +12,8 @@ func TestParseFlagsDefaults(t *testing.T) {
 		t.Fatalf("parseFlags: %v", err)
 	}
 
-	if cfg.server != "http://localhost:8080" {
-		t.Errorf("server got %q, want %q", cfg.server, "http://localhost:8080")
+	if cfg.server != "http://127.0.0.1:8080" {
+		t.Errorf("server got %q, want %q", cfg.server, "http://127.0.0.1:8080")
 	}
 	if cfg.game != "hearts" {
 		t.Errorf("game got %q, want %q", cfg.game, "hearts")

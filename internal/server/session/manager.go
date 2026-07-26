@@ -24,7 +24,6 @@ var (
 	ErrNotFound      = errors.New("session not found")
 	ErrNotDraft      = errors.New("session is not in draft state")
 	ErrNotActive     = errors.New("session not active")
-	ErrNotReady      = errors.New("session start not implemented")
 	ErrInvalidConfig = errors.New("invalid session configuration")
 )
 

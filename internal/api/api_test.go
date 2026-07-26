@@ -189,6 +189,16 @@ func TestValidateInboundMessage(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "action_id too long",
+			msg: &InboundMessage{
+				Type:     "play_card",
+				ActionID: string(make([]byte, MaxActionIDLength+1)),
+				Seq:      0,
+				Payload:  json.RawMessage(`{}`),
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
