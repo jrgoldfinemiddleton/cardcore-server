@@ -117,7 +117,7 @@ Each seat config:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `type` | string | yes | `"human"` or `"ai"`. |
-| `ai_type` | string | if `type` is `"ai"` | AI implementation name (e.g., `"random"`, `"heuristic"`). |
+| `ai_type` | string | if `type` is `"ai"` | AI implementation name (e.g., `"random"`, `"heuristic"`). For human seats this is the fallback AI used on turn timeout or auto-play; empty means the game default (e.g., `"random"` for Hearts). |
 
 A session may have zero human seats (all-AI demo mode). In this case,
 no seat tokens are issued and the game is observed via the observer
@@ -137,7 +137,7 @@ WebSocket endpoint.
 
 | Status | Condition |
 |--------|-----------|
-| `400 Bad Request` | Invalid game identifier, invalid seat config (including game-specific rules like seat count), missing `ai_type` for AI seat, unknown `ai_type`. |
+| `400 Bad Request` | Invalid game identifier, invalid seat config (including game-specific rules like seat count), missing `ai_type` for AI seat, unknown `ai_type` for any seat. |
 
 ---
 
@@ -181,7 +181,7 @@ WebSocket snapshot for that).
 | `seats` | array | One entry per seat. |
 | `seats[].index` | integer | Seat index. |
 | `seats[].type` | string | `"human"` or `"ai"`. |
-| `seats[].ai_type` | string | AI implementation name. Present only for AI seats. |
+| `seats[].ai_type` | string | AI implementation name. For human seats this is the configured fallback AI (empty if no override was requested). |
 | `ai_action_delay_ms` | integer | Configured AI action delay in milliseconds. |
 | `deal_display_delay_ms` | integer | Configured deal display delay in milliseconds. |
 | `turn_timeout_ms` | integer | Configured human turn timeout in milliseconds. `0` means disabled. |
@@ -562,6 +562,11 @@ spades").
 - Snapshot multiplexing: the server may send snapshots from the
   broadcast path and the synchronous response path in arbitrary order.
   Clients must track `maxSeenSeq` and ignore older snapshots.
+- Auto-resume in single-human games: if the sole human player
+  disconnects while the game is paused, the server resumes the game
+  automatically so the session does not stall. See
+  [`doc/games/hearts/protocol.md`](games/hearts/protocol.md) for the
+  Hearts-specific pause/resume behavior.
 
 ---
 

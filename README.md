@@ -99,8 +99,8 @@ The server listens on `127.0.0.1:8080` by default. It hosts WebSocket game sessi
 | `-ai-action-delay` | `CARDCORE_SERVER_AI_ACTION_DELAY_MS` | `1000` | AI action delay in milliseconds |
 | `-deal-display-delay` | `CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS` | `1500` | Deal display delay in milliseconds |
 | `-turn-timeout` | `CARDCORE_SERVER_TURN_TIMEOUT_MS` | `30000` | Human turn timeout in milliseconds |
-| `-hearts-trick-display-delay` | `CARDCORE_SERVER_HEARTS_TRICK_DISPLAY_DELAY_MS` | `3000` | Hearts trick display delay in milliseconds |
-| `-hearts-round-display-delay` | `CARDCORE_SERVER_HEARTS_ROUND_DISPLAY_DELAY_MS` | `5000` | Hearts round display delay in milliseconds |
+| `-hearts-trick-display-delay-ms` | `CARDCORE_SERVER_HEARTS_TRICK_DISPLAY_DELAY_MS` | `3000` | Hearts trick display delay in milliseconds |
+| `-hearts-round-display-delay-ms` | `CARDCORE_SERVER_HEARTS_ROUND_DISPLAY_DELAY_MS` | `5000` | Hearts round display delay in milliseconds |
 
 #### TUI Client
 

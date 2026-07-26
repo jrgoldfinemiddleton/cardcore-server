@@ -10,6 +10,11 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- Game registry and `GameConfig` abstraction (`internal/server/session/registry.go`) so the server discovers games and their flags without hardcoding Hearts-specific wiring in `cmd/cardcore-server`
+- `session.Game.ValidateConfig` hook invoked by `Manager.Create()` so game adapters can reject invalid session configurations before a session is created
+- `internal/server/view.View` interface for game-specific snapshot generation
+- Human fallback AI type override for Hearts: a human seat's `ai_type` is now used as the bot that plays when the turn timeout fires; empty `ai_type` still defaults to `"random"`
+- TUI and CLI `CreateSession` helpers pass the selected AI difficulty to the human seat's `ai_type` so the same bot strength is used for AI seats and the human fallback
 - Server `-log-file` flag and `CARDCORE_SERVER_LOG_FILE` environment variable for persistent file logging instead of stderr
 - TUI Hearts moon-shot celebration: both player and observer round-complete views display `🐄 Seat N shot the moon! 🌙` when a round's score deltas show a successful moon shot (one seat `+0`, the other three seats `+26`)
 - TUI Hearts observer round summary: `RenderObserverRoundCompleteView` shows the round number, cumulative scores, and round point deltas for all seats during the `round_complete` phase, matching the player round-complete view
@@ -71,6 +76,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- Renamed Hearts `Adapter` to `GameAdapter` and aligned it with the new `session.Game` and `view.View` abstractions
+- Renamed Hearts-specific server flags to `-hearts-trick-display-delay-ms` and `-hearts-round-display-delay-ms` (and matching env vars `CARDCORE_SERVER_HEARTS_TRICK_DISPLAY_DELAY_MS` / `CARDCORE_SERVER_HEARTS_ROUND_DISPLAY_DELAY_MS`) for consistent millisecond-suffix naming
 - Consolidated duplicated environment-variable and card-symbol helpers into shared packages: `internal/flags` for `EnvOrDefault` / `IntEnvOrDefault` / `BoolEnvOrDefault`, and `internal/client/hearts` for `RankSymbol`, `SuitSymbol`, `RankValue`, and `GameName`. The server, TUI, and CLI binaries now import these helpers instead of defining their own copies
 - Merged duplicated Hearts pass-direction formatting in the TUI into a single shared map; `formatPassDirection` and `formatObserverPassDirection` now read from the same data structure
 - Server deadline broadcast: `turn_deadline_ms` is now stamped onto the same snapshot produced by state changes (initial deal, human play, AI play, resume, timeout) instead of emitting a separate seq-incrementing broadcast. This preserves strict `seq` monotonicity and keeps `stale_seq` checks consistent

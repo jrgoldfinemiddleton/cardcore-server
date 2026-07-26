@@ -8,61 +8,70 @@ import (
 	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
 )
 
-// CreateHumanSession creates a Hearts session with one human seat and
-// three AI seats, returning the session ID and the human seat token.
-// The human seat is always index 0.
-func CreateHumanSession(
-	ctx context.Context,
-	sc *client.SessionClient,
-	aiType string,
-	pacing int,
-) (string, string, error) {
-	zero := 0
-	cfg := client.Config{
-		Game: heartsclient.GameName,
-		Seats: []client.SeatConfig{
-			{Type: "human"},
-			{Type: "ai", AIType: aiType},
-			{Type: "ai", AIType: aiType},
-			{Type: "ai", AIType: aiType},
-		},
-		AIActionDelayMS:    &pacing,
-		DealDisplayDelayMS: &zero,
-	}
-
-	id, seats, err := sc.CreateSession(ctx, cfg)
-	if err != nil {
-		return "", "", fmt.Errorf("create session: %w", err)
-	}
-
-	const humanSeat = 0
-	token := seats[humanSeat].Token
-	if token == "" {
-		return "", "", fmt.Errorf("no human seat token in create response")
-	}
-
-	return id, token, nil
+// validAITypes is the set of AI player types accepted by the Hearts server
+// adapter. CreateSession rejects any aiType not in this set before issuing
+// any HTTP request.
+var validAITypes = map[string]bool{
+	"random":    true,
+	"heuristic": true,
+	"pimc":      true,
 }
 
-// CreateObserverSession creates a 4-AI Hearts session for observation.
-func CreateObserverSession(
+// CreateSession creates and starts a Hearts session suitable for the CLI.
+//
+// When observer is false the session has one human seat at index 0 and three
+// AI seats. The human seat uses aiType as its fallback AI on turn timeout
+// or auto-play, and the AI seats use aiType for normal play; the returned
+// token is the human seat's bearer credential. When observer is true the
+// session has four AI seats and the returned token is empty (observers
+// connect without a seat token). The returned seat is always 0.
+//
+// aiType must be one of "random", "heuristic", or "pimc"; any other value
+// returns an error before any HTTP request is made. aiActionDelayMS and
+// dealDisplayDelayMS are optional overrides: nil means use the server default.
+func CreateSession(
 	ctx context.Context,
 	sc *client.SessionClient,
 	aiType string,
-	pacing int,
-) (string, []client.SeatInfo, error) {
-	zero := 0
-	cfg := client.Config{
-		Game: heartsclient.GameName,
-		Seats: []client.SeatConfig{
-			{Type: "ai", AIType: aiType},
-			{Type: "ai", AIType: aiType},
-			{Type: "ai", AIType: aiType},
-			{Type: "ai", AIType: aiType},
-		},
-		AIActionDelayMS:    &pacing,
-		DealDisplayDelayMS: &zero,
+	observer bool,
+	aiActionDelayMS, dealDisplayDelayMS *int,
+) (sessionID, token string, seat int, err error) {
+	if !validAITypes[aiType] {
+		return "", "", 0, fmt.Errorf(
+			"invalid ai_type: %q (want random, heuristic, or pimc)", aiType)
 	}
 
-	return sc.CreateSession(ctx, cfg)
+	seats := make([]client.SeatConfig, 0, 4)
+	if !observer {
+		seats = append(seats, client.SeatConfig{Type: "human", AIType: aiType})
+	}
+	for range 4 - len(seats) {
+		seats = append(seats, client.SeatConfig{Type: "ai", AIType: aiType})
+	}
+
+	cfg := client.Config{
+		Game:               heartsclient.GameName,
+		Seats:              seats,
+		AIActionDelayMS:    aiActionDelayMS,
+		DealDisplayDelayMS: dealDisplayDelayMS,
+	}
+
+	id, seatInfos, err := sc.CreateSession(ctx, cfg)
+	if err != nil {
+		return "", "", 0, fmt.Errorf("create session: %w", err)
+	}
+
+	if !observer {
+		const humanSeat = 0
+		token = seatInfos[humanSeat].Token
+		if token == "" {
+			return "", "", 0, fmt.Errorf("no human seat token in create response")
+		}
+	}
+
+	if err := sc.StartSession(ctx, id); err != nil {
+		return "", "", 0, fmt.Errorf("start session: %w", err)
+	}
+
+	return id, token, 0, nil
 }

@@ -32,7 +32,7 @@ type aiPlayedHoldMsg struct{}
 // until Enter is pressed).
 func (m *model) setErrorFlash(msg string) tea.Cmd {
 	m.errMsg = msg
-	return tea.Tick(3*time.Second, func(t time.Time) tea.Msg {
+	return tea.Tick(3*time.Second, func(_ time.Time) tea.Msg {
 		return flashTimeoutMsg{}
 	})
 }
@@ -53,7 +53,7 @@ func (m *model) isAIPlayedHoldActive() bool {
 func (m *model) holdAIPlayedMessage() tea.Cmd {
 	m.statusMsg = aiPlayedStatusMsg
 	m.aiPlayedHoldUntil = time.Now().Add(aiPlayedHoldDuration)
-	return tea.Tick(aiPlayedHoldDuration, func(t time.Time) tea.Msg {
+	return tea.Tick(aiPlayedHoldDuration, func(_ time.Time) tea.Msg {
 		return aiPlayedHoldMsg{}
 	})
 }

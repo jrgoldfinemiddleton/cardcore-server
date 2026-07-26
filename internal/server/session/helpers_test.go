@@ -1,6 +1,8 @@
 package session
 
 import (
+	"flag"
+	"math/rand/v2"
 	"testing"
 	"time"
 
@@ -59,9 +61,34 @@ type delayGame struct {
 	delay int
 }
 
+// testGameConfig is a minimal GameConfig implementation that always
+// creates the same game type. It is used by test helpers to build a
+// registry without pulling in a real game engine.
+type testGameConfig struct {
+	name    string
+	newGame func() Game
+}
+
 // seqSnapshotGame is a mock Game that returns snapshots embedding the
 // seq value so tests can verify the sequence number in the wire format.
 type seqSnapshotGame struct{}
+
+// Name returns the game name for the test config.
+func (c *testGameConfig) Name() string { return c.name }
+
+// RegisterFlags is a no-op for test configs.
+func (c *testGameConfig) RegisterFlags(*flag.FlagSet) {}
+
+// Validate is a no-op for test configs.
+func (c *testGameConfig) Validate() error { return nil }
+
+// NewGame creates the configured test game.
+func (c *testGameConfig) NewGame(_ Config, _ *rand.Rand) (Game, error) {
+	return c.newGame(), nil
+}
+
+// ValidateConfig is a no-op for test configs.
+func (c *testGameConfig) ValidateConfig(_ Config) error { return nil }
 
 // HandleAction implements Game.HandleAction for seqSnapshotGame.
 func (seqSnapshotGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -82,7 +109,7 @@ func (seqSnapshotGame) Resume() (StepResult, error) {
 func (seqSnapshotGame) Turn() int { return 0 }
 
 // PlayerSnapshot implements Game.PlayerSnapshot for seqSnapshotGame.
-func (seqSnapshotGame) PlayerSnapshot(seat, seq int) any {
+func (seqSnapshotGame) PlayerSnapshot(_, seq int) any {
 	return map[string]any{"seq": seq}
 }
 
@@ -105,6 +132,9 @@ func (seqSnapshotGame) SetPaused(bool) {}
 
 // Paused implements Game.Paused for seqSnapshotGame.
 func (seqSnapshotGame) Paused() bool { return false }
+
+// ValidateConfig implements Game.ValidateConfig for seqSnapshotGame.
+func (seqSnapshotGame) ValidateConfig(Config) error { return nil }
 
 // HandleAction implements Game.HandleAction for aiPlayPauseGame.
 func (a *aiPlayPauseGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -156,6 +186,9 @@ func (a *aiPlayPauseGame) SetPaused(bool) {}
 // Paused implements Game.Paused for aiPlayPauseGame.
 func (a *aiPlayPauseGame) Paused() bool { return false }
 
+// ValidateConfig implements Game.ValidateConfig for aiPlayPauseGame.
+func (a *aiPlayPauseGame) ValidateConfig(Config) error { return nil }
+
 // HandleAction implements Game.HandleAction for delayGame.
 func (d *delayGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{}, nil
@@ -194,6 +227,9 @@ func (d *delayGame) SetPaused(bool) {}
 
 // Paused implements Game.Paused for delayGame.
 func (d *delayGame) Paused() bool { return false }
+
+// ValidateConfig implements Game.ValidateConfig for delayGame.
+func (d *delayGame) ValidateConfig(Config) error { return nil }
 
 // HandleAction implements Game.HandleAction for mockGame.
 func (m *mockGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -240,6 +276,9 @@ func (m *mockGame) SetPaused(bool) {}
 // Paused implements Game.Paused for mockGame.
 func (m *mockGame) Paused() bool { return false }
 
+// ValidateConfig implements Game.ValidateConfig for mockGame.
+func (m *mockGame) ValidateConfig(Config) error { return nil }
+
 // HandleAction implements Game.HandleAction for stepFinishedGame.
 func (s *stepFinishedGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{Outcome: StepFinished}, nil
@@ -285,6 +324,9 @@ func (s *stepFinishedGame) SetPaused(bool) {}
 // Paused implements Game.Paused for stepFinishedGame.
 func (s *stepFinishedGame) Paused() bool { return false }
 
+// ValidateConfig implements Game.ValidateConfig for stepFinishedGame.
+func (s *stepFinishedGame) ValidateConfig(Config) error { return nil }
+
 // HandleAction implements Game.HandleAction for unmarshalableGame.
 func (u *unmarshalableGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{}, nil
@@ -329,6 +371,9 @@ func (u *unmarshalableGame) SetPaused(bool) {}
 
 // Paused implements Game.Paused for unmarshalableGame.
 func (u *unmarshalableGame) Paused() bool { return false }
+
+// ValidateConfig implements Game.ValidateConfig for unmarshalableGame.
+func (u *unmarshalableGame) ValidateConfig(Config) error { return nil }
 
 // HandleAction implements Game.HandleAction for playerSnapshotUnmarshalableGame.
 func (p *playerSnapshotUnmarshalableGame) HandleAction(
@@ -377,6 +422,9 @@ func (p *playerSnapshotUnmarshalableGame) SetPaused(bool) {}
 // Paused implements Game.Paused for playerSnapshotUnmarshalableGame.
 func (p *playerSnapshotUnmarshalableGame) Paused() bool { return false }
 
+// ValidateConfig implements Game.ValidateConfig for playerSnapshotUnmarshalableGame.
+func (p *playerSnapshotUnmarshalableGame) ValidateConfig(Config) error { return nil }
+
 // HandleAction implements Game.HandleAction for timeoutGame.
 func (g *timeoutGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{Outcome: StepContinue}, nil
@@ -422,6 +470,9 @@ func (g *timeoutGame) SetPaused(bool) {}
 
 // Paused implements Game.Paused for timeoutGame.
 func (g *timeoutGame) Paused() bool { return false }
+
+// ValidateConfig implements Game.ValidateConfig for timeoutGame.
+func (g *timeoutGame) ValidateConfig(Config) error { return nil }
 
 // HandleAction implements Game.HandleAction for aiPlayFinishedGame.
 func (a *aiPlayFinishedGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -469,6 +520,9 @@ func (a *aiPlayFinishedGame) SetPaused(bool) {}
 // Paused implements Game.Paused for aiPlayFinishedGame.
 func (a *aiPlayFinishedGame) Paused() bool { return false }
 
+// ValidateConfig implements Game.ValidateConfig for aiPlayFinishedGame.
+func (a *aiPlayFinishedGame) ValidateConfig(Config) error { return nil }
+
 // HandleAction implements Game.HandleAction for invalidTurnGame.
 func (i *invalidTurnGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{Outcome: StepContinue}, nil
@@ -513,6 +567,9 @@ func (i *invalidTurnGame) SetPaused(bool) {}
 
 // Paused implements Game.Paused for invalidTurnGame.
 func (i *invalidTurnGame) Paused() bool { return false }
+
+// ValidateConfig implements Game.ValidateConfig for invalidTurnGame.
+func (i *invalidTurnGame) ValidateConfig(Config) error { return nil }
 
 // HandleAction implements Game.HandleAction for deadlineBroadcastGame.
 func (d *deadlineBroadcastGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -568,12 +625,15 @@ func (d *deadlineBroadcastGame) SetPaused(bool) {}
 // Paused implements Game.Paused for deadlineBroadcastGame.
 func (d *deadlineBroadcastGame) Paused() bool { return false }
 
-// mockGameFactory returns a game factory for tests that don't need a
-// real game engine.
-func mockGameFactory() func(Config) (Game, error) {
-	return func(Config) (Game, error) {
-		return &mockGame{}, nil
-	}
+// ValidateConfig implements Game.ValidateConfig for deadlineBroadcastGame.
+func (d *deadlineBroadcastGame) ValidateConfig(Config) error { return nil }
+
+// mockGameRegistry returns a registry containing a mock game registered
+// under the Hearts game name.
+func mockGameRegistry() *Registry {
+	r := NewRegistry()
+	r.Register(&testGameConfig{name: "hearts", newGame: func() Game { return &mockGame{} }})
+	return r
 }
 
 // mustCreateAndStart creates a session with cfg and transitions it to
@@ -606,20 +666,23 @@ func validHeartsCfg() Config {
 	}
 }
 
-// stepFinishedGameFactory returns a game factory that creates games which
-// immediately finish on any action.
-func stepFinishedGameFactory() func(Config) (Game, error) {
-	return func(Config) (Game, error) {
-		return &stepFinishedGame{}, nil
-	}
+// stepFinishedGameRegistry returns a registry containing a game that
+// immediately finishes on any action.
+func stepFinishedGameRegistry() *Registry {
+	r := NewRegistry()
+	r.Register(&testGameConfig{name: "hearts", newGame: func() Game { return &stepFinishedGame{} }})
+	return r
 }
 
-// unmarshalableGameFactory returns a game factory that creates games whose
+// unmarshalableGameRegistry returns a registry containing a game whose
 // snapshots cannot be marshaled to JSON.
-func unmarshalableGameFactory() func(Config) (Game, error) {
-	return func(Config) (Game, error) {
-		return &unmarshalableGame{}, nil
-	}
+func unmarshalableGameRegistry() *Registry {
+	r := NewRegistry()
+	r.Register(&testGameConfig{
+		name:    "hearts",
+		newGame: func() Game { return &unmarshalableGame{} },
+	})
+	return r
 }
 
 // waitForFinished polls Get until the session reaches Finished state or

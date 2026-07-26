@@ -2,14 +2,11 @@ package main
 
 import (
 	"context"
-	crand "crypto/rand"
-	"encoding/binary"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log/slog"
-	"math/rand/v2"
 	"net/http"
 	"os"
 	"os/signal"
@@ -23,17 +20,16 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/transport"
 )
 
-// serverConfig holds all command-line flag values after parsing.
+// serverConfig holds all generic command-line flag values after parsing.
+// Game-specific flags are owned by the registered game adapters.
 type serverConfig struct {
-	addr                    string
-	logLevel                string
-	logFile                 string
-	shutdownTimeout         int
-	aiActionDelay           int
-	dealDisplayDelay        int
-	turnTimeout             int
-	heartsTrickDisplayDelay int
-	heartsRoundDisplayDelay int
+	addr             string
+	logLevel         string
+	logFile          string
+	shutdownTimeout  int
+	aiActionDelay    int
+	dealDisplayDelay int
+	turnTimeout      int
 }
 
 // main is the entry point for the cardcore-server binary. It delegates to
@@ -47,7 +43,10 @@ func main() {
 // on SIGINT or SIGTERM to trigger graceful shutdown. It returns a process exit
 // code: 0 for success, 2 for flag-parsing errors, and 1 for runtime failures.
 func run() int {
-	cfg, err := parseFlags(os.Args[1:])
+	registry := session.NewRegistry()
+	registry.Register(heartssession.NewGameConfig())
+
+	cfg, err := parseFlags(os.Args[1:], registry)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
@@ -71,20 +70,7 @@ func run() int {
 	logger := slog.New(slog.NewTextHandler(logWriter, opts))
 	slog.SetDefault(logger)
 
-	mgr := session.NewManager(func(sessionCfg session.Config) (session.Game, error) {
-		switch sessionCfg.Game {
-		case "hearts":
-			return heartssession.NewAdapter(
-				sessionCfg.Seats, newRNG(),
-				intPtrOrDefault(sessionCfg.DealDisplayDelayMS, cfg.dealDisplayDelay),
-				cfg.heartsTrickDisplayDelay,
-				cfg.heartsRoundDisplayDelay,
-			)
-		default:
-			return nil, fmt.Errorf("%w: unknown game: %s",
-				session.ErrInvalidConfig, sessionCfg.Game)
-		}
-	}, session.DefaultDelays{
+	mgr := session.NewManager(registry, session.DefaultDelays{
 		AIActionDelayMS:    cfg.aiActionDelay,
 		DealDisplayDelayMS: cfg.dealDisplayDelay,
 		TurnTimeoutMS:      cfg.turnTimeout,
@@ -129,8 +115,9 @@ func run() int {
 // parseFlags parses command-line flags and returns a populated
 // serverConfig. All flags have corresponding CARDCORE_SERVER_* env-var
 // fallbacks; explicit flags take precedence over env vars, which take
-// precedence over hardcoded defaults.
-func parseFlags(args []string) (*serverConfig, error) {
+// precedence over hardcoded defaults. Game-specific flags are registered
+// by the registry.
+func parseFlags(args []string, registry *session.Registry) (*serverConfig, error) {
 	cfg := &serverConfig{}
 
 	fs := flag.NewFlagSet("cardcore-server", flag.ContinueOnError)
@@ -155,12 +142,8 @@ func parseFlags(args []string) (*serverConfig, error) {
 	fs.IntVar(&cfg.turnTimeout, "turn-timeout",
 		flags.IntEnvOrDefault("CARDCORE_SERVER_TURN_TIMEOUT_MS", 30000),
 		"human turn timeout in milliseconds (env: CARDCORE_SERVER_TURN_TIMEOUT_MS)")
-	fs.IntVar(&cfg.heartsTrickDisplayDelay, "hearts-trick-display-delay",
-		flags.IntEnvOrDefault("CARDCORE_SERVER_HEARTS_TRICK_DISPLAY_DELAY_MS", 3000),
-		"Hearts trick delay in ms (env: CARDCORE_SERVER_HEARTS_TRICK_DISPLAY_DELAY_MS)")
-	fs.IntVar(&cfg.heartsRoundDisplayDelay, "hearts-round-display-delay",
-		flags.IntEnvOrDefault("CARDCORE_SERVER_HEARTS_ROUND_DISPLAY_DELAY_MS", 5000),
-		"Hearts round delay in ms (env: CARDCORE_SERVER_HEARTS_ROUND_DISPLAY_DELAY_MS)")
+
+	registry.RegisterFlags(fs)
 
 	fs.Usage = func() {
 		_, _ = fmt.Fprintf(fs.Output(), "Usage: %s [flags]\n\n", fs.Name())
@@ -179,9 +162,11 @@ func parseFlags(args []string) (*serverConfig, error) {
 	if cfg.shutdownTimeout <= 0 {
 		return nil, fmt.Errorf("-shutdown-timeout must be > 0")
 	}
-	if cfg.aiActionDelay < 0 || cfg.dealDisplayDelay < 0 || cfg.turnTimeout < 0 ||
-		cfg.heartsTrickDisplayDelay < 0 || cfg.heartsRoundDisplayDelay < 0 {
+	if cfg.aiActionDelay < 0 || cfg.dealDisplayDelay < 0 || cfg.turnTimeout < 0 {
 		return nil, fmt.Errorf("delay values must be >= 0")
+	}
+	if err := registry.Validate(); err != nil {
+		return nil, err
 	}
 
 	return cfg, nil
@@ -199,25 +184,4 @@ func parseLogLevel(level string) slog.Level {
 	default:
 		return slog.LevelInfo
 	}
-}
-
-// intPtrOrDefault returns the value pointed to by p, or defaultValue
-// if p is nil.
-func intPtrOrDefault(p *int, defaultValue int) int {
-	if p != nil {
-		return *p
-	}
-	return defaultValue
-}
-
-// newRNG returns a math/rand/v2.Rand seeded from crypto/rand. If
-// crypto/rand fails, it falls back to a time-based seed.
-func newRNG() *rand.Rand {
-	var seed [16]byte
-	if _, err := crand.Read(seed[:]); err != nil {
-		return rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0))
-	}
-	s1 := binary.LittleEndian.Uint64(seed[:8])
-	s2 := binary.LittleEndian.Uint64(seed[8:])
-	return rand.New(rand.NewPCG(s1, s2))
 }

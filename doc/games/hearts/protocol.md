@@ -98,6 +98,42 @@ that was active before the pause and broadcasts a snapshot.
 }
 ```
 
+### Auto-resume on disconnect
+
+In a single-human Hearts session, if the human player disconnects while
+the game is paused, the server automatically resumes the game. The
+remaining pause time is discarded, the turn deadline is restored from the
+remaining pause duration, and a fresh snapshot is broadcast to any
+remaining observers. This keeps a single-player game from stalling
+indefinitely when the human client closes its WebSocket during a pause.
+It also leaves the door open for the human client to later reconnect and
+continue gameplay.
+
+---
+
+## Seat Configuration
+
+Hearts seat configs use the generic fields from `doc/api.md`:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `type` | yes | `"human"` or `"ai"`. |
+| `ai_type` | yes for `ai` | For AI seats this is the AI implementation name (`"random"`, `"heuristic"`, or `"pimc"`). For human seats this is the fallback AI used when the turn timeout fires or auto-play is needed; if omitted it defaults to `"random"`. |
+
+For example, a single-human session with a `heuristic` bot for both the AI seats and the human fallback would be:
+
+```json
+{
+  "game": "hearts",
+  "seats": [
+    { "type": "human", "ai_type": "heuristic" },
+    { "type": "ai", "ai_type": "heuristic" },
+    { "type": "ai", "ai_type": "heuristic" },
+    { "type": "ai", "ai_type": "heuristic" }
+  ]
+}
+```
+
 ---
 
 ## Snapshot Fields

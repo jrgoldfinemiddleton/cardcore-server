@@ -63,7 +63,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleListSessions handles GET /sessions.
-func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListSessions(w http.ResponseWriter, _ *http.Request) {
 	summaries := s.mgr.List()
 	writeJSON(w, http.StatusOK, listResponse{Sessions: summaries})
 }

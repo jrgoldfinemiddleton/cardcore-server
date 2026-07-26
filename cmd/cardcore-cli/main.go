@@ -165,7 +165,6 @@ func run(cfg *cliConfig) error {
 		sessionID string
 		token     string
 		mySeat    int
-		created   bool
 	)
 
 	switch {
@@ -178,27 +177,19 @@ func run(cfg *cliConfig) error {
 	case cfg.observe:
 		// Observer mode: create a 4-AI session.
 		var err error
-		sessionID, _, err = createObserverSession(ctx, sc, cfg.game, cfg.aiType, cfg.pacing)
+		sessionID, _, err = createSession(ctx, sc, cfg.game, cfg.aiType, true, cfg.pacing)
 		if err != nil {
 			return err
 		}
-		created = true
 
 	default:
 		// Auto-create human player: 1 human + 3 AI, seat 0.
 		var err error
-		sessionID, token, err = createHumanSession(ctx, sc, cfg.game, cfg.aiType, cfg.pacing)
+		sessionID, token, err = createSession(ctx, sc, cfg.game, cfg.aiType, false, cfg.pacing)
 		if err != nil {
 			return err
 		}
 		mySeat = 0
-		created = true
-	}
-
-	if created {
-		if err := sc.StartSession(ctx, sessionID); err != nil {
-			return fmt.Errorf("start session: %w", err)
-		}
 	}
 
 	// Connect to WebSocket.
@@ -367,34 +358,23 @@ func runPlayer(
 	}
 }
 
-// createHumanSession creates a session with one human seat and the rest
-// AI seats, returning the session ID and the human seat token.
-func createHumanSession(
+// createSession creates and starts a session with the given game.
+func createSession(
 	ctx context.Context,
 	sc *client.SessionClient,
 	game, aiType string,
+	observer bool,
 	pacing int,
 ) (string, string, error) {
+	zero := 0
 	switch game {
 	case heartsclient.GameName:
-		return heartscli.CreateHumanSession(ctx, sc, aiType, pacing)
+		id, token, _, err := heartscli.CreateSession(
+			ctx, sc, aiType, observer, &pacing, &zero,
+		)
+		return id, token, err
 	default:
 		return "", "", fmt.Errorf("unsupported game: %q", game)
-	}
-}
-
-// createObserverSession creates an all-AI session for observation.
-func createObserverSession(
-	ctx context.Context,
-	sc *client.SessionClient,
-	game, aiType string,
-	pacing int,
-) (string, []client.SeatInfo, error) {
-	switch game {
-	case heartsclient.GameName:
-		return heartscli.CreateObserverSession(ctx, sc, aiType, pacing)
-	default:
-		return "", nil, fmt.Errorf("unsupported game: %q", game)
 	}
 }
 

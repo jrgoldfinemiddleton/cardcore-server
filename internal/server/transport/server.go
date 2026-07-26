@@ -128,7 +128,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	// hit the wire at once; the handshake wait then drains off the
 	// shutdown path.
 	var wg sync.WaitGroup
-	s.wsConns.Range(func(key, value any) bool {
+	s.wsConns.Range(func(key, _ any) bool {
 		conn := key.(*websocket.Conn)
 		wg.Go(func() {
 			_ = conn.Close(websocket.StatusGoingAway, "server shutting down")

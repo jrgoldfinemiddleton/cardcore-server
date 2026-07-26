@@ -139,7 +139,7 @@ func TestDeleteSession(t *testing.T) {
 // TestDeleteSessionNotFound verifies that a 404 response is returned as
 // an HTTPError.
 func TestDeleteSessionNotFound(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		_ = json.NewEncoder(w).Encode(struct {
 			Error string `json:"error"`

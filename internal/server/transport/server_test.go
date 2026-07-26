@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,6 +20,14 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
 )
+
+// testGameConfig is a minimal session.GameConfig implementation for
+// building a registry in transport tests.
+type testGameConfig struct{}
+
+// unmarshalableTestGameConfig creates a game whose snapshots cannot be
+// marshaled to JSON.
+type unmarshalableTestGameConfig struct{}
 
 // stubGame is a minimal Game implementation for transport tests.
 type stubGame struct{}
@@ -121,7 +131,7 @@ func TestServerStartStop(t *testing.T) {
 // TestPanicRecovery verifies that the recovery middleware catches
 // panics and returns 500 without crashing the server.
 func TestPanicRecovery(t *testing.T) {
-	panicHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	panicHandler := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		panic("intentional panic for test")
 	})
 	wrapped := recoveryMiddleware(panicHandler, slog.Default())
@@ -138,7 +148,7 @@ func TestPanicRecovery(t *testing.T) {
 // TestRequestLogMiddleware verifies that the request logging middleware
 // passes through to the next handler.
 func TestRequestLogMiddleware(t *testing.T) {
-	okHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	okHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	wrapped := requestLogMiddleware(okHandler, slog.Default())
@@ -296,7 +306,7 @@ func TestHandleCreateSession(t *testing.T) {
 			if tc.wantErr != "" {
 				var er errorResponse
 				if err := json.NewDecoder(rec.Body).Decode(&er); err != nil {
-					t.Fatalf("decode error: %v", err)
+					t.Fatalf("decode: %v", err)
 				}
 				if !strings.Contains(er.Error, tc.wantErr) {
 					t.Errorf("got error %q, want containing %q", er.Error, tc.wantErr)
@@ -750,32 +760,15 @@ func TestHandleStartSession(t *testing.T) {
 	})
 
 	t.Run("unknown game", func(t *testing.T) {
-		rejectFactory := func(cfg session.Config) (session.Game, error) {
-			switch cfg.Game {
-			case "hearts":
-				return stubGame{}, nil
-			default:
-				return nil, fmt.Errorf("%w: unknown game: %s", session.ErrInvalidConfig, cfg.Game)
-			}
-		}
-		mgr := session.NewManager(rejectFactory, session.DefaultServerDelays)
-		srv := NewServer(Config{Manager: mgr, Addr: ":0"})
+		mgr := session.NewManager(session.NewRegistry(), session.DefaultServerDelays)
 
 		cfg := session.Config{
 			Game:  "poker",
 			Seats: []session.SeatConfig{{Type: session.SeatAI, AIType: "random"}},
 		}
-		info, _, err := mgr.Create(cfg)
-		if err != nil {
-			t.Fatalf("create: %v", err)
-		}
-
-		req := httptest.NewRequest(http.MethodPost, "/sessions/"+info.SessionID+"/start", nil)
-		rec := httptest.NewRecorder()
-		srv.mux.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusBadRequest {
-			t.Errorf("got status %d, want %d", rec.Code, http.StatusBadRequest)
+		_, _, err := mgr.Create(cfg)
+		if err == nil {
+			t.Fatal("Create() succeeded, want error")
 		}
 	})
 }
@@ -1431,28 +1424,39 @@ func TestServerShutdownPropagatesGoingAwayToObserverIntegration(t *testing.T) {
 	}
 }
 
-// mockManager returns a session manager with a stubGame factory.
-func mockManager() *session.Manager {
-	return session.NewManager(func(_ session.Config) (session.Game, error) {
-		return stubGame{}, nil
-	}, session.DefaultServerDelays)
+// Name returns the game name for the test config.
+func (testGameConfig) Name() string { return "hearts" }
+
+// RegisterFlags registers no flags for the test config.
+func (testGameConfig) RegisterFlags(*flag.FlagSet) {}
+
+// Validate always succeeds for the test config.
+func (testGameConfig) Validate() error { return nil }
+
+// NewGame returns a stubGame for the test config.
+func (testGameConfig) NewGame(_ session.Config, _ *rand.Rand) (session.Game, error) {
+	return stubGame{}, nil
 }
 
-// validConfig returns a minimal valid session.Config for tests.
-func validConfig() session.Config {
-	return session.Config{
-		Game:  "hearts",
-		Seats: []session.SeatConfig{{Type: session.SeatAI, AIType: "random"}},
-	}
+// ValidateConfig always succeeds for the test config.
+func (testGameConfig) ValidateConfig(_ session.Config) error { return nil }
+
+// Name returns the game name for the unmarshalable test config.
+func (unmarshalableTestGameConfig) Name() string { return "hearts" }
+
+// RegisterFlags registers no flags for the unmarshalable test config.
+func (unmarshalableTestGameConfig) RegisterFlags(*flag.FlagSet) {}
+
+// Validate always succeeds for the unmarshalable test config.
+func (unmarshalableTestGameConfig) Validate() error { return nil }
+
+// NewGame returns an unmarshalableStubGame for the unmarshalable test config.
+func (unmarshalableTestGameConfig) NewGame(_ session.Config, _ *rand.Rand) (session.Game, error) {
+	return unmarshalableStubGame{}, nil
 }
 
-// setupTestServer creates a Server with a mock manager for handler tests.
-func setupTestServer(t *testing.T) (*Server, *session.Manager) {
-	t.Helper()
-	mgr := mockManager()
-	srv := NewServer(Config{Manager: mgr, Addr: ":0"})
-	return srv, mgr
-}
+// ValidateConfig always succeeds for the unmarshalable test config.
+func (unmarshalableTestGameConfig) ValidateConfig(_ session.Config) error { return nil }
 
 // HandleAction implements session.Game.
 func (stubGame) HandleAction(int, *api.InboundMessage) (session.StepResult, *session.CommandError) {
@@ -1473,7 +1477,7 @@ func (stubGame) Resume() (session.StepResult, error) {
 func (stubGame) Turn() int { return 0 }
 
 // PlayerSnapshot implements session.Game.
-func (stubGame) PlayerSnapshot(seat, seq int) any {
+func (stubGame) PlayerSnapshot(_, seq int) any {
 	return map[string]any{"type": "snapshot", "seq": seq}
 }
 
@@ -1496,6 +1500,9 @@ func (stubGame) SetPaused(bool) {}
 
 // Paused implements session.Game.
 func (stubGame) Paused() bool { return false }
+
+// ValidateConfig implements session.Game.
+func (stubGame) ValidateConfig(_ session.Config) error { return nil }
 
 // HandleAction implements session.Game for unmarshalableStubGame.
 func (unmarshalableStubGame) HandleAction(
@@ -1541,6 +1548,32 @@ func (unmarshalableStubGame) SetPaused(bool) {}
 
 // Paused implements session.Game for unmarshalableStubGame.
 func (unmarshalableStubGame) Paused() bool { return false }
+
+// ValidateConfig implements session.Game for unmarshalableStubGame.
+func (unmarshalableStubGame) ValidateConfig(_ session.Config) error { return nil }
+
+// mockManager returns a session manager with a stubGame registry.
+func mockManager() *session.Manager {
+	r := session.NewRegistry()
+	r.Register(&testGameConfig{})
+	return session.NewManager(r, session.DefaultServerDelays)
+}
+
+// validConfig returns a minimal valid session.Config for tests.
+func validConfig() session.Config {
+	return session.Config{
+		Game:  "hearts",
+		Seats: []session.SeatConfig{{Type: session.SeatAI, AIType: "random"}},
+	}
+}
+
+// setupTestServer creates a Server with a mock manager for handler tests.
+func setupTestServer(t *testing.T) (*Server, *session.Manager) {
+	t.Helper()
+	mgr := mockManager()
+	srv := NewServer(Config{Manager: mgr, Addr: ":0"})
+	return srv, mgr
+}
 
 // setupTestServerWithSession creates a server and an active session with
 // 1 human + 3 AI seats. It returns the server, session ID, and the
@@ -1590,9 +1623,9 @@ func setupTestServerWithUnmarshalableSession(t *testing.T) (
 	*Server, string, string,
 ) {
 	t.Helper()
-	mgr := session.NewManager(func(_ session.Config) (session.Game, error) {
-		return unmarshalableStubGame{}, nil
-	}, session.DefaultServerDelays)
+	r := session.NewRegistry()
+	r.Register(&unmarshalableTestGameConfig{})
+	mgr := session.NewManager(r, session.DefaultServerDelays)
 	srv := NewServer(Config{Manager: mgr, Addr: ":0"})
 
 	cfg := session.Config{
