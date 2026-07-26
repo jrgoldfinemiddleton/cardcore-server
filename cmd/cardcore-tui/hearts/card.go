@@ -49,71 +49,23 @@ const (
 	suitSpades   = "spades"
 )
 
-// rankTen is the only rank string whose display symbol is two characters,
-// so it is checked explicitly when computing card widths.
-const rankTen = "ten"
-
-// RankSymbol maps a rank string to its display symbol.
-//
-// Known ranks: "two".."ten", "jack", "queen", "king", "ace".
-// Unknown ranks return "?".
-func RankSymbol(rank string) string {
-	switch rank {
-	case "two":
-		return "2"
-	case "three":
-		return "3"
-	case "four":
-		return "4"
-	case "five":
-		return "5"
-	case "six":
-		return "6"
-	case "seven":
-		return "7"
-	case "eight":
-		return "8"
-	case "nine":
-		return "9"
-	case rankTen:
-		return "10"
-	case "jack":
-		return "J"
-	case "queen":
-		return "Q"
-	case "king":
-		return "K"
-	case "ace":
-		return "A"
-	default:
-		return "?"
-	}
-}
-
-// SuitSymbol maps a suit string to its Unicode symbol.
-//
-// Known suits: "clubs", "diamonds", "hearts", "spades".
-// Unknown suits return "?".
-func SuitSymbol(suit string) string {
-	switch suit {
-	case suitClubs:
-		return "♣"
-	case suitDiamonds:
-		return "♦"
-	case suitHearts:
-		return "♥"
-	case suitSpades:
-		return "♠"
-	default:
-		return "?"
-	}
+// passDirectionLabels maps a pass direction to the player and observer info
+// text shown during the passing phase.
+var passDirectionLabels = map[string]struct {
+	player   string
+	observer string
+}{
+	"left":   {"Pass left", "Players Passing Left"},
+	"right":  {"Pass right", "Players Passing Right"},
+	"across": {"Pass across", "Players Passing Across"},
+	"none":   {"No pass", "No Passing"},
 }
 
 // CardLabel returns the short display label for a card: suit symbol followed by
 // rank symbol. For example, Card{"ace","spades"} returns "♠A" and
 // Card{"ten","hearts"} returns "♥10".
 func CardLabel(c heartsclient.Card) string {
-	return SuitSymbol(c.Suit) + RankSymbol(c.Rank)
+	return heartsclient.SuitSymbol(c.Suit) + heartsclient.RankSymbol(c.Rank)
 }
 
 // RenderCard returns a bordered card box for the given visual state, using
@@ -313,16 +265,17 @@ func cardSet(cards []heartsclient.Card) map[heartsclient.Card]bool {
 
 // formatPassDirection returns a human-readable label for a pass direction.
 func formatPassDirection(dir string) string {
-	switch dir {
-	case "left":
-		return "Pass left"
-	case "right":
-		return "Pass right"
-	case "across":
-		return "Pass across"
-	case "none":
-		return "No pass"
-	default:
-		return fmt.Sprintf("Pass %s", dir)
+	if l, ok := passDirectionLabels[dir]; ok {
+		return l.player
 	}
+	return fmt.Sprintf("Pass %s", dir)
+}
+
+// formatObserverPassDirection returns the central info text for the observer
+// view during the passing phase, capitalizing the direction.
+func formatObserverPassDirection(dir string) string {
+	if l, ok := passDirectionLabels[dir]; ok {
+		return l.observer
+	}
+	return fmt.Sprintf("Players Passing %s", dir)
 }

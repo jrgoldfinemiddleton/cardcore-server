@@ -113,57 +113,7 @@ func formatCards(cards []heartsclient.Card) string {
 
 // formatCard returns a compact representation like "2♣" or "A♠".
 func formatCard(c heartsclient.Card) string {
-	return formatRank(c.Rank) + formatSuit(c.Suit)
-}
-
-// formatRank maps a rank name to its compact symbol.
-func formatRank(r string) string {
-	switch r {
-	case "two":
-		return "2"
-	case "three":
-		return "3"
-	case "four":
-		return "4"
-	case "five":
-		return "5"
-	case "six":
-		return "6"
-	case "seven":
-		return "7"
-	case "eight":
-		return "8"
-	case "nine":
-		return "9"
-	case "ten":
-		return "10"
-	case "jack":
-		return "J"
-	case "queen":
-		return "Q"
-	case "king":
-		return "K"
-	case "ace":
-		return "A"
-	default:
-		return "?"
-	}
-}
-
-// formatSuit maps a suit name to its compact symbol.
-func formatSuit(s string) string {
-	switch s {
-	case "clubs":
-		return "♣"
-	case "spades":
-		return "♠"
-	case "hearts":
-		return "♥"
-	case "diamonds":
-		return "♦"
-	default:
-		return "?"
-	}
+	return heartsclient.RankSymbol(c.Rank) + heartsclient.SuitSymbol(c.Suit)
 }
 
 // formatTrick formats a trick as a list of played cards.

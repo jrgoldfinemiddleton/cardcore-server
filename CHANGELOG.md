@@ -71,6 +71,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- Consolidated duplicated environment-variable and card-symbol helpers into shared packages: `internal/flags` for `EnvOrDefault` / `IntEnvOrDefault` / `BoolEnvOrDefault`, and `internal/client/hearts` for `RankSymbol`, `SuitSymbol`, `RankValue`, and `GameName`. The server, TUI, and CLI binaries now import these helpers instead of defining their own copies
+- Merged duplicated Hearts pass-direction formatting in the TUI into a single shared map; `formatPassDirection` and `formatObserverPassDirection` now read from the same data structure
 - Server deadline broadcast: `turn_deadline_ms` is now stamped onto the same snapshot produced by state changes (initial deal, human play, AI play, resume, timeout) instead of emitting a separate seq-incrementing broadcast. This preserves strict `seq` monotonicity and keeps `stale_seq` checks consistent
 - TUI/CLI WebSocket close handling: a normal end of stream (EOF or server close code 1000) is now reported as "Game ended" rather than "Internal server error". The server transport sends a `1000 Normal Closure` frame when the session ends cleanly
 - Bumped `cardcore` engine dependency to v0.6.0: the engine now separates playing the fourth card from resolving the trick. The server Hearts adapter pauses on the fourth card and calls `ResolveTrick()` during `Resume()` to broadcast the completed trick before advancing to the next trick
@@ -84,6 +86,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- Documentation accuracy: added missing `make race`, `make create-labels`, and `make apply-labels` targets to the README Makefile table; corrected the CLI `-ai-type` description to include `heuristic`; removed references to the not-yet-implemented `make bench` target from `CONTRIBUTING.md`
 - Documentation accuracy: corrected `internal/api/` description in `README.md`, updated stale command directory names in `doc/architecture.md`, and removed unused `bubbles/v2` from `doc/dependencies.md`
 - `action_id` length validation: `ValidateInboundMessage` now rejects action IDs longer than 256 characters, matching the protocol spec in `doc/api.md`
 - TUI default server URL now uses `127.0.0.1` instead of `localhost` to match the README and avoid IPv6 resolution surprises

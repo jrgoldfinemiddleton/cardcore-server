@@ -957,7 +957,6 @@ func (s *session) evictLRUActionID() {
 
 // aiActionDelay returns the configured AI action delay in milliseconds.
 // If the per-session config value is nil, the server-wide default is used.
-// so the goroutine uses server-wide defaults instead of hardcoded 1000.
 func (s *session) aiActionDelay() int {
 	if s.config.AIActionDelayMS != nil {
 		return *s.config.AIActionDelayMS
@@ -968,7 +967,6 @@ func (s *session) aiActionDelay() int {
 // turnTimeout returns the turn timeout as a time.Duration. If the
 // per-session config value is nil, the server-wide default is used. 0
 // or negative means disabled.
-// so the goroutine uses server-wide defaults instead of hardcoded 30000.
 func (s *session) turnTimeout() time.Duration {
 	if s.config.TurnTimeoutMS != nil {
 		return time.Duration(*s.config.TurnTimeoutMS) * time.Millisecond
@@ -977,7 +975,6 @@ func (s *session) turnTimeout() time.Duration {
 }
 
 // newSession creates a session and starts its goroutine.
-// per-session overrides with server-wide fallback.
 func newSession(
 	id string, g Game, cfg Config, defaults DefaultDelays, onDone func(State),
 ) *session {

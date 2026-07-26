@@ -5,9 +5,8 @@ import (
 	"fmt"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
+	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
 )
-
-const gameNameHearts = "hearts"
 
 // validAITypes is the set of AI player types accepted by the Hearts server
 // adapter. CreateSession rejects any aiType not in this set before issuing
@@ -50,7 +49,7 @@ func CreateSession(
 	}
 
 	cfg := client.Config{
-		Game:               gameNameHearts,
+		Game:               heartsclient.GameName,
 		Seats:              seats,
 		AIActionDelayMS:    aiActionDelayMS,
 		DealDisplayDelayMS: dealDisplayDelayMS,

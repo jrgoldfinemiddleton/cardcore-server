@@ -5,9 +5,8 @@ import (
 	"fmt"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
+	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
 )
-
-const gameNameHearts = "hearts"
 
 // CreateHumanSession creates a Hearts session with one human seat and
 // three AI seats, returning the session ID and the human seat token.
@@ -20,7 +19,7 @@ func CreateHumanSession(
 ) (string, string, error) {
 	zero := 0
 	cfg := client.Config{
-		Game: gameNameHearts,
+		Game: heartsclient.GameName,
 		Seats: []client.SeatConfig{
 			{Type: "human"},
 			{Type: "ai", AIType: aiType},
@@ -54,7 +53,7 @@ func CreateObserverSession(
 ) (string, []client.SeatInfo, error) {
 	zero := 0
 	cfg := client.Config{
-		Game: gameNameHearts,
+		Game: heartsclient.GameName,
 		Seats: []client.SeatConfig{
 			{Type: "ai", AIType: aiType},
 			{Type: "ai", AIType: aiType},

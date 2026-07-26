@@ -89,15 +89,7 @@ Benchmark conventions follow `cardcore`'s:
 - Share deterministic fixtures via `*_helpers_test.go` builders.
 - Place `Benchmark*` functions after `Test*` in the file.
 
-When changing performance-sensitive code, run benchmarks before and after and include the comparison in your PR description:
-
-```bash
-git stash
-make bench 2>&1 | tee /tmp/bench-old.txt
-git stash pop
-make bench 2>&1 | tee /tmp/bench-new.txt
-go tool benchstat /tmp/bench-old.txt /tmp/bench-new.txt
-```
+Benchmarks are not yet implemented. When the benchmark suite is added, this section will be updated with the comparison workflow.
 
 ## Code Conventions
 
