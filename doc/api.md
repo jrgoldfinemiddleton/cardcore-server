@@ -446,9 +446,9 @@ When the server rejects a client command, it sends an `error` message
 |-----------|-----------|-------|
 | Duplicate `action_id` | *(none)* | Idempotent success: server returns the cached snapshot from the original action. Payload differences on retry are ignored. Client processes the response normally and stops retrying. |
 | `seq` behind server | `stale_seq` | Client should resync from the snapshot that immediately follows this error. The server always sends a fresh snapshot after a `stale_seq` error. |
-| Not this seat's turn | `out_of_turn` | Returned when a command is sent and it is not the sender's turn — whether it is another human's turn or an AI seat's turn. |
-| Illegal move | `illegal_move` | The `message` field contains the game engine's explanation of the rule violation. |
-| Wrong phase | `wrong_phase` | e.g., a command sent during the wrong game phase. |
+| Not this seat's turn | `out_of_turn` | Returned when a well-formed command is sent and it is not the sender's turn — whether it is another human's turn or an AI seat's turn. Classified by the game engine via `errors.Is` against the `ErrOutOfTurn` sentinel. |
+| Illegal move | `illegal_move` | The `message` field contains the game engine's explanation of the rule violation. Classified by the game engine via `errors.Is` against the `ErrIllegalMove` sentinel. |
+| Wrong phase | `wrong_phase` | Returned when a well-formed command is sent during a game phase that does not allow it. Classified by the game engine via `errors.Is` against the `ErrWrongPhase` sentinel. |
 | Game is finished | `game_over` | Session is in `finished` state. |
 | Malformed message | `malformed_message` | Bad JSON, missing required fields, unknown type, empty or over-length `action_id`. Includes `action_id` in response when the field was parseable; omits it only when JSON parsing itself failed. |
 | Pause/resume not allowed | `pause_not_allowed` | Game-specific: pause or resume was rejected because it is not the requester's turn, the game is not in an actionable phase, or the game is not paused. See the game's protocol file for exact rules. |

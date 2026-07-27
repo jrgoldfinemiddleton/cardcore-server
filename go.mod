@@ -12,7 +12,7 @@ require (
 	charm.land/lipgloss/v2 v2.0.3
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/coder/websocket v1.8.14
-	github.com/jrgoldfinemiddleton/cardcore v0.6.0
+	github.com/jrgoldfinemiddleton/cardcore v0.7.0
 )
 
 require (

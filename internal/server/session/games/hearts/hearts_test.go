@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math/rand/v2"
+	"strings"
 	"testing"
 	"time"
 
@@ -274,6 +275,66 @@ func TestHandleActionUnknownType(t *testing.T) {
 	}
 	if got, want := cmdErr.Code, api.ErrMalformedMessage; got != want {
 		t.Errorf("got code %q, want %q", got, want)
+	}
+}
+
+// TestHandlePassCardsWrongPhase verifies that pass_cards during the play
+// phase returns a wrong_phase error via the engine sentinel.
+func TestHandlePassCardsWrongPhase(t *testing.T) {
+	a := adapterInPlayPhase(t)
+	cards := firstThreeCards(a, 0)
+	msg := passCardsMsg(t, cards)
+	_, cmdErr := a.HandleAction(0, msg)
+	if cmdErr == nil {
+		t.Fatal("got nil CommandError, want wrong_phase")
+	}
+	if got, want := cmdErr.Code, api.ErrWrongPhase; got != want {
+		t.Errorf("got code %q, want %q", got, want)
+	}
+}
+
+// TestHandlePlayCardPreservesEngineMessage verifies that the wire error
+// message contains the engine's descriptive explanation.
+func TestHandlePlayCardPreservesEngineMessage(t *testing.T) {
+	a := adapterInPlayPhase(t)
+	seat := int(a.game.Turn)
+
+	otherSeat := (seat + 1) % hearts.NumPlayers
+	absentCard := heartsapi.CardFromEngine(
+		a.game.Hands[otherSeat].Cards[0],
+	)
+	msg := playCardMsg(t, absentCard)
+	_, cmdErr := a.HandleAction(seat, msg)
+	if cmdErr == nil {
+		t.Fatal("got nil CommandError, want illegal_move")
+	}
+	if got, want := cmdErr.Code, api.ErrIllegalMove; got != want {
+		t.Errorf("got code %q, want %q", got, want)
+	}
+	if !strings.Contains(cmdErr.Message, "does not have") {
+		t.Errorf("message = %q, want to contain engine explanation", cmdErr.Message)
+	}
+}
+
+// TestEngineErrToCommandErrorMapping verifies direct mapping of each
+// engine sentinel to the correct wire code.
+func TestEngineErrToCommandErrorMapping(t *testing.T) {
+	cases := []struct {
+		name     string
+		err      error
+		wantCode string
+	}{
+		{"wrong_phase", hearts.ErrWrongPhase, api.ErrWrongPhase},
+		{"out_of_turn", hearts.ErrOutOfTurn, api.ErrOutOfTurn},
+		{"illegal_move", hearts.ErrIllegalMove, api.ErrIllegalMove},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cmdErr := engineErrToCommandError(tc.err)
+			if got, want := cmdErr.Code, tc.wantCode; got != want {
+				t.Errorf("got code %q, want %q", got, want)
+			}
+		})
 	}
 }
 

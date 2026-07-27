@@ -303,29 +303,6 @@ func (a *GameAdapter) ObserverSnapshot(seq int) any {
 func (a *GameAdapter) handlePlayCard(
 	seat int, payload json.RawMessage,
 ) (session.StepResult, *session.CommandError) {
-	s := hearts.Seat(seat)
-
-	if a.game.Phase != hearts.PhasePlay {
-		a.logger.Warn("play rejected: wrong phase",
-			"seat", seat, "phase", heartsapi.PhaseToWire(a.game.Phase),
-		)
-		return session.StepResult{},
-			&session.CommandError{
-				Code:    api.ErrWrongPhase,
-				Message: "cannot play a card during this phase",
-			}
-	}
-	if s != a.game.Turn {
-		a.logger.Warn("play rejected: out of turn", "seat", seat, "current_turn", a.game.Turn)
-		return session.StepResult{},
-			&session.CommandError{
-				Code: api.ErrOutOfTurn,
-				Message: fmt.Sprintf(
-					"not your turn (current: seat %d)", a.game.Turn,
-				),
-			}
-	}
-
 	var p heartsapi.PlayCardPayload
 	if err := json.Unmarshal(payload, &p); err != nil {
 		return session.StepResult{},
@@ -346,11 +323,7 @@ func (a *GameAdapter) handlePlayCard(
 
 	res, playErr := a.playCard(seat, ec)
 	if playErr != nil {
-		return session.StepResult{},
-			&session.CommandError{
-				Code:    api.ErrIllegalMove,
-				Message: playErr.Error(),
-			}
+		return session.StepResult{}, engineErrToCommandError(playErr)
 	}
 	return res, nil
 }
@@ -359,19 +332,6 @@ func (a *GameAdapter) handlePlayCard(
 func (a *GameAdapter) handlePassCards(
 	seat int, payload json.RawMessage,
 ) (session.StepResult, *session.CommandError) {
-	s := hearts.Seat(seat)
-
-	if a.game.Phase != hearts.PhasePass {
-		a.logger.Warn("pass rejected: wrong phase",
-			"seat", seat, "phase", heartsapi.PhaseToWire(a.game.Phase),
-		)
-		return session.StepResult{},
-			&session.CommandError{
-				Code:    api.ErrWrongPhase,
-				Message: "cannot pass cards during this phase",
-			}
-	}
-
 	var p heartsapi.PassCardsPayload
 	if err := json.Unmarshal(payload, &p); err != nil {
 		return session.StepResult{},
@@ -407,12 +367,8 @@ func (a *GameAdapter) handlePassCards(
 		cards[i] = ec
 	}
 
-	if err := a.game.SetPass(s, cards); err != nil {
-		return session.StepResult{},
-			&session.CommandError{
-				Code:    api.ErrIllegalMove,
-				Message: err.Error(),
-			}
+	if err := a.game.SetPass(hearts.Seat(seat), cards); err != nil {
+		return session.StepResult{}, engineErrToCommandError(err)
 	}
 
 	// SetPass transitions PhasePass→PhasePlay when the 4th player
@@ -465,6 +421,33 @@ func (a *GameAdapter) viewState() heartsview.ViewState {
 	}
 	vs.Paused = a.isPaused
 	return vs
+}
+
+// engineErrToCommandError maps a Hearts engine error to a wire
+// CommandError using errors.Is against the engine's typed sentinels.
+func engineErrToCommandError(err error) *session.CommandError {
+	switch {
+	case errors.Is(err, hearts.ErrWrongPhase):
+		return &session.CommandError{
+			Code:    api.ErrWrongPhase,
+			Message: err.Error(),
+		}
+	case errors.Is(err, hearts.ErrOutOfTurn):
+		return &session.CommandError{
+			Code:    api.ErrOutOfTurn,
+			Message: err.Error(),
+		}
+	case errors.Is(err, hearts.ErrIllegalMove):
+		return &session.CommandError{
+			Code:    api.ErrIllegalMove,
+			Message: err.Error(),
+		}
+	default:
+		return &session.CommandError{
+			Code:    api.ErrInternal,
+			Message: err.Error(),
+		}
+	}
 }
 
 // validateConfig checks game-specific constraints for a Hearts session.
