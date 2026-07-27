@@ -9,13 +9,13 @@ import (
 
 // createResponse is the JSON body for POST /sessions responses.
 type createResponse struct {
-	SessionID string             `json:"session_id"`
-	Seats     []session.SeatInfo `json:"seats"`
+	SessionID string         `json:"session_id"`
+	Seats     []session.Seat `json:"seats"`
 }
 
 // listResponse is the JSON body for GET /sessions responses.
 type listResponse struct {
-	Sessions []session.SessionSummary `json:"sessions"`
+	Sessions []session.Summary `json:"sessions"`
 }
 
 // startResponse is the JSON body for POST /sessions/{id}/start responses.
@@ -26,8 +26,8 @@ type startResponse struct {
 
 // patchResponse is the JSON body for PATCH /sessions/{id} responses.
 type patchResponse struct {
-	session.SessionInfo
-	SeatTokens []session.SeatInfo `json:"seat_tokens,omitempty"`
+	session.Info
+	SeatTokens []session.Seat `json:"seat_tokens,omitempty"`
 }
 
 // registerRoutes adds all HTTP and WebSocket routes to s.mux.
@@ -94,7 +94,7 @@ func (s *Server) handlePatchSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, httpStatus(err), err.Error())
 		return
 	}
-	resp := patchResponse{SessionInfo: *info}
+	resp := patchResponse{Info: *info}
 	if seats != nil {
 		resp.SeatTokens = seats
 	}

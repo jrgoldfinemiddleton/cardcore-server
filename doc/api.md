@@ -217,8 +217,11 @@ seat configuration was changed.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| *(same as `GET /sessions/{id}`)* | | All `SessionInfo` fields. |
-| `seat_tokens` | array of `SeatInfo` | **Present only when `seats` was updated.** Contains fresh bearer tokens for the new seat configuration. |
+| *(same as `GET /sessions/{id}`)* | | All `Info` fields. |
+| `seat_tokens` | array | **Present only when `seats` was updated.** Contains fresh bearer tokens for the new seat configuration. |
+| `seat_tokens[].index` | integer | Seat index. |
+| `seat_tokens[].type` | string | `"human"` or `"ai"`. |
+| `seat_tokens[].token` | string | Bearer token for WebSocket authentication. Only present for human seats. |
 
 **Errors:**
 

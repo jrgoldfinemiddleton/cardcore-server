@@ -139,7 +139,7 @@ func TestCreateAIActionDelayZero(t *testing.T) {
 	}
 }
 
-// TestGetReturnsSessionInfo verifies that Get returns details matching
+// TestGetReturnsSessionInfo verifies that Get returns Info details matching
 // the created session.
 func TestGetReturnsSessionInfo(t *testing.T) {
 	m := NewManager(mockGameRegistry(), DefaultServerDelays)
@@ -1013,7 +1013,7 @@ func TestLookupTokenAfterUpdate(t *testing.T) {
 		{Type: SeatHuman},
 		{Type: SeatHuman},
 	}
-	_, newSeatInfos, err := m.Update(info.SessionID, PatchConfig{Seats: newSeats})
+	_, newSeatTokens, err := m.Update(info.SessionID, PatchConfig{Seats: newSeats})
 	if err != nil {
 		t.Fatalf("Update() error: %v", err)
 	}
@@ -1026,7 +1026,7 @@ func TestLookupTokenAfterUpdate(t *testing.T) {
 
 	// New tokens should be valid.
 	var newToken string
-	for _, s := range newSeatInfos {
+	for _, s := range newSeatTokens {
 		if s.Type == SeatHuman && s.Token != "" {
 			newToken = s.Token
 			break
@@ -1071,9 +1071,9 @@ func TestManagerMarshalFailureTransitionsToFinished(t *testing.T) {
 	}
 }
 
-// TestBuildSeatInfoTokens verifies token generation for mixed human/AI
+// TestBuildSeatTokens verifies token generation for mixed human/AI
 // seat configurations.
-func TestBuildSeatInfoTokens(t *testing.T) {
+func TestBuildSeatTokens(t *testing.T) {
 	tests := []struct {
 		name       string
 		configs    []SeatConfig
@@ -1108,9 +1108,9 @@ func TestBuildSeatInfoTokens(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			seats, err := buildSeatInfo(tc.configs)
+			seats, err := buildSeat(tc.configs)
 			if err != nil {
-				t.Fatalf("buildSeatInfo error: %v", err)
+				t.Fatalf("buildSeat error: %v", err)
 			}
 			if len(seats) != len(tc.configs) {
 				t.Fatalf("got %d seats, want %d", len(seats), len(tc.configs))

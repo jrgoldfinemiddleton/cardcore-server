@@ -435,7 +435,7 @@ func TestHandleGetSession(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", rec.Code, http.StatusOK)
 		}
-		var got session.SessionInfo
+		var got session.Info
 		if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
@@ -493,7 +493,7 @@ func TestHandlePatchSession(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", rec.Code, http.StatusOK)
 		}
-		var got session.SessionInfo
+		var got session.Info
 		if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
@@ -519,7 +519,7 @@ func TestHandlePatchSession(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", rec.Code, http.StatusOK)
 		}
-		var got session.SessionInfo
+		var got session.Info
 		if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
@@ -545,7 +545,7 @@ func TestHandlePatchSession(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", rec.Code, http.StatusOK)
 		}
-		var got session.SessionInfo
+		var got session.Info
 		if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
@@ -647,7 +647,7 @@ func TestHandlePatchSession(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Errorf("got status %d, want %d", rec.Code, http.StatusOK)
 		}
-		var got session.SessionInfo
+		var got session.Info
 		if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
@@ -1220,7 +1220,7 @@ func TestPlayerWSMarshalFailureRejectsConnectionIntegration(t *testing.T) {
 	for range 100 {
 		resp, pollErr := http.Get(pollURL)
 		if pollErr == nil && resp.StatusCode == http.StatusOK {
-			var info session.SessionInfo
+			var info session.Info
 			decErr := json.NewDecoder(resp.Body).Decode(&info)
 			_ = resp.Body.Close()
 			if decErr == nil && info.State == session.Finished {
@@ -1264,7 +1264,7 @@ func TestObserverWSMarshalFailureRejectsConnectionIntegration(t *testing.T) {
 	for range 100 {
 		resp, pollErr := http.Get(pollURL)
 		if pollErr == nil && resp.StatusCode == http.StatusOK {
-			var info session.SessionInfo
+			var info session.Info
 			decErr := json.NewDecoder(resp.Body).Decode(&info)
 			_ = resp.Body.Close()
 			if decErr == nil && info.State == session.Finished {
