@@ -60,9 +60,9 @@ type PatchConfig struct {
 	TurnTimeoutMS *int `json:"turn_timeout_ms,omitempty"`
 }
 
-// SeatInfo is returned from session creation and update with the seat's
+// Seat is returned from session creation and update with the seat's
 // token. Token is only present for human seats.
-type SeatInfo struct {
+type Seat struct {
 	// Index is the 0-based seat position.
 	Index int `json:"index"`
 	// Type is "human" or "ai".
@@ -73,7 +73,7 @@ type SeatInfo struct {
 }
 
 // SeatDetail describes a seat in session info responses.
-// Unlike SeatInfo, it does not include the token.
+// Unlike Seat, it does not include the token.
 type SeatDetail struct {
 	// Index is the 0-based seat position.
 	Index int `json:"index"`
@@ -84,8 +84,8 @@ type SeatDetail struct {
 	AIType string `json:"ai_type,omitempty"`
 }
 
-// SessionSummary is the abbreviated form returned by list operations.
-type SessionSummary struct {
+// Summary is the abbreviated form returned by list operations.
+type Summary struct {
 	// SessionID is the opaque session identifier.
 	SessionID string `json:"session_id"`
 	// Game is the game identifier.
@@ -98,9 +98,9 @@ type SessionSummary struct {
 	HumanCount int `json:"human_count"`
 }
 
-// SessionInfo is the full session detail returned by get and update
+// Info is the full session detail returned by get and update
 // operations.
-type SessionInfo struct {
+type Info struct {
 	// SessionID is the opaque session identifier.
 	SessionID string `json:"session_id"`
 	// Game is the game identifier.

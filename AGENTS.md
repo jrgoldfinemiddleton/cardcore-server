@@ -42,7 +42,7 @@ cardcore-server/
 ## CODE MAP
 | Symbol | Type | Location | Refs | Role |
 |--------|------|----------|------|------|
-| `Manager` | Struct | `internal/server/session/manager.go:53` | 21 | Thread-safe session registry |
+| `Manager` | Struct | `internal/server/session/manager.go:55` | 21 | Thread-safe session registry |
 | `Server` | Struct | `internal/server/transport/server.go:22` | 24 | HTTP/WebSocket server |
 | `InboundMessage` | Struct | `internal/api/api.go:20` | 60+ | Client-to-server message envelope |
 | `ErrorMessage` | Struct | `internal/api/api.go:28` | 15 | Server-to-client error envelope |
@@ -50,7 +50,7 @@ cardcore-server/
 | `SessionClient` | Struct | `internal/client/http.go` | 20+ | HTTP client for session lifecycle |
 | `Conn` | Struct | `internal/client/ws.go` | 15+ | WebSocket client connection |
 | `Command` | Struct | `internal/client/messages.go` | 15+ | Client command envelope |
-| `DefaultDelays` | Struct | `internal/server/session/manager.go:68` | 10+ | Server-wide timing defaults |
+| `DefaultDelays` | Struct | `internal/server/session/manager.go:71` | 10+ | Server-wide timing defaults |
 
 ## CONVENTIONS
 - `make check` is the local gate before any change; CI also runs `make race`.

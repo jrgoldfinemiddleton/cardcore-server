@@ -38,7 +38,7 @@ type entry struct {
 	config Config
 	// seats holds seat info with tokens. Replaced by Update when the seat
 	// configuration changes.
-	seats []SeatInfo
+	seats []Seat
 	// sess is the running session goroutine, nil until Start.
 	sess *session
 	// defaults holds the server-wide defaults at creation time.
@@ -87,11 +87,11 @@ func NewManager(registry *Registry, defaults DefaultDelays) *Manager {
 }
 
 // Create validates cfg, generates a session ID and per-seat tokens, and
-// stores the session in draft state. The returned *SessionInfo contains
-// the session state, the []SeatInfo contains freshly minted bearer
+// stores the session in draft state. The returned *Info contains
+// the session state, the []Seat contains freshly minted bearer
 // tokens for human seats (empty for AI seats), and error is non-nil on
 // validation or token-generation failure.
-func (m *Manager) Create(cfg Config) (*SessionInfo, []SeatInfo, error) {
+func (m *Manager) Create(cfg Config) (*Info, []Seat, error) {
 	if err := validateConfig(cfg); err != nil {
 		return nil, nil, err
 	}
@@ -104,7 +104,7 @@ func (m *Manager) Create(cfg Config) (*SessionInfo, []SeatInfo, error) {
 		return nil, nil, fmt.Errorf("generating session ID: %w", err)
 	}
 
-	seats, err := buildSeatInfo(cfg.Seats)
+	seats, err := buildSeat(cfg.Seats)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -133,9 +133,9 @@ func (m *Manager) Create(cfg Config) (*SessionInfo, []SeatInfo, error) {
 	return info, seats, nil
 }
 
-// Get returns the full SessionInfo for id. The returned error is
+// Get returns the full Info for id. The returned error is
 // ErrNotFound if the session does not exist or has expired.
-func (m *Manager) Get(id string) (*SessionInfo, error) {
+func (m *Manager) Get(id string) (*Info, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -148,11 +148,11 @@ func (m *Manager) Get(id string) (*SessionInfo, error) {
 
 // List returns a summary of every session that is not expired. The
 // slice is newly allocated on each call; callers may modify it.
-func (m *Manager) List() []SessionSummary {
+func (m *Manager) List() []Summary {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	out := make([]SessionSummary, 0)
+	out := make([]Summary, 0)
 	for id, e := range m.sessions {
 		if e.state == Expired {
 			continue
@@ -163,7 +163,7 @@ func (m *Manager) List() []SessionSummary {
 				humans++
 			}
 		}
-		out = append(out, SessionSummary{
+		out = append(out, Summary{
 			SessionID:  id,
 			Game:       e.config.Game,
 			State:      e.state,
@@ -176,13 +176,13 @@ func (m *Manager) List() []SessionSummary {
 
 // Update applies patch to the session identified by id. Only the seat
 // configuration and AI delay may be changed, and only while the session
-// is in draft state. When patch.Seats is non-nil the returned []SeatInfo
+// is in draft state. When patch.Seats is non-nil the returned []Seat
 // contains freshly minted bearer tokens for human seats; otherwise it is
-// nil. The returned *SessionInfo never contains tokens. Returns
+// nil. The returned *Info never contains tokens. Returns
 // ErrNotFound (missing/expired) or ErrNotDraft (already started).
 func (m *Manager) Update(
 	id string, patch PatchConfig,
-) (*SessionInfo, []SeatInfo, error) {
+) (*Info, []Seat, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -212,7 +212,7 @@ func (m *Manager) Update(
 		}
 		e.config.Seats = patch.Seats
 
-		seats, err := buildSeatInfo(patch.Seats)
+		seats, err := buildSeat(patch.Seats)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -501,9 +501,9 @@ func (m *Manager) SubmitAction(
 	}
 }
 
-// info builds a SessionInfo from an entry. Caller must hold at least a
+// info builds an [Info] from an entry. Caller must hold at least a
 // read lock.
-func (e *entry) info(id string) *SessionInfo {
+func (e *entry) info(id string) *Info {
 	details := make([]SeatDetail, len(e.config.Seats))
 	for i, sc := range e.config.Seats {
 		details[i] = SeatDetail{
@@ -512,7 +512,7 @@ func (e *entry) info(id string) *SessionInfo {
 			AIType: sc.AIType,
 		}
 	}
-	return &SessionInfo{
+	return &Info{
 		SessionID:          id,
 		Game:               e.config.Game,
 		State:              e.state,
@@ -590,11 +590,11 @@ func generateSeatToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// buildSeatInfo creates SeatInfo entries with tokens for human seats.
-func buildSeatInfo(configs []SeatConfig) ([]SeatInfo, error) {
-	seats := make([]SeatInfo, len(configs))
+// buildSeat creates Seat entries with tokens for human seats.
+func buildSeat(configs []SeatConfig) ([]Seat, error) {
+	seats := make([]Seat, len(configs))
 	for i, sc := range configs {
-		seats[i] = SeatInfo{Index: i, Type: sc.Type}
+		seats[i] = Seat{Index: i, Type: sc.Type}
 		if sc.Type == SeatHuman {
 			token, err := generateSeatToken()
 			if err != nil {

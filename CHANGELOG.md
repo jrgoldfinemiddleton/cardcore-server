@@ -76,6 +76,9 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- Refactored `internal/server/session/goroutine.go` into `commands.go`, `subscribers.go`, and `snapshot.go` to separate command handling, subscriber management, and snapshot broadcasting from the event loop
+- Renamed `session.SessionSummary` to `Summary`, `session.SessionInfo` to `Info`, and `session.SeatInfo` to `Seat` to remove package-name stutter
+- Renamed `session.buildSeatInfo` to `buildSeat` to match the updated `Seat` type
 - Renamed Hearts `Adapter` to `GameAdapter` and aligned it with the new `session.Game` and `view.View` abstractions
 - Renamed Hearts-specific server flags to `-hearts-trick-display-delay-ms` and `-hearts-round-display-delay-ms` (and matching env vars `CARDCORE_SERVER_HEARTS_TRICK_DISPLAY_DELAY_MS` / `CARDCORE_SERVER_HEARTS_ROUND_DISPLAY_DELAY_MS`) for consistent millisecond-suffix naming
 - Consolidated duplicated environment-variable and card-symbol helpers into shared packages: `internal/flags` for `EnvOrDefault` / `IntEnvOrDefault` / `BoolEnvOrDefault`, and `internal/client/hearts` for `RankSymbol`, `SuitSymbol`, `RankValue`, and `GameName`. The server, TUI, and CLI binaries now import these helpers instead of defining their own copies
@@ -93,6 +96,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- Documentation accuracy: expanded the `PATCH /sessions/{id}` response documentation in `doc/api.md` to break down the `seat_tokens` field and clarify its sub-fields
 - Documentation accuracy: added missing `make race`, `make create-labels`, and `make apply-labels` targets to the README Makefile table; corrected the CLI `-ai-type` description to include `heuristic`; removed references to the not-yet-implemented `make bench` target from `CONTRIBUTING.md`
 - Documentation accuracy: corrected `internal/api/` description in `README.md`, updated stale command directory names in `doc/architecture.md`, and removed unused `bubbles/v2` from `doc/dependencies.md`
 - `action_id` length validation: `ValidateInboundMessage` now rejects action IDs longer than 256 characters, matching the protocol spec in `doc/api.md`
