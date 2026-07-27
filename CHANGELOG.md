@@ -76,6 +76,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- Hearts adapter now maps engine errors to wire codes via `errors.Is` against the engine's typed sentinels (`hearts.ErrWrongPhase`, `hearts.ErrOutOfTurn`, and `hearts.ErrIllegalMove`), removing duplicated phase/turn pre-checks in `handlePlayCard` and `handlePassCards`. The engine is now the single source of truth for play/pass legality. Bumped `cardcore` engine dependency to v0.7.0.
 - Refactored `internal/server/session/goroutine.go` into `commands.go`, `subscribers.go`, and `snapshot.go` to separate command handling, subscriber management, and snapshot broadcasting from the event loop
 - Renamed `session.SessionSummary` to `Summary`, `session.SessionInfo` to `Info`, and `session.SeatInfo` to `Seat` to remove package-name stutter
 - Renamed `session.buildSeatInfo` to `buildSeat` to match the updated `Seat` type

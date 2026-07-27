@@ -217,10 +217,13 @@ differences:
 
 ## Error Codes
 
-Hearts uses the generic error codes defined in `doc/api.md`. The
-`illegal_move` error's `message` field contains the engine's
-explanation of the specific rule violation (e.g., "Must follow suit:
-diamonds was led").
+Hearts uses the generic error codes defined in `doc/api.md`. The server
+classifies `wrong_phase`, `out_of_turn`, and `illegal_move` by mapping
+the engine's typed sentinels (`hearts.ErrWrongPhase`,
+`hearts.ErrOutOfTurn`, and `hearts.ErrIllegalMove`) to their wire
+counterparts using `errors.Is`. The `illegal_move` error's `message`
+field contains the engine's explanation of the specific rule violation
+(e.g., "Must follow suit: diamonds was led").
 
 | Code | Condition |
 |------|-----------|
