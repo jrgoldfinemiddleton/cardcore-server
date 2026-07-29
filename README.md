@@ -25,20 +25,21 @@ cardcore-server/
 ├── cmd/
 │   ├── cardcore-server/ # Game server binary
 │   ├── cardcore-tui/    # Bubble Tea TUI client binary
-│   │   └── <game>/      # Game-specific rendering and command-builders
+│   │   └── games/<game>/ # Game-specific rendering and command-builders
 │   └── cardcore-cli/    # Non-TTY CLI client binary
-│       └── <game>/      # Game-specific command builders and formatters
+│       └── games/<game>/ # Game-specific command builders and formatters
 └── internal/
     ├── api/              # Shared wire-format envelopes and error codes
     │   └── games/<game>/ # Game-specific wire-format types
     ├── client/           # Shared protocol-agnostic client engine
-    │   └── <game>/       # Game-specific adapter and DTOs
+    │   └── games/<game>/ # Game-specific adapter and DTOs
+    ├── flags/            # Shared environment-variable and flag helpers
     └── server/
         ├── session/          # Session lifecycle and game goroutine
-        │   └── games/<game>/ # Game-specific adapter for session manager 
+        │   └── games/<game>/ # Game-specific adapter for session manager
         ├── transport/        # HTTP/WebSocket plumbing
         └── view/
-            └── <game>/       # Seat-filtered snapshot generation
+            └── games/<game>/ # Seat-filtered snapshot generation
 ```
 
 ## Requirements

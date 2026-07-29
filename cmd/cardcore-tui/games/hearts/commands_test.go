@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client/games/hearts"
 )
 
 // TestBuildPassCommandError verifies that BuildPassCommand returns an error

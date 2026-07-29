@@ -49,7 +49,7 @@ func (pc *playerConn) run(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	pc.logger.Debug("player connection started",
+	pc.logger.Info("player connection started",
 		"session_id", pc.sessionID,
 		"seat", pc.seat,
 	)
@@ -66,7 +66,7 @@ func (pc *playerConn) run(ctx context.Context) {
 
 	wg.Wait()
 
-	pc.logger.Debug("player connection ended",
+	pc.logger.Info("player connection ended",
 		"session_id", pc.sessionID,
 		"seat", pc.seat,
 	)
@@ -84,7 +84,7 @@ func (pc *playerConn) run(ctx context.Context) {
 	}
 	if err := pc.ws.Close(websocket.StatusNormalClosure, ""); err != nil {
 		if !errors.Is(err, net.ErrClosed) {
-			pc.logger.Error("ws close", "error", err)
+			pc.logger.Error("ws close after player run", "error", err)
 		}
 	}
 }
@@ -186,7 +186,7 @@ func (pc *playerConn) writer(ctx context.Context, cancel context.CancelFunc) {
 			if msg.CloseCode != 0 {
 				code := websocket.StatusCode(msg.CloseCode)
 				if err := pc.ws.Close(code, "snapshot marshal failure"); err != nil {
-					pc.logger.Error("ws close", "error", err)
+					pc.logger.Error("ws close on player snapshot marshal failure", "error", err)
 				}
 				return
 			}

@@ -147,11 +147,11 @@ func TestPlayerSnapshotJSON(t *testing.T) {
 			{Rank: "queen", Suit: "diamonds"},
 			{Rank: "two", Suit: "hearts"},
 			{Rank: "nine", Suit: "hearts"},
+			{Rank: "three", Suit: "spades"},
 			{Rank: "five", Suit: "spades"},
 			{Rank: "ten", Suit: "spades"},
 			{Rank: "king", Suit: "spades"},
 			{Rank: "ace", Suit: "spades"},
-			{Rank: "three", Suit: "spades"},
 		},
 		HandCounts: []int{11, 11, 10, 10},
 		Trick: []TrickEntry{

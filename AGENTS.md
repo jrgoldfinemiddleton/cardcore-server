@@ -13,6 +13,7 @@ cardcore-server/
 ├── internal/
 │   ├── api/                 # wire-format envelopes and error codes
 │   ├── client/              # shared HTTP/WebSocket client engine
+│   ├── flags/               # shared environment-variable and flag helpers
 │   └── server/
 │       ├── transport/       # HTTP/WebSocket server and route handlers
 │       ├── session/         # session lifecycle and game goroutine
@@ -33,10 +34,11 @@ cardcore-server/
 | Add a game | `internal/server/session/games/<game>/`, `internal/api/games/<game>/`, `internal/server/view/<game>/`, `internal/client/<game>/`, `cmd/cardcore-tui/<game>/`, `cmd/cardcore-cli/<game>/` | Follow the Hearts vertical slice; wire the factory in `cmd/cardcore-server/main.go` |
 | Change HTTP/WS routes or handlers | `internal/server/transport/` | `Server` registers routes; `http_sessions.go` for REST, `ws_player.go`/`ws_observer.go` for WebSockets |
 | Change session lifecycle | `internal/server/session/` | `Manager` is the mutex-protected registry; `session.run()` is the single goroutine |
-| Change protocol messages | `internal/api/api.go` | `InboundMessage`, `ErrorMessage`, and error codes are shared across server and clients |
+| Change protocol messages | `internal/api/api.go` | `InboundMessage`, `ErrorMessage`, and error codes are shared across server-side packages |
 | Change client engine | `internal/client/` | `SessionClient` (HTTP), `Conn` (WebSocket), `messages.go` (Command envelope) |
-| Change TUI rendering | `cmd/cardcore-tui/hearts/` | Pure render functions; `Client` holds cursor/selection state |
-| Change CLI formatting | `cmd/cardcore-cli/hearts/` | `Formatter` (compact output), `Builder` (script actions), `session.go` (create helpers) |
+| Change shared flags/env helpers | `internal/flags/` | Used by all `cmd/` binaries |
+| Change TUI rendering | `cmd/cardcore-tui/games/hearts/` | Pure render functions; `Client` holds cursor/selection state |
+| Change CLI formatting | `cmd/cardcore-cli/games/hearts/` | `Formatter` (compact output), `Builder` (script actions), `session.go` (create helpers) |
 | Read architecture policy | `doc/decisions/` | ADRs-004, 006, 007, 008 are the critical ones |
 
 ## CODE MAP
@@ -75,7 +77,7 @@ cardcore-server/
 - Never manually apply `scope:*` labels to PRs; `scripts/apply-labels.sh` computes them from changed paths.
 
 ## UNIQUE STYLES
-- **Vertical slice per game**: Hearts-specific code is split across `internal/api/games/hearts/`, `internal/server/session/games/hearts/`, `internal/server/view/hearts/`, `internal/client/hearts/`, `cmd/cardcore-tui/hearts/`, and `cmd/cardcore-cli/hearts/`. Each layer owns its game-specific concerns.
+- **Vertical slice per game**: Hearts-specific code is split across `internal/api/games/hearts/`, `internal/server/session/games/hearts/`, `internal/server/view/games/hearts/`, `internal/client/games/hearts/`, `cmd/cardcore-tui/games/hearts/`, and `cmd/cardcore-cli/games/hearts/`. Each layer owns its game-specific concerns.
 - **Strict transport boundary**: All integration tests use a real HTTP/WebSocket server; no in-process shortcuts (ADR-004).
 - **One goroutine per session**: `session.run()` is the sole goroutine that touches game state; the `Manager` is mutex-protected, not a goroutine (ADR-006).
 - **Full snapshots only**: Every state change broadcasts a complete snapshot; no incremental diffs (ADR-007).

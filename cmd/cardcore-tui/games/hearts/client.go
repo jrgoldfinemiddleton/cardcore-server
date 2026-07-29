@@ -8,7 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
-	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
+	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/games/hearts"
 )
 
 // Client is the stateful Hearts adapter for the TUI. It decodes snapshots,

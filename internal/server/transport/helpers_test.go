@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,6 +14,8 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
+	heartsapi "github.com/jrgoldfinemiddleton/cardcore-server/internal/api/games/hearts"
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/testutil"
 )
 
 // testSnapshot is a minimal snapshot struct for fast unmarshal in tests.
@@ -93,6 +96,7 @@ func mustReadWSMessage(t *testing.T, conn *websocket.Conn, ctx context.Context) 
 func mustReadSnapshot(t *testing.T, conn *websocket.Conn, ctx context.Context) map[string]any {
 	t.Helper()
 	b := mustReadWSMessage(t, conn, ctx)
+	testutil.LogSnapshot(t, "ws", b)
 	var snap map[string]any
 	if err := json.Unmarshal(b, &snap); err != nil {
 		t.Fatalf("unmarshal snapshot: %v", err)
@@ -105,6 +109,7 @@ func mustReadSnapshot(t *testing.T, conn *websocket.Conn, ctx context.Context) m
 func mustReadTestSnapshot(t *testing.T, conn *websocket.Conn, ctx context.Context) testSnapshot {
 	t.Helper()
 	b := mustReadWSMessage(t, conn, ctx)
+	testutil.LogSnapshot(t, "ws", b)
 	var snap testSnapshot
 	if err := json.Unmarshal(b, &snap); err != nil {
 		t.Fatalf("unmarshal snapshot: %v", err)
@@ -115,7 +120,12 @@ func mustReadTestSnapshot(t *testing.T, conn *websocket.Conn, ctx context.Contex
 // readTestSnapshot reads a WebSocket message and unmarshals only phase
 // and seq. It returns an error instead of failing the test so it can be used
 // in goroutines.
-func readTestSnapshot(ctx context.Context, conn *websocket.Conn) (testSnapshot, error) {
+func readTestSnapshot(
+	t *testing.T,
+	ctx context.Context,
+	conn *websocket.Conn,
+) (testSnapshot, error) {
+	t.Helper()
 	typ, b, err := conn.Read(ctx)
 	if err != nil {
 		return testSnapshot{}, err
@@ -123,6 +133,7 @@ func readTestSnapshot(ctx context.Context, conn *websocket.Conn) (testSnapshot, 
 	if typ != websocket.MessageText {
 		return testSnapshot{}, fmt.Errorf("got message type %d, want text", typ)
 	}
+	testutil.LogSnapshot(t, "ws", b)
 	var snap testSnapshot
 	if err := json.Unmarshal(b, &snap); err != nil {
 		return testSnapshot{}, fmt.Errorf("unmarshal snapshot: %w", err)
@@ -166,5 +177,55 @@ func readSnapshotsUntil(t *testing.T, conn *websocket.Conn, ctx context.Context,
 		if snap.Phase == targetPhase {
 			return snaps
 		}
+	}
+}
+
+// sendPlayCard sends a play_card command over the WebSocket.
+func sendPlayCard(t *testing.T, conn *websocket.Conn, actionID string, seq int,
+	card heartsapi.Card) {
+	t.Helper()
+	payload, err := json.Marshal(heartsapi.PlayCardPayload{Card: card})
+	if err != nil {
+		t.Fatalf("marshal play_card payload: %v", err)
+	}
+	msg := api.InboundMessage{
+		Type:     "play_card",
+		ActionID: actionID,
+		Seq:      seq,
+		Payload:  payload,
+	}
+	slog.Debug("command sent",
+		"role", "ws",
+		"type", msg.Type,
+		"action_id", msg.ActionID,
+		"seq", msg.Seq,
+	)
+	if err := writeWSJSON(context.Background(), conn, msg); err != nil {
+		t.Fatalf("write play_card: %v", err)
+	}
+}
+
+// sendPassCards sends a pass_cards command over the WebSocket.
+func sendPassCards(t *testing.T, conn *websocket.Conn, actionID string, seq int,
+	cards []heartsapi.Card) {
+	t.Helper()
+	payload, err := json.Marshal(heartsapi.PassCardsPayload{Cards: cards})
+	if err != nil {
+		t.Fatalf("marshal pass_cards payload: %v", err)
+	}
+	msg := api.InboundMessage{
+		Type:     "pass_cards",
+		ActionID: actionID,
+		Seq:      seq,
+		Payload:  payload,
+	}
+	slog.Debug("command sent",
+		"role", "ws",
+		"type", msg.Type,
+		"action_id", msg.ActionID,
+		"seq", msg.Seq,
+	)
+	if err := writeWSJSON(context.Background(), conn, msg); err != nil {
+		t.Fatalf("write pass_cards: %v", err)
 	}
 }

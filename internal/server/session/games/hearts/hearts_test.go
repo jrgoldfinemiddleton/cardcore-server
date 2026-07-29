@@ -700,7 +700,7 @@ func TestGameAdapterDisplayDelay(t *testing.T) {
 	}
 
 	// Play 4 AI cards to complete the first trick → trick complete pause.
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		if _, errPlay := a.AIPlay(int(a.game.Turn)); errPlay != nil {
 			t.Fatalf("AIPlay trick card %d: %v", i, errPlay)
 		}

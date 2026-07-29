@@ -3,10 +3,7 @@ package heartstui
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
-	"hash/fnv"
-	"math/rand/v2"
 	"slices"
 	"strings"
 	"testing"
@@ -15,17 +12,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
-	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
-	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
-	heartssession "github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session/games/hearts"
-	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/transport"
+	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/games/hearts"
+	transporttestutil "github.com/jrgoldfinemiddleton/cardcore-server/internal/server/transport/testutil"
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/testutil"
 )
-
-// testHeartsConfig is a session.GameConfig for integration tests that
-// creates real Hearts adapters with a deterministic RNG.
-type testHeartsConfig struct {
-	rng *rand.Rand
-}
 
 // TestIntegrationTUIClientFullGame connects a TUI client to a real server and
 // plays a full 1-human+3-AI Hearts game, verifying that the Client renders all
@@ -39,20 +29,10 @@ func TestIntegrationTUIClientFullGame(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	srv := setupTestServer(t)
+	srv := transporttestutil.SetupTestServer(t)
 	baseURL := "http://" + srv.Addr()
 
-	delay := 10
-	cfg := client.Config{
-		Game: "hearts",
-		Seats: []client.SeatConfig{
-			{Type: "human"},
-			{Type: "ai", AIType: "random"},
-			{Type: "ai", AIType: "random"},
-			{Type: "ai", AIType: "random"},
-		},
-		AIActionDelayMS: &delay,
-	}
+	cfg := testutil.HeartsConfigWithPacing(10)
 
 	sc := &client.SessionClient{BaseURL: baseURL}
 	id, seats, err := sc.CreateSession(ctx, cfg)
@@ -60,16 +40,7 @@ func TestIntegrationTUIClientFullGame(t *testing.T) {
 		t.Fatalf("create session: %v", err)
 	}
 
-	var token string
-	for _, s := range seats {
-		if s.Type == "human" {
-			token = s.Token
-			break
-		}
-	}
-	if token == "" {
-		t.Fatal("no human seat token found")
-	}
+	token := testutil.HumanToken(t, seats)
 
 	if err := sc.StartSession(ctx, id); err != nil {
 		t.Fatalf("start session: %v", err)
@@ -214,7 +185,7 @@ func TestIntegrationTUIClientAutoCreateSession(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	srv := setupTestServer(t)
+	srv := transporttestutil.SetupTestServer(t)
 	baseURL := "http://" + srv.Addr()
 
 	delay := 10
@@ -268,22 +239,12 @@ func TestTUITimeoutAutoPlayIntegration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	srv := setupTestServer(t)
+	srv := transporttestutil.SetupTestServer(t)
 	baseURL := "http://" + srv.Addr()
 
 	timeout := 500
-	delay := 10
-	cfg := client.Config{
-		Game: "hearts",
-		Seats: []client.SeatConfig{
-			{Type: "human"},
-			{Type: "ai", AIType: "random"},
-			{Type: "ai", AIType: "random"},
-			{Type: "ai", AIType: "random"},
-		},
-		AIActionDelayMS: &delay,
-		TurnTimeoutMS:   &timeout,
-	}
+	cfg := testutil.HeartsConfigWithPacing(10)
+	cfg.TurnTimeoutMS = &timeout
 
 	sc := &client.SessionClient{BaseURL: baseURL}
 	id, seats, err := sc.CreateSession(ctx, cfg)
@@ -291,16 +252,7 @@ func TestTUITimeoutAutoPlayIntegration(t *testing.T) {
 		t.Fatalf("create session: %v", err)
 	}
 
-	var token string
-	for _, s := range seats {
-		if s.Type == "human" {
-			token = s.Token
-			break
-		}
-	}
-	if token == "" {
-		t.Fatal("no human seat token found")
-	}
+	token := testutil.HumanToken(t, seats)
 
 	if err := sc.StartSession(ctx, id); err != nil {
 		t.Fatalf("start session: %v", err)
@@ -339,66 +291,4 @@ func TestTUITimeoutAutoPlayIntegration(t *testing.T) {
 	if !gotTimeoutAutoPlay {
 		t.Error("never saw a human turn that could time out")
 	}
-}
-
-// Name returns the game name for the test config.
-func (c *testHeartsConfig) Name() string { return "hearts" }
-
-// RegisterFlags is a no-op for the test config.
-func (c *testHeartsConfig) RegisterFlags(*flag.FlagSet) {}
-
-// Validate is a no-op for the test config.
-func (c *testHeartsConfig) Validate() error { return nil }
-
-// NewGame creates a real Hearts adapter using the deterministic RNG.
-func (c *testHeartsConfig) NewGame(cfg session.Config, _ *rand.Rand) (session.Game, error) {
-	return heartssession.NewGameAdapter(cfg.Seats, c.rng, 0, 0, 0)
-}
-
-// ValidateConfig delegates to the Hearts config validator.
-func (c *testHeartsConfig) ValidateConfig(cfg session.Config) error {
-	return heartssession.NewGameConfig().ValidateConfig(cfg)
-}
-
-// setupTestServer creates a real server with a Hearts game registry,
-// starts it on an ephemeral port, and registers cleanup.
-func setupTestServer(t *testing.T) *transport.Server {
-	t.Helper()
-	registry := heartsRegistry(t)
-	mgr := session.NewManager(registry, session.DefaultServerDelays)
-	srv := transport.NewServer(transport.Config{Manager: mgr})
-	go func() {
-		_ = srv.Start()
-	}()
-	for i := 0; i < 100 && srv.Addr() == ""; i++ {
-		time.Sleep(10 * time.Millisecond)
-	}
-	if srv.Addr() == "" {
-		t.Fatal("server did not start listening")
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(ctx)
-	})
-	return srv
-}
-
-// heartsRegistry returns a session registry containing a real Hearts game
-// config with a deterministic RNG seeded from the test name.
-func heartsRegistry(t *testing.T) *session.Registry {
-	t.Helper()
-	seed := hashTestName(t.Name())
-	rng := rand.New(rand.NewPCG(seed, seed+1))
-	registry := session.NewRegistry()
-	registry.Register(&testHeartsConfig{rng: rng})
-	return registry
-}
-
-// hashTestName converts a test name string into a deterministic uint64
-// seed for the RNG.
-func hashTestName(name string) uint64 {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(name))
-	return h.Sum64()
 }

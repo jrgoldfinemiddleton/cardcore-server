@@ -3,10 +3,7 @@ package transport
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
-	"hash/fnv"
-	"math/rand/v2"
 	"sync"
 	"testing"
 	"time"
@@ -14,17 +11,10 @@ import (
 	"github.com/coder/websocket"
 	"github.com/jrgoldfinemiddleton/cardcore/games/hearts"
 
-	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
 	heartsapi "github.com/jrgoldfinemiddleton/cardcore-server/internal/api/games/hearts"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
-	heartssession "github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session/games/hearts"
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/testutil"
 )
-
-// testHeartsConfig is a session.GameConfig for integration tests that
-// creates real Hearts adapters with a deterministic RNG.
-type testHeartsConfig struct {
-	rng *rand.Rand
-}
 
 // TestAllAIObserverSeesFourCardTrick verifies that when a trick completes,
 // the observer sees a trick_complete snapshot with all four cards and then
@@ -34,10 +24,9 @@ func TestAllAIObserverSeesFourCardTrick(t *testing.T) {
 	srv, mgr := setupHeartsServer(t)
 	httpSrv := mustStartTestServer(t, srv)
 
-	cfg := allAIHeartsConfig()
 	// Slow the AI down so the observer can connect after the session starts
 	// but before the first trick completes.
-	*cfg.AIActionDelayMS = 200
+	cfg := testutil.HeartsAllAISessionConfigWithPacing(200)
 
 	info, _, err := mgr.Create(cfg)
 	if err != nil {
@@ -99,7 +88,7 @@ func TestAllAIFullGameIntegration(t *testing.T) {
 	srv, mgr := setupHeartsServer(t)
 	httpSrv := mustStartTestServer(t, srv)
 
-	info, _, err := mgr.Create(allAIHeartsConfig())
+	info, _, err := mgr.Create(testutil.HeartsAllAISessionConfigWithPacing(10))
 	if err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
@@ -158,22 +147,13 @@ func TestHumanAIFullGameIntegration(t *testing.T) {
 	srv, mgr := setupHeartsServer(t)
 	httpSrv := mustStartTestServer(t, srv)
 
-	info, seats, err := mgr.Create(humanAIHeartsConfig())
+	info, seats, err := mgr.Create(testutil.HeartsSessionConfigWithPacing(10))
 	if err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
 	id := info.SessionID
 
-	var token string
-	for _, s := range seats {
-		if s.Type == session.SeatHuman {
-			token = s.Token
-			break
-		}
-	}
-	if token == "" {
-		t.Fatal("no human seat token found")
-	}
+	token := testutil.HumanSessionToken(t, seats)
 
 	if err := mgr.Start(id); err != nil {
 		t.Fatalf("Start() error: %v", err)
@@ -194,7 +174,7 @@ func TestHumanAIFullGameIntegration(t *testing.T) {
 	go func() {
 		defer close(obsDone)
 		for {
-			snap, err := readTestSnapshot(ctx, obsConn)
+			snap, err := readTestSnapshot(t, ctx, obsConn)
 			if err != nil {
 				return
 			}
@@ -288,18 +268,8 @@ func TestHumanTurnTimeoutIntegration(t *testing.T) {
 	httpSrv := mustStartTestServer(t, srv)
 
 	timeout := 50
-	delay := 0
-	cfg := session.Config{
-		Game: "hearts",
-		Seats: []session.SeatConfig{
-			{Type: session.SeatHuman},
-			{Type: session.SeatAI, AIType: "random"},
-			{Type: session.SeatAI, AIType: "random"},
-			{Type: session.SeatAI, AIType: "random"},
-		},
-		AIActionDelayMS: &delay,
-		TurnTimeoutMS:   &timeout,
-	}
+	cfg := testutil.HeartsSessionConfigWithPacing(0)
+	cfg.TurnTimeoutMS = &timeout
 
 	info, seats, err := mgr.Create(cfg)
 	if err != nil {
@@ -307,16 +277,7 @@ func TestHumanTurnTimeoutIntegration(t *testing.T) {
 	}
 	id := info.SessionID
 
-	var token string
-	for _, s := range seats {
-		if s.Type == session.SeatHuman {
-			token = s.Token
-			break
-		}
-	}
-	if token == "" {
-		t.Fatal("no human seat token found")
-	}
+	token := testutil.HumanSessionToken(t, seats)
 
 	if err := mgr.Start(id); err != nil {
 		t.Fatalf("Start() error: %v", err)
@@ -368,18 +329,8 @@ func TestPassPhaseTimeoutIntegration(t *testing.T) {
 	httpSrv := mustStartTestServer(t, srv)
 
 	timeout := 100
-	delay := 0
-	cfg := session.Config{
-		Game: "hearts",
-		Seats: []session.SeatConfig{
-			{Type: session.SeatHuman},
-			{Type: session.SeatAI, AIType: "random"},
-			{Type: session.SeatAI, AIType: "random"},
-			{Type: session.SeatAI, AIType: "random"},
-		},
-		AIActionDelayMS: &delay,
-		TurnTimeoutMS:   &timeout,
-	}
+	cfg := testutil.HeartsSessionConfigWithPacing(0)
+	cfg.TurnTimeoutMS = &timeout
 
 	info, seats, err := mgr.Create(cfg)
 	if err != nil {
@@ -387,16 +338,7 @@ func TestPassPhaseTimeoutIntegration(t *testing.T) {
 	}
 	id := info.SessionID
 
-	var token string
-	for _, s := range seats {
-		if s.Type == session.SeatHuman {
-			token = s.Token
-			break
-		}
-	}
-	if token == "" {
-		t.Fatal("no human seat token found")
-	}
+	token := testutil.HumanSessionToken(t, seats)
 
 	if err := mgr.Start(id); err != nil {
 		t.Fatalf("Start() error: %v", err)
@@ -446,7 +388,7 @@ func TestFourHumansFullGameIntegration(t *testing.T) {
 	srv, mgr := setupHeartsServer(t)
 	httpSrv := mustStartTestServer(t, srv)
 
-	info, seats, err := mgr.Create(fourHumanHeartsConfig())
+	info, seats, err := mgr.Create(testutil.HeartsFourHumanSessionConfig())
 	if err != nil {
 		t.Fatalf("Create() error: %v", err)
 	}
@@ -574,22 +516,6 @@ func TestFourHumansFullGameIntegration(t *testing.T) {
 	}
 }
 
-// fourHumanHeartsConfig returns a 4-seat all-human Hearts config with
-// zero pacing delay.
-func fourHumanHeartsConfig() session.Config {
-	delay := 0
-	return session.Config{
-		Game: "hearts",
-		Seats: []session.SeatConfig{
-			{Type: session.SeatHuman},
-			{Type: session.SeatHuman},
-			{Type: session.SeatHuman},
-			{Type: session.SeatHuman},
-		},
-		AIActionDelayMS: &delay,
-	}
-}
-
 // trickLengthFromSnap returns the number of entries in the snapshot's trick
 // array. It returns 0 if the field is missing or not an array.
 func trickLengthFromSnap(t *testing.T, snap map[string]any) int {
@@ -601,122 +527,14 @@ func trickLengthFromSnap(t *testing.T, snap map[string]any) int {
 	return len(raw)
 }
 
-// Name returns the game name for the test config.
-func (c *testHeartsConfig) Name() string { return "hearts" }
-
-// RegisterFlags is a no-op for the test config.
-func (c *testHeartsConfig) RegisterFlags(*flag.FlagSet) {}
-
-// Validate is a no-op for the test config.
-func (c *testHeartsConfig) Validate() error { return nil }
-
-// NewGame creates a real Hearts adapter using the deterministic RNG.
-func (c *testHeartsConfig) NewGame(cfg session.Config, _ *rand.Rand) (session.Game, error) {
-	return heartssession.NewGameAdapter(cfg.Seats, c.rng, 0, 0, 0)
-}
-
-// ValidateConfig delegates to the Hearts config validator.
-func (c *testHeartsConfig) ValidateConfig(cfg session.Config) error {
-	return heartssession.NewGameConfig().ValidateConfig(cfg)
-}
-
-// hashTestName returns a deterministic uint64 seed derived from the test name.
-func hashTestName(name string) uint64 {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(name))
-	return h.Sum64()
-}
-
-// heartsRegistry returns a session registry containing a real Hearts game
-// config with a deterministic RNG seeded from t.Name().
-func heartsRegistry(t *testing.T) *session.Registry {
-	t.Helper()
-	seed := hashTestName(t.Name())
-	rng := rand.New(rand.NewPCG(seed, seed+1))
-	registry := session.NewRegistry()
-	registry.Register(&testHeartsConfig{rng: rng})
-	return registry
-}
-
-// allAIHeartsConfig returns a 4-seat all-AI Hearts config with a small
-// pacing delay so the observer can connect before the game completes.
-func allAIHeartsConfig() session.Config {
-	delay := 10
-	return session.Config{
-		Game: "hearts",
-		Seats: []session.SeatConfig{
-			{Type: session.SeatAI, AIType: "random"},
-			{Type: session.SeatAI, AIType: "random"},
-			{Type: session.SeatAI, AIType: "random"},
-			{Type: session.SeatAI, AIType: "random"},
-		},
-		AIActionDelayMS: &delay,
-	}
-}
-
 // setupHeartsServer creates a Server with a real Hearts game registry.
 func setupHeartsServer(t *testing.T) (*Server, *session.Manager) {
 	t.Helper()
-	registry := heartsRegistry(t)
+	registry := testutil.HeartsRegistry(t)
 	mgr := session.NewManager(registry, session.DefaultServerDelays)
 	cfg := Config{Manager: mgr}
 	srv := NewServer(cfg)
 	return srv, mgr
-}
-
-// humanAIHeartsConfig returns a 1-human + 3-AI Hearts config with a small
-// pacing delay so the human player can react before the game completes.
-// The human is at seat 0.
-func humanAIHeartsConfig() session.Config {
-	delay := 10
-	return session.Config{
-		Game: "hearts",
-		Seats: []session.SeatConfig{
-			{Type: session.SeatHuman},
-			{Type: session.SeatAI, AIType: "random"},
-			{Type: session.SeatAI, AIType: "random"},
-			{Type: session.SeatAI, AIType: "random"},
-		},
-		AIActionDelayMS: &delay,
-	}
-}
-
-// sendPlayCard sends a play_card command over the player WebSocket.
-func sendPlayCard(t *testing.T, conn *websocket.Conn, actionID string, seq int,
-	card heartsapi.Card) {
-	t.Helper()
-	payload, err := json.Marshal(heartsapi.PlayCardPayload{Card: card})
-	if err != nil {
-		t.Fatalf("marshal play_card payload: %v", err)
-	}
-	msg := api.InboundMessage{
-		Type:     "play_card",
-		ActionID: actionID,
-		Seq:      seq,
-		Payload:  payload,
-	}
-	if err := writeWSJSON(context.Background(), conn, msg); err != nil {
-		t.Fatalf("write play_card: %v", err)
-	}
-}
-
-// sendPassCards sends a pass_cards command over the player WebSocket.
-func sendPassCards(t *testing.T, conn *websocket.Conn, actionID string, seq int,
-	cards []heartsapi.Card) {
-	t.Helper()
-	payload, err := json.Marshal(heartsapi.PassCardsPayload{Cards: cards})
-	if err != nil {
-		t.Fatalf("marshal pass_cards payload: %v", err)
-	}
-	msg := api.InboundMessage{
-		Type:     "pass_cards",
-		ActionID: actionID,
-		Seq:      seq,
-		Payload:  payload,
-	}
-	if err := writeWSJSON(context.Background(), conn, msg); err != nil {
-		t.Fatalf("write pass_cards: %v", err)
-	}
 }
 
 // readSnapshot reads a single WebSocket message and unmarshals it as a

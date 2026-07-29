@@ -24,11 +24,11 @@ const playerSnapshotJSON = `{
     {"rank": "queen", "suit": "diamonds"},
     {"rank": "two", "suit": "hearts"},
     {"rank": "nine", "suit": "hearts"},
+    {"rank": "three", "suit": "spades"},
     {"rank": "five", "suit": "spades"},
     {"rank": "ten", "suit": "spades"},
     {"rank": "king", "suit": "spades"},
-    {"rank": "ace", "suit": "spades"},
-    {"rank": "three", "suit": "spades"}
+    {"rank": "ace", "suit": "spades"}
   ],
   "hand_counts": [11, 11, 10, 10],
   "trick": [

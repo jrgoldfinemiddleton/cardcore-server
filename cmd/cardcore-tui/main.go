@@ -12,7 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	heartstui "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/hearts"
+	heartstui "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/games/hearts"
 	"github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/menu"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/flags"
@@ -409,7 +409,7 @@ func configureLogging(debug bool) {
 	} else {
 		w = io.Discard
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(w, nil)))
+	slog.SetDefault(slog.New(slog.NewTextHandler(w, nil)).With("component", "tui"))
 }
 
 // newGameClient constructs the game-specific client for the named game. It is

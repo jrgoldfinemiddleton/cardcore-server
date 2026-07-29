@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
+	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/games/hearts"
 )
 
 // Formatter implements game-specific snapshot formatting for Hearts.

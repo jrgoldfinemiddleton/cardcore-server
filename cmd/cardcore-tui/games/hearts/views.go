@@ -6,7 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client/games/hearts"
 )
 
 // cardBackWidth is the visible width of a single card-back box.

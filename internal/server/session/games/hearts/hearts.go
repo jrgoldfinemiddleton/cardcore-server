@@ -16,7 +16,7 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
 	heartsapi "github.com/jrgoldfinemiddleton/cardcore-server/internal/api/games/hearts"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
-	heartsview "github.com/jrgoldfinemiddleton/cardcore-server/internal/server/view/hearts"
+	heartsview "github.com/jrgoldfinemiddleton/cardcore-server/internal/server/view/games/hearts"
 )
 
 // GameAdapter implements [session.Game] for Hearts.

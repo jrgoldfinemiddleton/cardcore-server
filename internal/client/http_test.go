@@ -213,7 +213,7 @@ func TestGetSessionSuccess(t *testing.T) {
 // TestGetSessionNotFound verifies that a 404 response is returned as
 // an HTTPError.
 func TestGetSessionNotFound(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		_ = json.NewEncoder(w).Encode(struct {
 			Error string `json:"error"`
@@ -263,7 +263,7 @@ func TestHTTPClientOverride(t *testing.T) {
 // response body gracefully, returning an HTTPError with the correct
 // status code and an empty message.
 func TestReadErrorMalformedBody(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte("not json"))
 	}))

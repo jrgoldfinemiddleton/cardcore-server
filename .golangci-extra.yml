@@ -20,6 +20,10 @@ linters:
         linters:
           - dupl     # tests are often deliberately parallel; collapsing can obscure intent
           - funlen   # table-driven and integration tests legitimately grow long
+      - path: _test\.go
+        linters:
+          - revive
+        text: "context-as-argument"  # test helpers put *testing.T first
     paths:
       - third_party$
       - builtin$

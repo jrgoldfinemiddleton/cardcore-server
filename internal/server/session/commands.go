@@ -43,88 +43,94 @@ func (s *session) handlePlay(c playCmd) {
 		return
 	}
 
-	// Client seq is behind the server. Send the latest snapshot so
-	// the client can resync, along with an error.
 	if c.msg.Seq < s.seq {
-		s.logger.Warn("stale seq",
-			"seat", c.seat,
-			"client_seq", c.msg.Seq,
-			"server_seq", s.seq,
-		)
-		snap := s.playerSnapshot(c.seat)
-		if snap == nil {
-			s.terminateOnMarshalFailure(
-				"stale seq player snapshot marshal failed",
-				"seat", c.seat,
-			)
-			c.resp <- SubmitResult{
-				Err: &api.ErrorMessage{
-					Type:       errType,
-					ErrorCode:  api.ErrInternal,
-					Message:    "session terminated: snapshot generation failed",
-					ActionID:   c.msg.ActionID,
-					CurrentSeq: s.seq,
-				},
-			}
-			return
-		}
-		c.resp <- SubmitResult{
-			Err: &api.ErrorMessage{
-				Type:       errType,
-				ErrorCode:  api.ErrStaleSeq,
-				Message:    "client seq is behind server",
-				ActionID:   c.msg.ActionID,
-				CurrentSeq: s.seq,
-			},
-			Snapshot: snap,
-		}
+		s.handleStaleSeq(c)
 		return
 	}
 
-	// Duplicate action_id: client resent a command that already
-	// succeeded. Send the cached snapshot without mutating state.
 	if cached, ok := s.actionIDs[c.msg.ActionID]; ok {
-		s.logger.Warn("duplicate action_id", "action_id", c.msg.ActionID)
-		result := SubmitResult{}
-		if cached != nil {
-			result.Snapshot = cached
-		}
-		c.resp <- result
+		s.handleDuplicateAction(c, cached)
 		return
 	}
 
-	// Validate and apply the action through the game adapter.
 	res, cmdErr := s.game.HandleAction(c.seat, c.msg)
 	if cmdErr != nil {
-		// Action rejected (wrong turn, illegal move, wrong phase).
-		// Send the error to the player's subscription channel and
-		// send it on the command response channel so the blocked
-		// submitter receives the rejection.
-		s.logger.Warn("action rejected",
+		s.handleRejectedAction(c, cmdErr)
+		return
+	}
+
+	s.handleAcceptedAction(c, res)
+}
+
+// handleStaleSeq responds to a client whose seq is behind the server.
+func (s *session) handleStaleSeq(c playCmd) {
+	s.logger.Warn("stale seq",
+		"seat", c.seat,
+		"client_seq", c.msg.Seq,
+		"server_seq", s.seq,
+	)
+	snap := s.playerSnapshot(c.seat)
+	if snap == nil {
+		s.terminateOnMarshalFailure(
+			"stale seq player snapshot marshal failed",
 			"seat", c.seat,
-			"type", c.msg.Type,
-			"error_code", cmdErr.Code,
-			"message", cmdErr.Message,
 		)
-		s.sendError(c.seat, cmdErr.Code, cmdErr.Message, c.msg.ActionID)
 		c.resp <- SubmitResult{
 			Err: &api.ErrorMessage{
 				Type:       errType,
-				ErrorCode:  cmdErr.Code,
-				Message:    cmdErr.Message,
+				ErrorCode:  api.ErrInternal,
+				Message:    "session terminated: snapshot generation failed",
 				ActionID:   c.msg.ActionID,
 				CurrentSeq: s.seq,
 			},
 		}
 		return
 	}
+	c.resp <- SubmitResult{
+		Err: &api.ErrorMessage{
+			Type:       errType,
+			ErrorCode:  api.ErrStaleSeq,
+			Message:    "client seq is behind server",
+			ActionID:   c.msg.ActionID,
+			CurrentSeq: s.seq,
+		},
+		Snapshot: snap,
+	}
+}
 
-	// Action accepted. Clear the previous turn deadline, schedule the
-	// deadline for the next turn, increment seq, broadcast the new state
-	// to all subscribers, and cache the snapshot for idempotent replay.
-	// Skip caching if the snapshot fails to marshal so the cache never
-	// contains nil entries that would break duplicate action_id replay.
-	// If the game just finished, leave the deadline cleared.
+// handleDuplicateAction returns a cached snapshot for a replayed action_id.
+func (s *session) handleDuplicateAction(c playCmd, cached []byte) {
+	s.logger.Warn("duplicate action_id", "action_id", c.msg.ActionID)
+	result := SubmitResult{}
+	if cached != nil {
+		result.Snapshot = cached
+	}
+	c.resp <- result
+}
+
+// handleRejectedAction sends an error response for a game-adapter rejection.
+func (s *session) handleRejectedAction(c playCmd, cmdErr *CommandError) {
+	s.logger.Warn("action rejected",
+		"seat", c.seat,
+		"type", c.msg.Type,
+		"error_code", cmdErr.Code,
+		"message", cmdErr.Message,
+	)
+	s.sendError(c.seat, cmdErr.Code, cmdErr.Message, c.msg.ActionID)
+	c.resp <- SubmitResult{
+		Err: &api.ErrorMessage{
+			Type:       errType,
+			ErrorCode:  cmdErr.Code,
+			Message:    cmdErr.Message,
+			ActionID:   c.msg.ActionID,
+			CurrentSeq: s.seq,
+		},
+	}
+}
+
+// handleAcceptedAction applies a successful action, broadcasts the new state,
+// caches the snapshot, and drives subsequent AI turns.
+func (s *session) handleAcceptedAction(c playCmd, res StepResult) {
 	s.game.SetTurnDeadline(time.Time{})
 	if res.Outcome != StepFinished {
 		s.scheduleTurnDeadline()
@@ -149,9 +155,6 @@ func (s *session) handlePlay(c playCmd) {
 	snap := s.playerSnapshot(c.seat)
 	s.cacheActionID(c.msg.ActionID, snap)
 
-	// Send success response to the blocked command submitter and
-	// handle game pacing (AI turns, trick/round completion, or game
-	// finished).
 	c.resp <- SubmitResult{}
 	switch res.Outcome {
 	case StepContinue:

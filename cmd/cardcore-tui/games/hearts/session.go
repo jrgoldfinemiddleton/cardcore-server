@@ -1,11 +1,11 @@
-package heartscli
+package heartstui
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
-	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
+	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/games/hearts"
 )
 
 // validAITypes is the set of AI player types accepted by the Hearts server
@@ -17,7 +17,7 @@ var validAITypes = map[string]bool{
 	"pimc":      true,
 }
 
-// CreateSession creates and starts a Hearts session suitable for the CLI.
+// CreateSession creates and starts a Hearts session suitable for the TUI.
 //
 // When observer is false the session has one human seat at index 0 and three
 // AI seats. The human seat uses aiType as its fallback AI on turn timeout

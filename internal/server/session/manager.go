@@ -327,6 +327,7 @@ func (m *Manager) LookupToken(token string) (string, int, error) {
 
 	ti, ok := m.tokenIndex[token]
 	if !ok {
+		slog.With("component", "session_manager").Warn("bearer token lookup failed")
 		return "", 0, ErrNotFound
 	}
 	return ti.sessionID, ti.seat, nil
