@@ -6,7 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
+	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/games/hearts"
 )
 
 // TestRenderPassingViewThreeSelected verifies that with 3 selected cards the

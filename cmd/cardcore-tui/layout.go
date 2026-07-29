@@ -7,7 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	heartstui "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/hearts"
+	heartstui "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/games/hearts"
 )
 
 // renderLayout renders the full screen layout.

@@ -2,22 +2,27 @@
 
 ## Package Structure
 
-The project uses a `cmd/` + `internal/` layout: `cmd/` holds thin entry points for the server and client binaries, while `internal/api/` provides shared wire DTOs, `internal/server/` splits server logic into transport, session, and view layers, and `internal/client/` provides a protocol-agnostic client engine shared by the TUI and CLI.
+The project uses a `cmd/` + `internal/` layout. `cmd/` holds thin entry points for the server and client binaries. `internal/server/` contains the server implementation split into transport, session, and view layers. `internal/api/` provides the wire DTOs used only by server-side packages. `internal/client/` provides a protocol-agnostic client engine that mirrors the wire types it needs rather than importing server internals, keeping the client decoupled. `internal/flags/` is the only internal package shared by `cmd/` binaries.
 
 ```
 github.com/jrgoldfinemiddleton/cardcore-server
 ├── cmd/
 │   ├── cardcore-server/     ← entry point: parse flags, wire deps, start HTTP listener
 │   ├── cardcore-tui/        ← entry point: parse flags, connect WS, run Bubble Tea
+│   │   └── games/<game>/    ← game-specific rendering and command builders
 │   └── cardcore-cli/        ← entry point: scripted or batch CLI client
+│       └── games/<game>/    ← game-specific command builders and formatters
 ├── internal/
-│   ├── api/                 ← wire DTOs shared by server and clients (JSON structs)
+│   ├── api/                 ← wire DTOs used by server-side packages (JSON structs)
 │   ├── client/              ← shared client engine: HTTP lifecycle, WS connection, messages, errors
-│   │   └── hearts/          ← Hearts-specific adapter, DTOs, and command builders
+│   │   └── games/<game>/    ← game-specific adapter, DTOs, and command builders
+│   ├── flags/               ← shared environment-variable and flag helpers
 │   └── server/
 │       ├── transport/       ← HTTP handlers, WebSocket upgrade, routing, message parsing
 │       ├── session/         ← session lifecycle, game goroutine, token management, seq
+│       │   └── games/<game>/ ← game-specific adapter for the session manager
 │       └── view/            ← engine state → seat-filtered snapshot DTOs
+│           └── games/<game>/ ← game-specific snapshot generation
 ```
 
 ## Data Flow
@@ -32,7 +37,7 @@ github.com/jrgoldfinemiddleton/cardcore-server
                          │
                     ┌────┴────┐
                     │ Client  │  ← HTTP lifecycle, WS read loop, maxSeenSeq
-                    │ Engine  │     (internal/client/, internal/client/hearts/)
+                    │ Engine  │     (internal/client/, internal/client/games/hearts/)
                     └────┬────┘
                          │  HTTP/WS
                          │  JSON messages
@@ -52,7 +57,7 @@ github.com/jrgoldfinemiddleton/cardcore-server
                └───────────────────┘
 ```
 
-1. **TUI** (interactive) or **CLI** (scripted/batch) calls into the **Client Engine** (`internal/client/`) for HTTP session management and WebSocket I/O.
+1. **TUI** (interactive) or **CLI** (scripted/batch) calls into the **Client Engine** (`internal/client/` and `internal/client/games/<game>/`) for HTTP session management and WebSocket I/O.
 2. The **Client Engine** sends player commands (`play_card`, `pass_cards`) as JSON over WebSocket and receives snapshot/error broadcasts, filtering duplicates via `maxSeenSeq`.
 3. **Transport** accepts HTTP requests, upgrades WebSocket connections, parses inbound messages, and routes them to the appropriate session.
 4. **Session** owns the game goroutine. It validates commands, applies them to the cardcore engine, runs AI turns, increments the seq counter, and broadcasts state changes.

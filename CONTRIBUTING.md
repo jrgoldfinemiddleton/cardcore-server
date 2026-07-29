@@ -61,7 +61,7 @@ An optional `!` after the type/scope indicates a breaking change: `feat(session)
 | Layer | Package(s) | What it tests |
 |-------|-----------|---------------|
 | Unit (api) | `internal/api/`, `internal/api/games/<game>/` | Wire-format DTO serialization round-trips, conversion function correctness (engine ↔ wire mapping). |
-| Unit (client engine) | `internal/client/`, `internal/client/hearts/` | Client DTO JSON round-trips, error classification, HTTP session lifecycle (`httptest`), WebSocket message filtering (`maxSeenSeq`), command builder correctness. |
+| Unit (client engine) | `internal/client/`, `internal/client/games/hearts/` | Client DTO JSON round-trips, error classification, HTTP session lifecycle (`httptest`), WebSocket message filtering (`maxSeenSeq`), command builder correctness. |
 | Unit (transport) | `internal/server/transport/` | HTTP handler routing, middleware, request parsing, response shapes. No game logic. Uses `httptest.NewRecorder` — no real WebSocket connections. |
 | Unit (session) | `internal/server/session/` | Session goroutine lifecycle, command enqueue/dequeue, seq incrementing, token validation, AI turn triggering. |
 | Unit (view) | `internal/server/view/<game>/` | Snapshot projection correctness: given engine state + seat, assert correct masking (no other hands visible, correct `legal_actions`, correct scores). |

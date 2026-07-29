@@ -78,9 +78,9 @@ func TestCreateInvalidConfig(t *testing.T) {
 	}
 }
 
-// TestCreateAIActionDelayDefault verifies that omitting AIActionDelayMS uses
-// the default value.
-func TestCreateAIActionDelayDefault(t *testing.T) {
+// TestCreateDelayDefaults verifies that omitting any delay field causes Create
+// to use the corresponding default value.
+func TestCreateDelayDefaults(t *testing.T) {
 	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := Config{
 		Game: "hearts",
@@ -107,13 +107,25 @@ func TestCreateAIActionDelayDefault(t *testing.T) {
 			info.AIActionDelayMS, DefaultServerDelays.AIActionDelayMS,
 		)
 	}
+	if info.DealDisplayDelayMS != DefaultServerDelays.DealDisplayDelayMS {
+		t.Errorf(
+			"got deal_display_delay_ms %d, want %d",
+			info.DealDisplayDelayMS, DefaultServerDelays.DealDisplayDelayMS,
+		)
+	}
+	if info.TurnTimeoutMS != DefaultServerDelays.TurnTimeoutMS {
+		t.Errorf(
+			"got turn_timeout_ms %d, want %d",
+			info.TurnTimeoutMS, DefaultServerDelays.TurnTimeoutMS,
+		)
+	}
 }
 
-// TestCreateAIActionDelayZero verifies that explicitly setting AIActionDelayMS
-// to 0 is preserved.
-func TestCreateAIActionDelayZero(t *testing.T) {
+// TestCreateDelayZeros verifies that explicitly setting each delay field to 0
+// is preserved.
+func TestCreateDelayZeros(t *testing.T) {
 	m := NewManager(mockGameRegistry(), DefaultServerDelays)
-	delay := 0
+	zero := 0
 	cfg := Config{
 		Game: "hearts",
 		Seats: []SeatConfig{
@@ -122,7 +134,9 @@ func TestCreateAIActionDelayZero(t *testing.T) {
 			{Type: SeatHuman},
 			{Type: SeatAI, AIType: "random"},
 		},
-		AIActionDelayMS: &delay,
+		AIActionDelayMS:    &zero,
+		DealDisplayDelayMS: &zero,
+		TurnTimeoutMS:      &zero,
 	}
 
 	info, _, err := m.Create(cfg)
@@ -136,6 +150,12 @@ func TestCreateAIActionDelayZero(t *testing.T) {
 	}
 	if info.AIActionDelayMS != 0 {
 		t.Errorf("got ai_action_delay_ms %d, want 0", info.AIActionDelayMS)
+	}
+	if info.DealDisplayDelayMS != 0 {
+		t.Errorf("got deal_display_delay_ms %d, want 0", info.DealDisplayDelayMS)
+	}
+	if info.TurnTimeoutMS != 0 {
+		t.Errorf("got turn_timeout_ms %d, want 0", info.TurnTimeoutMS)
 	}
 }
 
@@ -248,128 +268,6 @@ func TestUpdateDraftSucceeds(t *testing.T) {
 	}
 	if updatedSeats != nil {
 		t.Errorf("got %d updated seats, want nil", len(updatedSeats))
-	}
-}
-
-// TestCreateDealDisplayDelayDefault verifies that omitting DealDisplayDelayMS
-// uses the default value.
-func TestCreateDealDisplayDelayDefault(t *testing.T) {
-	m := NewManager(mockGameRegistry(), DefaultServerDelays)
-	cfg := Config{
-		Game: "hearts",
-		Seats: []SeatConfig{
-			{Type: SeatHuman},
-			{Type: SeatAI, AIType: "random"},
-			{Type: SeatHuman},
-			{Type: SeatAI, AIType: "random"},
-		},
-	}
-
-	info, _, err := m.Create(cfg)
-	if err != nil {
-		t.Fatalf("Create() error: %v", err)
-	}
-	id := info.SessionID
-	info, err = m.Get(id)
-	if err != nil {
-		t.Fatalf("Get() error: %v", err)
-	}
-	if info.DealDisplayDelayMS != DefaultServerDelays.DealDisplayDelayMS {
-		t.Errorf(
-			"got deal_display_delay_ms %d, want %d",
-			info.DealDisplayDelayMS, DefaultServerDelays.DealDisplayDelayMS,
-		)
-	}
-}
-
-// TestCreateDealDisplayDelayZero verifies that explicitly setting
-// DealDisplayDelayMS to 0 is preserved.
-func TestCreateDealDisplayDelayZero(t *testing.T) {
-	m := NewManager(mockGameRegistry(), DefaultServerDelays)
-	dealDelay := 0
-	cfg := Config{
-		Game: "hearts",
-		Seats: []SeatConfig{
-			{Type: SeatHuman},
-			{Type: SeatAI, AIType: "random"},
-			{Type: SeatHuman},
-			{Type: SeatAI, AIType: "random"},
-		},
-		DealDisplayDelayMS: &dealDelay,
-	}
-
-	info, _, err := m.Create(cfg)
-	if err != nil {
-		t.Fatalf("Create() error: %v", err)
-	}
-	id := info.SessionID
-	info, err = m.Get(id)
-	if err != nil {
-		t.Fatalf("Get() error: %v", err)
-	}
-	if info.DealDisplayDelayMS != 0 {
-		t.Errorf("got deal_display_delay_ms %d, want 0", info.DealDisplayDelayMS)
-	}
-}
-
-// TestCreateTurnTimeoutDefault verifies that omitting TurnTimeoutMS uses
-// the default value.
-func TestCreateTurnTimeoutDefault(t *testing.T) {
-	m := NewManager(mockGameRegistry(), DefaultServerDelays)
-	cfg := Config{
-		Game: "hearts",
-		Seats: []SeatConfig{
-			{Type: SeatHuman},
-			{Type: SeatAI, AIType: "random"},
-			{Type: SeatHuman},
-			{Type: SeatAI, AIType: "random"},
-		},
-	}
-
-	info, _, err := m.Create(cfg)
-	if err != nil {
-		t.Fatalf("Create() error: %v", err)
-	}
-	id := info.SessionID
-	info, err = m.Get(id)
-	if err != nil {
-		t.Fatalf("Get() error: %v", err)
-	}
-	if info.TurnTimeoutMS != DefaultServerDelays.TurnTimeoutMS {
-		t.Errorf(
-			"got turn_timeout_ms %d, want %d",
-			info.TurnTimeoutMS, DefaultServerDelays.TurnTimeoutMS,
-		)
-	}
-}
-
-// TestCreateTurnTimeoutZero verifies that explicitly setting TurnTimeoutMS
-// to 0 is preserved.
-func TestCreateTurnTimeoutZero(t *testing.T) {
-	m := NewManager(mockGameRegistry(), DefaultServerDelays)
-	timeout := 0
-	cfg := Config{
-		Game: "hearts",
-		Seats: []SeatConfig{
-			{Type: SeatHuman},
-			{Type: SeatAI, AIType: "random"},
-			{Type: SeatHuman},
-			{Type: SeatAI, AIType: "random"},
-		},
-		TurnTimeoutMS: &timeout,
-	}
-
-	info, _, err := m.Create(cfg)
-	if err != nil {
-		t.Fatalf("Create() error: %v", err)
-	}
-	id := info.SessionID
-	info, err = m.Get(id)
-	if err != nil {
-		t.Fatalf("Get() error: %v", err)
-	}
-	if info.TurnTimeoutMS != 0 {
-		t.Errorf("got turn_timeout_ms %d, want 0", info.TurnTimeoutMS)
 	}
 }
 
@@ -595,7 +493,7 @@ func TestManagerStartCreatesSession(t *testing.T) {
 }
 
 // TestManagerSubscribePlayerReturnsChannel verifies that SubscribePlayer
-// returns a channel for receiving snapshots.
+// returns a non-nil channel for an active session.
 func TestManagerSubscribePlayerReturnsChannel(t *testing.T) {
 	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
@@ -612,7 +510,7 @@ func TestManagerSubscribePlayerReturnsChannel(t *testing.T) {
 }
 
 // TestManagerSubscribeObserverReturnsChannel verifies that SubscribeObserver
-// returns a channel for receiving snapshots.
+// returns a non-nil channel for an active session.
 func TestManagerSubscribeObserverReturnsChannel(t *testing.T) {
 	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
@@ -672,7 +570,7 @@ func TestManagerSubmitActionActiveSucceeds(t *testing.T) {
 }
 
 // TestManagerUnsubscribePlayerSendsCommand verifies that UnsubscribePlayer
-// sends an unsubscribe command to the session goroutine.
+// returns no error for an active subscribed player.
 func TestManagerUnsubscribePlayerSendsCommand(t *testing.T) {
 	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()
@@ -690,7 +588,7 @@ func TestManagerUnsubscribePlayerSendsCommand(t *testing.T) {
 }
 
 // TestManagerUnsubscribeObserverSendsCommand verifies that UnsubscribeObserver
-// sends an unsubscribe command to the session goroutine.
+// returns no error for an active subscribed observer.
 func TestManagerUnsubscribeObserverSendsCommand(t *testing.T) {
 	m := NewManager(mockGameRegistry(), DefaultServerDelays)
 	cfg := validHeartsCfg()

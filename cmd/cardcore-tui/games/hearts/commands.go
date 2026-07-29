@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
-	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client/games/hearts"
 )
 
 // BuildPassCommand builds a pass_cards command from the selected cards.

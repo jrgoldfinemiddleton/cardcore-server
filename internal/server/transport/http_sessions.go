@@ -2,6 +2,7 @@ package transport
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
@@ -55,6 +56,12 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, httpStatus(err), err.Error())
 		return
 	}
+
+	slog.With("component", "transport").Info("session created via http",
+		"session_id", info.SessionID,
+		"game", cfg.Game,
+		"seats", len(cfg.Seats),
+	)
 
 	writeJSON(w, http.StatusCreated, createResponse{
 		SessionID: info.SessionID,
@@ -110,6 +117,11 @@ func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, httpStatus(err), err.Error())
 		return
 	}
+
+	slog.With("component", "transport").Info("session started via http",
+		"session_id", id,
+	)
+
 	writeJSON(w, http.StatusOK, startResponse{
 		SessionID: id,
 		State:     string(session.Active),
@@ -123,5 +135,10 @@ func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, httpStatus(err), err.Error())
 		return
 	}
+
+	slog.With("component", "transport").Info("session deleted via http",
+		"session_id", id,
+	)
+
 	w.WriteHeader(http.StatusNoContent)
 }

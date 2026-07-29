@@ -7,7 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client/games/hearts"
 )
 
 // RenderObserverView renders the full observer view as a square table: the top

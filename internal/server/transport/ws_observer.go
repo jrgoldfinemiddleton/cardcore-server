@@ -44,7 +44,7 @@ func (oc *observerConn) run(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	oc.logger.Debug("observer connection started",
+	oc.logger.Info("observer connection started",
 		"session_id", oc.sessionID,
 	)
 
@@ -66,7 +66,7 @@ func (oc *observerConn) run(ctx context.Context) {
 
 	wg.Wait()
 
-	oc.logger.Debug("observer connection ended",
+	oc.logger.Info("observer connection ended",
 		"session_id", oc.sessionID,
 	)
 
@@ -83,7 +83,7 @@ func (oc *observerConn) run(ctx context.Context) {
 	}
 	if err := oc.ws.Close(websocket.StatusNormalClosure, ""); err != nil {
 		if !errors.Is(err, net.ErrClosed) {
-			oc.logger.Error("ws close", "error", err)
+			oc.logger.Error("ws close after observer run", "error", err)
 		}
 	}
 }
@@ -119,7 +119,7 @@ func (oc *observerConn) writer(ctx context.Context, cancel context.CancelFunc) {
 			if msg.CloseCode != 0 {
 				code := websocket.StatusCode(msg.CloseCode)
 				if err := oc.ws.Close(code, "snapshot marshal failure"); err != nil {
-					oc.logger.Error("ws close", "error", err)
+					oc.logger.Error("ws close on observer snapshot marshal failure", "error", err)
 				}
 				return
 			}

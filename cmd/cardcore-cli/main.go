@@ -12,9 +12,9 @@ import (
 	"syscall"
 	"time"
 
-	heartscli "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-cli/hearts"
+	heartscli "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-cli/games/hearts"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
-	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
+	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/games/hearts"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/flags"
 )
 
@@ -60,6 +60,8 @@ type cliConfig struct {
 // main is the entry point for the cardcore client CLI.
 func main() {
 	signal.Ignore(syscall.SIGPIPE)
+
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)).With("component", "cli"))
 
 	cfg, err := parseFlags(os.Args[1:])
 	if err != nil {

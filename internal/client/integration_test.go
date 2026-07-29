@@ -4,25 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
-	"hash/fnv"
-	"math/rand/v2"
 	"testing"
 	"time"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
-	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
-	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
-	heartssession "github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session/games/hearts"
-	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/transport"
+	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/games/hearts"
+	transporttestutil "github.com/jrgoldfinemiddleton/cardcore-server/internal/server/transport/testutil"
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/testutil"
 )
-
-// testHeartsConfig is a session.GameConfig for integration tests that
-// creates real Hearts adapters with a deterministic RNG.
-type testHeartsConfig struct {
-	rng *rand.Rand
-}
 
 // TestIntegrationFullLifecycle connects a human player and plays a full game,
 // verifying snapshot delivery, seq monotonicity, and phase progression.
@@ -34,7 +24,7 @@ func TestIntegrationFullLifecycle(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	srv := setupTestServer(t)
+	srv := transporttestutil.SetupTestServer(t)
 	baseURL := "http://" + srv.Addr()
 
 	// 10ms pacing keeps the sequential read loop from falling behind
@@ -44,17 +34,7 @@ func TestIntegrationFullLifecycle(t *testing.T) {
 	// buffer overflows and sendNonBlocking drops snapshots (including
 	// game_over), causing flaky failures. 10ms is the same value used
 	// by the transport-level full-game tests.
-	delay := 10
-	cfg := client.Config{
-		Game: "hearts",
-		Seats: []client.SeatConfig{
-			{Type: "human"},
-			{Type: "ai", AIType: "random"},
-			{Type: "ai", AIType: "random"},
-			{Type: "ai", AIType: "random"},
-		},
-		AIActionDelayMS: &delay,
-	}
+	cfg := testutil.HeartsConfigWithPacing(10)
 
 	sc := &client.SessionClient{BaseURL: baseURL}
 	id, seats, err := sc.CreateSession(ctx, cfg)
@@ -62,16 +42,7 @@ func TestIntegrationFullLifecycle(t *testing.T) {
 		t.Fatalf("create session: %v", err)
 	}
 
-	var token string
-	for _, s := range seats {
-		if s.Type == "human" {
-			token = s.Token
-			break
-		}
-	}
-	if token == "" {
-		t.Fatal("no human seat token found")
-	}
+	token := testutil.HumanToken(t, seats)
 
 	if err := sc.StartSession(ctx, id); err != nil {
 		t.Fatalf("start session: %v", err)
@@ -125,6 +96,7 @@ func TestIntegrationFullLifecycle(t *testing.T) {
 			// be true while res.err != nil.
 			t.Fatalf("read snapshot: %v", res.err)
 		}
+		testutil.LogSnapshot(t, "player", res.data)
 
 		var snap struct {
 			Type  string `json:"type"`
@@ -166,6 +138,7 @@ func TestIntegrationFullLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatalf("build pass command: %v", err)
 			}
+			testutil.LogCommand(t, "player", cmd)
 			if err := conn.SendCommand(ctx, cmd); err != nil {
 				t.Fatalf("send pass command: %v", err)
 			}
@@ -192,6 +165,7 @@ func TestIntegrationFullLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatalf("build play command: %v", err)
 			}
+			testutil.LogCommand(t, "player", cmd)
 			if err := conn.SendCommand(ctx, cmd); err != nil {
 				t.Fatalf("send play command: %v", err)
 			}
@@ -225,7 +199,7 @@ func TestIntegrationObserverFullGame(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	srv := setupTestServer(t)
+	srv := transporttestutil.SetupTestServer(t)
 	baseURL := "http://" + srv.Addr()
 
 	// A small pacing delay (10ms) prevents the server's 64-slot observer
@@ -234,17 +208,7 @@ func TestIntegrationObserverFullGame(t *testing.T) {
 	// the buffer, causing sendNonBlocking to drop snapshots (including
 	// game_over). 10ms still completes in ~9s but gives the writer time
 	// to keep up. This is a test-specific accommodation, not a prod config.
-	delay := 10
-	cfg := client.Config{
-		Game: "hearts",
-		Seats: []client.SeatConfig{
-			{Type: "ai", AIType: "random"},
-			{Type: "ai", AIType: "random"},
-			{Type: "ai", AIType: "random"},
-			{Type: "ai", AIType: "random"},
-		},
-		AIActionDelayMS: &delay,
-	}
+	cfg := testutil.HeartsAllAIConfigWithPacing(10)
 
 	sc := &client.SessionClient{BaseURL: baseURL}
 	id, _, err := sc.CreateSession(ctx, cfg)
@@ -308,6 +272,7 @@ func TestIntegrationObserverFullGame(t *testing.T) {
 			// received before the loop exits is a real failure.
 			t.Fatalf("read snapshot: %v", res.err)
 		}
+		testutil.LogSnapshot(t, "observer", res.data)
 
 		var snap struct {
 			Type  string `json:"type"`
@@ -349,22 +314,12 @@ func TestIntegrationPlayerAndObserver(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	srv := setupTestServer(t)
+	srv := transporttestutil.SetupTestServer(t)
 	baseURL := "http://" + srv.Addr()
 
 	// 10ms pacing is sufficient when the main goroutine continuously
 	// drains the observer; the goroutine never stalls on a full channel.
-	delay := 10
-	cfg := client.Config{
-		Game: "hearts",
-		Seats: []client.SeatConfig{
-			{Type: "human"},
-			{Type: "ai", AIType: "random"},
-			{Type: "ai", AIType: "random"},
-			{Type: "ai", AIType: "random"},
-		},
-		AIActionDelayMS: &delay,
-	}
+	cfg := testutil.HeartsConfigWithPacing(10)
 
 	sc := &client.SessionClient{BaseURL: baseURL}
 	id, seats, err := sc.CreateSession(ctx, cfg)
@@ -372,16 +327,7 @@ func TestIntegrationPlayerAndObserver(t *testing.T) {
 		t.Fatalf("create session: %v", err)
 	}
 
-	var token string
-	for _, s := range seats {
-		if s.Type == "human" {
-			token = s.Token
-			break
-		}
-	}
-	if token == "" {
-		t.Fatal("no human seat token found")
-	}
+	token := testutil.HumanToken(t, seats)
 
 	if err := sc.StartSession(ctx, id); err != nil {
 		t.Fatalf("start session: %v", err)
@@ -454,6 +400,7 @@ func TestIntegrationPlayerAndObserver(t *testing.T) {
 				playerErrCh <- fmt.Errorf("player read snapshot: %w", err)
 				return
 			}
+			testutil.LogSnapshot(t, "player", data)
 
 			var snap struct {
 				Type  string `json:"type"`
@@ -501,6 +448,7 @@ func TestIntegrationPlayerAndObserver(t *testing.T) {
 					playerErrCh <- fmt.Errorf("player build pass command: %w", err)
 					return
 				}
+				testutil.LogCommand(t, "player", cmd)
 				if err := playerConn.SendCommand(ctx, cmd); err != nil {
 					playerErrCh <- fmt.Errorf("player send pass command: %w", err)
 					return
@@ -528,6 +476,7 @@ func TestIntegrationPlayerAndObserver(t *testing.T) {
 					playerErrCh <- fmt.Errorf("player build play command: %w", err)
 					return
 				}
+				testutil.LogCommand(t, "player", cmd)
 				if err := playerConn.SendCommand(ctx, cmd); err != nil {
 					playerErrCh <- fmt.Errorf("player send play command: %w", err)
 					return
@@ -555,6 +504,7 @@ func TestIntegrationPlayerAndObserver(t *testing.T) {
 			// be true while res.err != nil.
 			t.Fatalf("observer read snapshot: %v", res.err)
 		}
+		testutil.LogSnapshot(t, "observer", res.data)
 
 		var snap struct {
 			Type  string `json:"type"`
@@ -628,20 +578,10 @@ func TestIntegrationErrorResponse(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	srv := setupTestServer(t)
+	srv := transporttestutil.SetupTestServer(t)
 	baseURL := "http://" + srv.Addr()
 
-	zero := 0
-	cfg := client.Config{
-		Game: "hearts",
-		Seats: []client.SeatConfig{
-			{Type: "human"},
-			{Type: "ai", AIType: "random"},
-			{Type: "ai", AIType: "random"},
-			{Type: "ai", AIType: "random"},
-		},
-		AIActionDelayMS: &zero,
-	}
+	cfg := testutil.HeartsConfigWithPacing(0)
 
 	sc := &client.SessionClient{BaseURL: baseURL}
 	id, seats, err := sc.CreateSession(ctx, cfg)
@@ -649,16 +589,7 @@ func TestIntegrationErrorResponse(t *testing.T) {
 		t.Fatalf("create session: %v", err)
 	}
 
-	var token string
-	for _, s := range seats {
-		if s.Type == "human" {
-			token = s.Token
-			break
-		}
-	}
-	if token == "" {
-		t.Fatal("no human seat token found")
-	}
+	token := testutil.HumanToken(t, seats)
 
 	if err := sc.StartSession(ctx, id); err != nil {
 		t.Fatalf("start session: %v", err)
@@ -676,6 +607,7 @@ func TestIntegrationErrorResponse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read initial snapshot: %v", err)
 	}
+	testutil.LogSnapshot(t, "player", data)
 	var initial struct {
 		Phase string `json:"phase"`
 		Turn  int    `json:"turn"`
@@ -696,6 +628,7 @@ func TestIntegrationErrorResponse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build bad command: %v", err)
 	}
+	testutil.LogCommand(t, "player", badCmd)
 	if err := conn.SendCommand(ctx, badCmd); err != nil {
 		t.Fatalf("send bad command: %v", err)
 	}
@@ -721,74 +654,4 @@ func TestIntegrationErrorResponse(t *testing.T) {
 	if cerr := conn.Close(); cerr != nil {
 		t.Fatalf("close connection after error: %v", cerr)
 	}
-}
-
-// Name returns the game name for the test config.
-func (c *testHeartsConfig) Name() string { return "hearts" }
-
-// RegisterFlags is a no-op for the test config.
-func (c *testHeartsConfig) RegisterFlags(*flag.FlagSet) {}
-
-// Validate is a no-op for the test config.
-func (c *testHeartsConfig) Validate() error { return nil }
-
-// NewGame creates a real Hearts adapter using the deterministic RNG.
-func (c *testHeartsConfig) NewGame(cfg session.Config, _ *rand.Rand) (session.Game, error) {
-	return heartssession.NewGameAdapter(cfg.Seats, c.rng, 0, 0, 0)
-}
-
-// ValidateConfig delegates to the Hearts config validator.
-func (c *testHeartsConfig) ValidateConfig(cfg session.Config) error {
-	return heartssession.NewGameConfig().ValidateConfig(cfg)
-}
-
-// setupTestServer creates a real server with a Hearts game registry,
-// starts it on an ephemeral port, and registers cleanup.
-//
-// We use a real transport.Server (not httptest) because integration
-// tests must exercise the full HTTP/WebSocket stack including the
-// upgrade handshake, per ADR-004's strict transport boundary.
-func setupTestServer(t *testing.T) *transport.Server {
-	t.Helper()
-	registry := heartsRegistry(t)
-	mgr := session.NewManager(registry, session.DefaultServerDelays)
-	srv := transport.NewServer(transport.Config{Manager: mgr})
-	go func() {
-		_ = srv.Start() // Server exited (usually on Shutdown).
-	}()
-	for i := 0; i < 100 && srv.Addr() == ""; i++ {
-		time.Sleep(10 * time.Millisecond)
-	}
-	if srv.Addr() == "" {
-		t.Fatal("server did not start listening")
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(ctx)
-	})
-	return srv
-}
-
-// heartsRegistry returns a session registry containing a real Hearts game
-// config with a deterministic RNG seeded from the test name.
-//
-// A deterministic seed makes failures reproducible across runs. The
-// seed is derived from the test name so different tests get different
-// game sequences while the same test always produces the same sequence.
-func heartsRegistry(t *testing.T) *session.Registry {
-	t.Helper()
-	seed := hashTestName(t.Name())
-	rng := rand.New(rand.NewPCG(seed, seed+1))
-	registry := session.NewRegistry()
-	registry.Register(&testHeartsConfig{rng: rng})
-	return registry
-}
-
-// hashTestName converts a test name string into a deterministic uint64
-// seed for the RNG.
-func hashTestName(name string) uint64 {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(name))
-	return h.Sum64()
 }

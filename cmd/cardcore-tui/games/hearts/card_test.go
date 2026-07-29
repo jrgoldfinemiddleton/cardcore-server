@@ -5,7 +5,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
+	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client/games/hearts"
 )
 
 // TestCardLabel verifies exact card label output.

@@ -67,7 +67,7 @@ func run() int {
 		logWriter = f
 	}
 
-	logger := slog.New(slog.NewTextHandler(logWriter, opts))
+	logger := slog.New(slog.NewTextHandler(logWriter, opts)).With("component", "server")
 	slog.SetDefault(logger)
 
 	mgr := session.NewManager(registry, session.DefaultDelays{

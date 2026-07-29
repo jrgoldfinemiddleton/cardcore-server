@@ -6,7 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	heartstui "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/hearts"
+	heartstui "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/games/hearts"
 )
 
 // Theme is the color palette for the menu. It is an alias for

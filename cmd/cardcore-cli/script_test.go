@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	heartscli "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-cli/hearts"
-	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
+	heartscli "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-cli/games/hearts"
+	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/games/hearts"
 )
 
 // TestParseScriptValid verifies that a well-formed JSON script is parsed

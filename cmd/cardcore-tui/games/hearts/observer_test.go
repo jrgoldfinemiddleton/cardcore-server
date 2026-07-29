@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/hearts"
+	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/games/hearts"
 )
 
 // TestRenderObserverViewFourHands verifies that a 4-hand ObserverSnapshot
