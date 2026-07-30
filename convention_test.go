@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -160,10 +161,8 @@ func walkGoFiles(t *testing.T, opts walkOpts, fn func(path, rel string)) {
 			case ".git", "vendor", "testdata", ".sisyphus":
 				return filepath.SkipDir
 			}
-			for _, s := range opts.skipDirs {
-				if base == s {
-					return filepath.SkipDir
-				}
+			if slices.Contains(opts.skipDirs, base) {
+				return filepath.SkipDir
 			}
 			return nil
 		}
@@ -171,10 +170,8 @@ func walkGoFiles(t *testing.T, opts walkOpts, fn func(path, rel string)) {
 			return nil
 		}
 		base := filepath.Base(path)
-		for _, s := range opts.skipFiles {
-			if base == s {
-				return nil
-			}
+		if slices.Contains(opts.skipFiles, base) {
+			return nil
 		}
 
 		rel, _ := filepath.Rel(cwd, path)

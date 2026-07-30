@@ -1,7 +1,6 @@
 package heartstui
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -11,8 +10,7 @@ import (
 // TestCreateSessionInvalidAIType verifies that CreateSession rejects an
 // unsupported AI type before issuing any HTTP request.
 func TestCreateSessionInvalidAIType(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	sc := &client.SessionClient{BaseURL: "http://localhost:0"}
 	_, _, _, err := CreateSession(ctx, sc, "bogus", false, nil, nil)

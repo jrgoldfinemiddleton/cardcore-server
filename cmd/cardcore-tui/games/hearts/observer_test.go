@@ -38,7 +38,7 @@ func TestRenderObserverViewFourHands(t *testing.T) {
 
 	got := RenderObserverView(snap, NewDarkTheme(), 80, 30)
 
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		label := "Seat " + string(rune('0'+i))
 		if !strings.Contains(got, label) {
 			t.Errorf("RenderObserverView = %q, want to contain %q", got, label)

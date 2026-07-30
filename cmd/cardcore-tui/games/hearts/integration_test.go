@@ -101,7 +101,7 @@ outer:
 				cmd, send, _ := c.HandleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 				if !send {
 					// Need to select 3 cards first.
-					for i := 0; i < 3; i++ {
+					for range 3 {
 						c.HandleKey(tea.KeyPressMsg{Code: tea.KeySpace})
 						c.HandleKey(tea.KeyPressMsg{Code: tea.KeyRight})
 					}
@@ -266,29 +266,53 @@ func TestTUITimeoutAutoPlayIntegration(t *testing.T) {
 	defer func() { _ = conn.Close() }()
 
 	c := NewClient(0, false, NewDarkTheme())
-	gotTimeoutAutoPlay := false
 
+	const bufSize = 256
+	type result struct {
+		data json.RawMessage
+		err  error
+	}
+	resCh := make(chan result, bufSize)
+	go func() {
+		for {
+			data, err := conn.ReadSnapshot(ctx)
+			resCh <- result{data: data, err: err}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	var (
+		gotPassTimeout bool
+		gotPlayTimeout bool
+	)
+
+outer:
 	for range 5000 {
-		data, err := conn.ReadSnapshot(ctx)
-		if err != nil {
-			t.Fatalf("read snapshot: %v", err)
+		res := <-resCh
+		if res.err != nil {
+			t.Fatalf("read snapshot: %v", res.err)
 		}
 
-		c.HandleSnapshot(data)
+		c.HandleSnapshot(res.data)
 
 		if c.phase == heartsclient.PhasePassing && c.playerSnap.Turn == 0 {
-			// Wait for timeout without sending a command.
-			gotTimeoutAutoPlay = true
+			gotPassTimeout = true
 		}
 		if c.phase == heartsclient.PhasePlaying && c.playerSnap.Turn == 0 {
-			gotTimeoutAutoPlay = true
+			gotPlayTimeout = true
 		}
-		if c.phase == heartsclient.PhaseGameOver {
-			break
+
+		if gotPassTimeout && gotPlayTimeout {
+			break outer
 		}
 	}
 
-	if !gotTimeoutAutoPlay {
-		t.Error("never saw a human turn that could time out")
+	if !gotPassTimeout {
+		t.Error("never saw passing-phase human turn that could time out")
+	}
+	if !gotPlayTimeout {
+		t.Error("never saw playing-phase human turn that could time out")
 	}
 }

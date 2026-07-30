@@ -10,6 +10,11 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- `.gopls.json` workspace settings enabling gopls analyzers: `unusedparams`, `shadow`, `unusedfunc`, `unusedvariable`, `modernize`, and `staticcheck`
+- Server-side canonical Hearts game name constant (`GameName` in `internal/server/session/games/hearts/config.go`) so the adapter's `Name()` no longer returns a raw string literal
+- Unit tests for shared test scaffolding: `internal/testutil/hearts_test.go` (deterministic `HashTestName`, `HeartsRegistry` contents/validation) and `internal/server/transport/testutil/server_test.go` (real server starts on free port and shuts down cleanly)
+- Focused binary entry-point tests for `cmd/cardcore-server` (flag parsing, registry contains Hearts, `run()` start/stop, `-log-file` creation), `cmd/cardcore-cli` (flag parsing, missing script/invalid server error paths, `run()` observer happy path), and `cmd/cardcore-tui` (flag parsing, menu-skip logic, theme selection, invalid server address)
+- Structured logging of the selected `ai_type` and `seat_type` for every seat in `heartssession.NewGameAdapter`
 - Test-helper consolidation: shared Hearts config builders (`internal/testutil/hearts.go`), server setup helper for non-transport integration tests (`internal/server/transport/testutil/server.go`), and split mock game types into `internal/server/session/mockgame_test.go`
 - Test coverage: `internal/server/session/subscribers_test.go` for `sendNonBlocking` drop-on-full-buffer behavior, `TestIntegrationCreateSessionSmoke` in `cmd/cardcore-cli/integration_test.go`, `internal/client/errors_test.go`, `cmd/cardcore-cli/games/hearts/script_test.go`, and `internal/server/view/view_test.go`
 - Debug logging utilities: `testutil.LogSnapshot` and `testutil.LogCommand` for structured snapshot/command logging in integration tests
@@ -80,6 +85,10 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- Unified server millisecond flag naming: generic server flags are now `-ai-action-delay-ms`, `-deal-display-delay-ms`, and `-turn-timeout-ms` (matching the existing Hearts-specific `-ms` suffix flags). Environment variables keep their `_MS` suffix (`CARDCORE_SERVER_AI_ACTION_DELAY_MS`, `CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS`, `CARDCORE_SERVER_TURN_TIMEOUT_MS`)
+- Modernization cleanups across the codebase: `max(...)` builtin, `slices.Contains(...)`, `range N` loops, `strings.SplitSeq(...)`, and `t.Context()` in tests, all compatible with the Go 1.25.9 minimum version
+- `heartssession.engineErrToCommandError` default case now returns a generic `"internal error"` message to clients and logs the full engine error server-side; sentinel cases (`wrong_phase`, `out_of_turn`, `illegal_move`) continue to return their engine messages
+- `cmd/cardcore-server/main.go` `run()` refactored to `runWithArgsAndSignal(...)` so tests can drive the server lifecycle without relying on process signals
 - Package layout: moved all `hearts/` subdirectories under `games/hearts/` in every layer (`internal/api/games/hearts/`, `internal/server/session/games/hearts/`, `internal/server/view/games/hearts/`, `internal/client/games/hearts/`, `cmd/cardcore-tui/games/hearts/`, `cmd/cardcore-cli/games/hearts/`) and updated imports, docs, and binary wiring
 - Logging: added `"component"` slog keys to session and transport handlers, demoted HTTP access log to `Debug`, and promoted WebSocket connect/disconnect logs to `Info`
 - Hearts adapter now maps engine errors to wire codes via `errors.Is` against the engine's typed sentinels (`hearts.ErrWrongPhase`, `hearts.ErrOutOfTurn`, and `hearts.ErrIllegalMove`), removing duplicated phase/turn pre-checks in `handlePlayCard` and `handlePassCards`. The engine is now the single source of truth for play/pass legality. Bumped `cardcore` engine dependency to v0.7.0.
@@ -103,6 +112,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- TUI timeout integration test speed: `TestTUITimeoutAutoPlayIntegration` now exits early after observing timeout-eligible human turns in both the passing and playing phases, dropping runtime from ~103s to ~0.5s while preserving timeout-path coverage
 - Documentation accuracy: expanded the `PATCH /sessions/{id}` response documentation in `doc/api.md` to break down the `seat_tokens` field and clarify its sub-fields
 - Documentation accuracy: added missing `make race`, `make create-labels`, and `make apply-labels` targets to the README Makefile table; corrected the CLI `-ai-type` description to include `heuristic`; removed references to the not-yet-implemented `make bench` target from `CONTRIBUTING.md`
 - Documentation accuracy: corrected `internal/api/` description in `README.md`, updated stale command directory names in `doc/architecture.md`, and removed unused `bubbles/v2` from `doc/dependencies.md`

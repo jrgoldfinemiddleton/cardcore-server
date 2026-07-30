@@ -97,7 +97,7 @@ func safeHand(hands [][]heartsclient.Card, seat int) []heartsclient.Card {
 // multi-line string, accounting for ANSI escape sequences.
 func maxLineWidth(s string) int {
 	widest := 0
-	for _, line := range strings.Split(s, "\n") {
+	for line := range strings.SplitSeq(s, "\n") {
 		if w := lipgloss.Width(line); w > widest {
 			widest = w
 		}

@@ -97,9 +97,9 @@ The server listens on `127.0.0.1:8080` by default. It hosts WebSocket game sessi
 | `-log-level` | `CARDCORE_SERVER_LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error` |
 | `-log-file` | `CARDCORE_SERVER_LOG_FILE` | — | Log file path (empty logs to stderr) |
 | `-shutdown-timeout` | `CARDCORE_SERVER_SHUTDOWN_TIMEOUT` | `10` | Graceful shutdown timeout in seconds |
-| `-ai-action-delay` | `CARDCORE_SERVER_AI_ACTION_DELAY_MS` | `1000` | AI action delay in milliseconds |
-| `-deal-display-delay` | `CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS` | `1500` | Deal display delay in milliseconds |
-| `-turn-timeout` | `CARDCORE_SERVER_TURN_TIMEOUT_MS` | `30000` | Human turn timeout in milliseconds |
+| `-ai-action-delay-ms` | `CARDCORE_SERVER_AI_ACTION_DELAY_MS` | `1000` | AI action delay in milliseconds |
+| `-deal-display-delay-ms` | `CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS` | `1500` | Deal display delay in milliseconds |
+| `-turn-timeout-ms` | `CARDCORE_SERVER_TURN_TIMEOUT_MS` | `30000` | Human turn timeout in milliseconds |
 | `-hearts-trick-display-delay-ms` | `CARDCORE_SERVER_HEARTS_TRICK_DISPLAY_DELAY_MS` | `3000` | Hearts trick display delay in milliseconds |
 | `-hearts-round-display-delay-ms` | `CARDCORE_SERVER_HEARTS_ROUND_DISPLAY_DELAY_MS` | `5000` | Hearts round display delay in milliseconds |
 

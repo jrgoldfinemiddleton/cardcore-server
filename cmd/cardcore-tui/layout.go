@@ -104,10 +104,7 @@ func (m *model) renderHeader(width int) string {
 
 	if rightWidth == 0 {
 		// No scores yet: spread the round and phase across the full width.
-		centerWidth := innerWidth - leftWidth
-		if centerWidth < 0 {
-			centerWidth = 0
-		}
+		centerWidth := max(innerWidth-leftWidth, 0)
 		centerBlock := lipgloss.NewStyle().
 			Width(centerWidth).
 			Align(lipgloss.Center).
@@ -120,10 +117,7 @@ func (m *model) renderHeader(width int) string {
 	centerWidth := innerWidth - leftWidth - rightWidth
 	if centerWidth < 0 {
 		centerWidth = 0
-		rightWidth = innerWidth - leftWidth
-		if rightWidth < 0 {
-			rightWidth = 0
-		}
+		rightWidth = max(innerWidth-leftWidth, 0)
 	}
 
 	centerBlock := lipgloss.NewStyle().

@@ -1,7 +1,10 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
 	heartssession "github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session/games/hearts"
@@ -64,7 +67,7 @@ func TestParseFlagsFlagOverride(t *testing.T) {
 
 	cfg, err := parseFlags([]string{
 		"-addr", "127.0.0.1:7777",
-		"-ai-action-delay", "500",
+		"-ai-action-delay-ms", "500",
 	}, testRegistry())
 	if err != nil {
 		t.Fatalf("parseFlags: %v", err)
@@ -107,7 +110,7 @@ func TestParseFlagsInvalidFlag(t *testing.T) {
 	if _, err := parseFlags([]string{"-shutdown-timeout", "0"}, testRegistry()); err == nil {
 		t.Errorf("parseFlags got nil error, want error for shutdown-timeout=0")
 	}
-	if _, err := parseFlags([]string{"-ai-action-delay", "-1"}, testRegistry()); err == nil {
+	if _, err := parseFlags([]string{"-ai-action-delay-ms", "-1"}, testRegistry()); err == nil {
 		t.Errorf("parseFlags got nil error, want error for negative delay")
 	}
 }
@@ -130,6 +133,77 @@ func TestParseFlagsLogFile(t *testing.T) {
 	}
 	if cfg.logFile != "/env/server.log" {
 		t.Errorf("logFile got %q, want %q", cfg.logFile, "/env/server.log")
+	}
+}
+
+// TestRegistryContainsHearts verifies that the default registry used by the
+// server contains the Hearts game.
+func TestRegistryContainsHearts(t *testing.T) {
+	r := testRegistry()
+	names := r.Names()
+	if len(names) != 1 {
+		t.Fatalf("got %d registered games, want 1", len(names))
+	}
+	if got, want := names[0], "hearts"; got != want {
+		t.Errorf("game name got %q, want %q", got, want)
+	}
+}
+
+// TestRunWithArgsAndSignalStartsAndShutsDown verifies that the server starts
+// on a free port and shuts down cleanly when signaled.
+func TestRunWithArgsAndSignalStartsAndShutsDown(t *testing.T) {
+	sigCh := make(chan os.Signal, 1)
+	done := make(chan int, 1)
+
+	go func() {
+		done <- runWithArgsAndSignal([]string{"-addr", "127.0.0.1:0", "-log-level", "warn"}, sigCh)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+	sigCh <- os.Interrupt
+
+	select {
+	case code := <-done:
+		if code != 0 {
+			t.Errorf("exit code got %d, want 0", code)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not shut down within 5s")
+	}
+}
+
+// TestRunWithArgsAndSignalLogFile verifies that -log-file creates a log file
+// and writes server output to it.
+func TestRunWithArgsAndSignalLogFile(t *testing.T) {
+	logFile := filepath.Join(t.TempDir(), "server.log")
+
+	sigCh := make(chan os.Signal, 1)
+	done := make(chan int, 1)
+	go func() {
+		done <- runWithArgsAndSignal([]string{
+			"-addr", "127.0.0.1:0",
+			"-log-file", logFile,
+		}, sigCh)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+	sigCh <- os.Interrupt
+
+	select {
+	case code := <-done:
+		if code != 0 {
+			t.Errorf("exit code got %d, want 0", code)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not shut down within 5s")
+	}
+
+	data, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatalf("read log file: %v", err)
+	}
+	if len(data) == 0 {
+		t.Error("log file is empty")
 	}
 }
 

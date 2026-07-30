@@ -1,0 +1,10 @@
+{
+  "ui.diagnostic.analyses": {
+    "unusedparams": true,
+    "shadow": true,
+    "unusedfunc": true,
+    "unusedvariable": true,
+    "modernize": true
+  },
+  "ui.diagnostic.staticcheck": true
+}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"syscall"
 
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
@@ -124,12 +125,7 @@ func (e *ScriptExecutor) Step(snapshot []byte) (client.Command, bool, error) {
 // isTransitional reports whether phase is a view-only transitional phase
 // that does not require a script entry.
 func (e *ScriptExecutor) isTransitional(phase string) bool {
-	for _, p := range e.builder.TransitionalPhases() {
-		if p == phase {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(e.builder.TransitionalPhases(), phase)
 }
 
 // nextActionID generates a deterministic action ID for the next command.
