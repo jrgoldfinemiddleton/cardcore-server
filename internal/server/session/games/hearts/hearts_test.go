@@ -3,6 +3,7 @@ package heartssession
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"math/rand/v2"
 	"strings"
 	"testing"
@@ -319,6 +320,7 @@ func TestHandlePlayCardPreservesEngineMessage(t *testing.T) {
 // TestEngineErrToCommandErrorMapping verifies direct mapping of each
 // engine sentinel to the correct wire code.
 func TestEngineErrToCommandErrorMapping(t *testing.T) {
+	a := &GameAdapter{logger: slog.Default()}
 	cases := []struct {
 		name     string
 		err      error
@@ -330,7 +332,7 @@ func TestEngineErrToCommandErrorMapping(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			cmdErr := engineErrToCommandError(tc.err)
+			cmdErr := a.engineErrToCommandError(tc.err)
 			if got, want := cmdErr.Code, tc.wantCode; got != want {
 				t.Errorf("got code %q, want %q", got, want)
 			}

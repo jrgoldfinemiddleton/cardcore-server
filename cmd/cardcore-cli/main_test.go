@@ -1,6 +1,7 @@
 package main
 
 import (
+	"path/filepath"
 	"testing"
 )
 
@@ -172,5 +173,85 @@ func TestParseFlagsValidation(t *testing.T) {
 	}
 	if _, err := parseFlags([]string{"-observe", "-exit-delay", "-1"}); err == nil {
 		t.Errorf("parseFlags got nil error, want error for negative exit-delay")
+	}
+}
+
+// TestRunMissingScriptFile verifies that run() returns an error when the
+// configured script file does not exist.
+func TestRunMissingScriptFile(t *testing.T) {
+	cfg := &cliConfig{
+		script: filepath.Join(t.TempDir(), "missing.json"),
+		addr:   "http://127.0.0.1:8080",
+		game:   "hearts",
+		pacing: 10,
+	}
+	if err := run(cfg); err == nil {
+		t.Fatal("run() got nil error, want error for missing script file")
+	}
+}
+
+// TestRunInvalidServerAddress verifies that run() returns an error when the
+// server cannot be reached.
+func TestRunInvalidServerAddress(t *testing.T) {
+	cfg := &cliConfig{
+		observe: true,
+		addr:    "http://127.0.0.1:1",
+		game:    "hearts",
+		pacing:  10,
+	}
+	if err := run(cfg); err == nil {
+		t.Fatal("run() got nil error, want error for invalid server address")
+	}
+}
+
+// TestRunUnsupportedGame verifies that run() returns an error for an
+// unsupported game in observer mode.
+func TestRunUnsupportedGame(t *testing.T) {
+	cfg := &cliConfig{
+		observe: true,
+		addr:    "http://127.0.0.1:8080",
+		game:    "chess",
+		pacing:  10,
+	}
+	if err := run(cfg); err == nil {
+		t.Fatal("run() got nil error, want error for unsupported game")
+	}
+}
+
+// TestRunJoinModeInvalidSession verifies that run() returns an error when
+// joining a session that does not exist.
+func TestRunJoinModeInvalidSession(t *testing.T) {
+	cfg := &cliConfig{
+		sessionID: "nonexistent-session",
+		token:     "invalid-token",
+		addr:      "http://127.0.0.1:1",
+		game:      "hearts",
+		pacing:    10,
+		seat:      0,
+	}
+	if err := run(cfg); err == nil {
+		t.Fatal("run() got nil error, want error for invalid session join")
+	}
+}
+
+// TestNewGameFormatter verifies that the formatter factory returns an error
+// for unsupported games and succeeds for Hearts.
+func TestNewGameFormatter(t *testing.T) {
+	if _, err := newGameFormatter("hearts"); err != nil {
+		t.Errorf("newGameFormatter(hearts) got error %v, want nil", err)
+	}
+	if _, err := newGameFormatter("chess"); err == nil {
+		t.Error("newGameFormatter(chess) got nil error, want error")
+	}
+}
+
+// TestNewGameBuilder verifies that the builder factory returns an error for
+// unsupported games and succeeds for Hearts.
+func TestNewGameBuilder(t *testing.T) {
+	if _, err := newGameBuilder("hearts"); err != nil {
+		t.Errorf("newGameBuilder(hearts) got error %v, want nil", err)
+	}
+	if _, err := newGameBuilder("chess"); err == nil {
+		t.Error("newGameBuilder(chess) got nil error, want error")
 	}
 }

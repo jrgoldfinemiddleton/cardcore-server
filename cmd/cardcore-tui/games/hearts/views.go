@@ -364,10 +364,7 @@ func renderCardBackRow(count int, theme Theme, maxWidth int) string {
 	}
 	back := renderCardBack(theme)
 	const gap = 1
-	maxCards := (maxWidth + gap) / (cardBackWidth + gap)
-	if maxCards < 1 {
-		maxCards = 1
-	}
+	maxCards := max((maxWidth+gap)/(cardBackWidth+gap), 1)
 	if count > maxCards {
 		count = maxCards
 	}
@@ -389,10 +386,7 @@ func renderCardBackColumn(count int, theme Theme, width, maxHeight int) string {
 	}
 	back := renderCardBack(theme)
 	const cardHeight = 3
-	maxCards := maxHeight / cardHeight
-	if maxCards < 1 {
-		maxCards = 1
-	}
+	maxCards := max(maxHeight/cardHeight, 1)
 	if count > maxCards {
 		count = maxCards
 	}

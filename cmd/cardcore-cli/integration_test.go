@@ -331,3 +331,26 @@ func TestIntegrationObserverFullGame(t *testing.T) {
 		}
 	}
 }
+
+// TestIntegrationRunObserverWithRealServer verifies that the CLI's run() path
+// can observe an all-AI session from start to finish using a real server.
+func TestIntegrationRunObserverWithRealServer(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	t.Parallel()
+
+	srv := transporttestutil.SetupTestServer(t)
+
+	cfg := &cliConfig{
+		observe:   true,
+		addr:      "http://" + srv.Addr(),
+		game:      "hearts",
+		aiType:    "random",
+		pacing:    10,
+		exitDelay: 0,
+	}
+	if err := run(cfg); err != nil {
+		t.Fatalf("run() got error %v, want nil", err)
+	}
+}

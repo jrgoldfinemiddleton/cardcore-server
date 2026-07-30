@@ -86,6 +86,11 @@ func NewGameAdapter(
 		if sc.Type != session.SeatAI && aiType == "" {
 			aiType = defaultHumanAIType
 		}
+		a.logger.Info("seat configured",
+			"seat", i,
+			"ai_type", aiType,
+			"seat_type", sc.Type,
+		)
 		p, err := newPlayer(aiType, rng)
 		if err != nil {
 			return nil, fmt.Errorf("seat %d: %w", i, err)
@@ -323,7 +328,7 @@ func (a *GameAdapter) handlePlayCard(
 
 	res, playErr := a.playCard(seat, ec)
 	if playErr != nil {
-		return session.StepResult{}, engineErrToCommandError(playErr)
+		return session.StepResult{}, a.engineErrToCommandError(playErr)
 	}
 	return res, nil
 }
@@ -368,7 +373,7 @@ func (a *GameAdapter) handlePassCards(
 	}
 
 	if err := a.game.SetPass(hearts.Seat(seat), cards); err != nil {
-		return session.StepResult{}, engineErrToCommandError(err)
+		return session.StepResult{}, a.engineErrToCommandError(err)
 	}
 
 	// SetPass transitions PhasePass→PhasePlay when the 4th player
@@ -425,7 +430,10 @@ func (a *GameAdapter) viewState() heartsview.ViewState {
 
 // engineErrToCommandError maps a Hearts engine error to a wire
 // CommandError using errors.Is against the engine's typed sentinels.
-func engineErrToCommandError(err error) *session.CommandError {
+// Known sentinels return their engine message to the client; unknown
+// errors are masked as a generic "internal error" while the full
+// engine error is logged server-side for debugging.
+func (a *GameAdapter) engineErrToCommandError(err error) *session.CommandError {
 	switch {
 	case errors.Is(err, hearts.ErrWrongPhase):
 		return &session.CommandError{
@@ -443,9 +451,10 @@ func engineErrToCommandError(err error) *session.CommandError {
 			Message: err.Error(),
 		}
 	default:
+		a.logger.Error("internal engine error", "error", err)
 		return &session.CommandError{
 			Code:    api.ErrInternal,
-			Message: err.Error(),
+			Message: "internal error",
 		}
 	}
 }

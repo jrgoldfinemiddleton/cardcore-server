@@ -43,10 +43,18 @@ func main() {
 // on SIGINT or SIGTERM to trigger graceful shutdown. It returns a process exit
 // code: 0 for success, 2 for flag-parsing errors, and 1 for runtime failures.
 func run() int {
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	return runWithArgsAndSignal(os.Args[1:], sigCh)
+}
+
+// runWithArgsAndSignal executes the server lifecycle with the provided
+// command-line arguments and signal channel. It is the testable core of run().
+func runWithArgsAndSignal(args []string, sigCh <-chan os.Signal) int {
 	registry := session.NewRegistry()
 	registry.Register(heartssession.NewGameConfig())
 
-	cfg, err := parseFlags(os.Args[1:], registry)
+	cfg, err := parseFlags(args, registry)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
@@ -89,9 +97,6 @@ func run() int {
 		}
 	}()
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-
 	select {
 	case <-sigCh:
 	case err := <-startErr:
@@ -133,13 +138,13 @@ func parseFlags(args []string, registry *session.Registry) (*serverConfig, error
 	fs.IntVar(&cfg.shutdownTimeout, "shutdown-timeout",
 		flags.IntEnvOrDefault("CARDCORE_SERVER_SHUTDOWN_TIMEOUT", 10),
 		"graceful shutdown timeout in seconds (env: CARDCORE_SERVER_SHUTDOWN_TIMEOUT)")
-	fs.IntVar(&cfg.aiActionDelay, "ai-action-delay",
+	fs.IntVar(&cfg.aiActionDelay, "ai-action-delay-ms",
 		flags.IntEnvOrDefault("CARDCORE_SERVER_AI_ACTION_DELAY_MS", 1000),
 		"AI action delay in milliseconds (env: CARDCORE_SERVER_AI_ACTION_DELAY_MS)")
-	fs.IntVar(&cfg.dealDisplayDelay, "deal-display-delay",
+	fs.IntVar(&cfg.dealDisplayDelay, "deal-display-delay-ms",
 		flags.IntEnvOrDefault("CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS", 1500),
 		"deal display delay in milliseconds (env: CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS)")
-	fs.IntVar(&cfg.turnTimeout, "turn-timeout",
+	fs.IntVar(&cfg.turnTimeout, "turn-timeout-ms",
 		flags.IntEnvOrDefault("CARDCORE_SERVER_TURN_TIMEOUT_MS", 30000),
 		"human turn timeout in milliseconds (env: CARDCORE_SERVER_TURN_TIMEOUT_MS)")
 

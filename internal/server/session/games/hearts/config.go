@@ -9,6 +9,10 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
 )
 
+// GameName is the canonical Hearts game name used by the server-side
+// adapter.
+const GameName = "hearts"
+
 // GameConfig implements [session.GameConfig] for Hearts. It owns the
 // Hearts-specific command-line flags and creates GameAdapter instances.
 type GameConfig struct {
@@ -25,7 +29,7 @@ func NewGameConfig() *GameConfig {
 }
 
 // Name returns the canonical Hearts game name.
-func (c *GameConfig) Name() string { return "hearts" }
+func (c *GameConfig) Name() string { return GameName }
 
 // RegisterFlags adds Hearts-specific display delay flags to the server
 // flag set.
