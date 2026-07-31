@@ -85,6 +85,9 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- README restructured for users first: quickstart, concise command descriptions, and a pointer to `-h` for full flag/environment-variable reference instead of exhaustive tables
+- Renamed CLI flags for unit clarity: `-pacing` → `-pacing-ms`, `-exit-delay` → `-exit-delay-ms` (matching the existing `_MS` environment variables)
+- Renamed server shutdown flag for unit clarity: `-shutdown-timeout` → `-shutdown-timeout-secs` and its environment variable `CARDCORE_SERVER_SHUTDOWN_TIMEOUT` → `CARDCORE_SERVER_SHUTDOWN_TIMEOUT_SECS`
 - Unified server millisecond flag naming: generic server flags are now `-ai-action-delay-ms`, `-deal-display-delay-ms`, and `-turn-timeout-ms` (matching the existing Hearts-specific `-ms` suffix flags). Environment variables keep their `_MS` suffix (`CARDCORE_SERVER_AI_ACTION_DELAY_MS`, `CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS`, `CARDCORE_SERVER_TURN_TIMEOUT_MS`)
 - Modernization cleanups across the codebase: `max(...)` builtin, `slices.Contains(...)`, `range N` loops, `strings.SplitSeq(...)`, and `t.Context()` in tests, all compatible with the Go 1.25.9 minimum version
 - `heartssession.engineErrToCommandError` default case now returns a generic `"internal error"` message to clients and logs the full engine error server-side; sentinel cases (`wrong_phase`, `out_of_turn`, `illegal_move`) continue to return their engine messages
@@ -112,6 +115,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- All binaries now handle `-h`/`--help` correctly: print usage and exit 0 instead of exiting 2 with a raw `flag: help requested` error
+- README dead link to Bubble Tea terminal docs replaced with the current [termenv terminal feature support matrix](https://github.com/muesli/termenv#terminal-feature-support)
 - TUI timeout integration test speed: `TestTUITimeoutAutoPlayIntegration` now exits early after observing timeout-eligible human turns in both the passing and playing phases, dropping runtime from ~103s to ~0.5s while preserving timeout-path coverage
 - Documentation accuracy: expanded the `PATCH /sessions/{id}` response documentation in `doc/api.md` to break down the `seat_tokens` field and clarify its sub-fields
 - Documentation accuracy: added missing `make race`, `make create-labels`, and `make apply-labels` targets to the README Makefile table; corrected the CLI `-ai-type` description to include `heuristic`; removed references to the not-yet-implemented `make bench` target from `CONTRIBUTING.md`

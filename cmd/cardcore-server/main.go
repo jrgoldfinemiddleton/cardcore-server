@@ -56,6 +56,9 @@ func runWithArgsAndSignal(args []string, sigCh <-chan os.Signal) int {
 
 	cfg, err := parseFlags(args, registry)
 	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		fmt.Fprintln(os.Stderr, err)
 		return 2
 	}
@@ -135,9 +138,9 @@ func parseFlags(args []string, registry *session.Registry) (*serverConfig, error
 	fs.StringVar(&cfg.logFile, "log-file",
 		flags.EnvOrDefault("CARDCORE_SERVER_LOG_FILE", ""),
 		"log file path (empty logs to stderr) (env: CARDCORE_SERVER_LOG_FILE)")
-	fs.IntVar(&cfg.shutdownTimeout, "shutdown-timeout",
-		flags.IntEnvOrDefault("CARDCORE_SERVER_SHUTDOWN_TIMEOUT", 10),
-		"graceful shutdown timeout in seconds (env: CARDCORE_SERVER_SHUTDOWN_TIMEOUT)")
+	fs.IntVar(&cfg.shutdownTimeout, "shutdown-timeout-secs",
+		flags.IntEnvOrDefault("CARDCORE_SERVER_SHUTDOWN_TIMEOUT_SECS", 10),
+		"graceful shutdown timeout in seconds (env: CARDCORE_SERVER_SHUTDOWN_TIMEOUT_SECS)")
 	fs.IntVar(&cfg.aiActionDelay, "ai-action-delay-ms",
 		flags.IntEnvOrDefault("CARDCORE_SERVER_AI_ACTION_DELAY_MS", 1000),
 		"AI action delay in milliseconds (env: CARDCORE_SERVER_AI_ACTION_DELAY_MS)")
@@ -165,7 +168,7 @@ func parseFlags(args []string, registry *session.Registry) (*serverConfig, error
 	}
 
 	if cfg.shutdownTimeout <= 0 {
-		return nil, fmt.Errorf("-shutdown-timeout must be > 0")
+		return nil, fmt.Errorf("-shutdown-timeout-secs must be > 0")
 	}
 	if cfg.aiActionDelay < 0 || cfg.dealDisplayDelay < 0 || cfg.turnTimeout < 0 {
 		return nil, fmt.Errorf("delay values must be >= 0")

@@ -107,7 +107,7 @@ func TestParseFlagsFlagOverride(t *testing.T) {
 	cfg, err := parseFlags([]string{
 		"-observe",
 		"-addr", "http://localhost:1111",
-		"-pacing", "0",
+		"-pacing-ms", "0",
 		"-ai-type", "random",
 	})
 	if err != nil {
@@ -168,11 +168,11 @@ func TestParseFlagsValidation(t *testing.T) {
 	if _, err := parseFlags([]string{"-observe", "-seat", "-1"}); err == nil {
 		t.Errorf("parseFlags got nil error, want error for negative seat")
 	}
-	if _, err := parseFlags([]string{"-observe", "-pacing", "-1"}); err == nil {
-		t.Errorf("parseFlags got nil error, want error for negative pacing")
+	if _, err := parseFlags([]string{"-observe", "-pacing-ms", "-1"}); err == nil {
+		t.Errorf("parseFlags got nil error, want error for negative pacing-ms")
 	}
-	if _, err := parseFlags([]string{"-observe", "-exit-delay", "-1"}); err == nil {
-		t.Errorf("parseFlags got nil error, want error for negative exit-delay")
+	if _, err := parseFlags([]string{"-observe", "-exit-delay-ms", "-1"}); err == nil {
+		t.Errorf("parseFlags got nil error, want error for negative exit-delay-ms")
 	}
 }
 
