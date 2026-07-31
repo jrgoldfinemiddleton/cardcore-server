@@ -36,7 +36,7 @@ func TestParseFlagsDefaults(t *testing.T) {
 func TestParseFlagsEnvFallback(t *testing.T) {
 	t.Setenv("CARDCORE_SERVER_ADDR", "0.0.0.0:9090")
 	t.Setenv("CARDCORE_SERVER_LOG_LEVEL", "debug")
-	t.Setenv("CARDCORE_SERVER_SHUTDOWN_TIMEOUT", "30")
+	t.Setenv("CARDCORE_SERVER_SHUTDOWN_TIMEOUT_SECS", "30")
 	t.Setenv("CARDCORE_SERVER_AI_ACTION_DELAY_MS", "2000")
 	t.Setenv("CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS", "2500")
 	t.Setenv("CARDCORE_SERVER_TURN_TIMEOUT_MS", "60000")
@@ -86,7 +86,7 @@ func TestParseFlagsFlagOverride(t *testing.T) {
 func TestParseFlagsInvalidEnv(t *testing.T) {
 	t.Setenv("CARDCORE_SERVER_AI_ACTION_DELAY_MS", "not-an-int")
 	t.Setenv("CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS", "-1")
-	t.Setenv("CARDCORE_SERVER_SHUTDOWN_TIMEOUT", "-1")
+	t.Setenv("CARDCORE_SERVER_SHUTDOWN_TIMEOUT_SECS", "-1")
 
 	cfg, err := parseFlags([]string{}, testRegistry())
 	if err != nil {
@@ -107,8 +107,8 @@ func TestParseFlagsInvalidEnv(t *testing.T) {
 // TestParseFlagsInvalidFlag verifies validation of invalid explicit flag
 // values.
 func TestParseFlagsInvalidFlag(t *testing.T) {
-	if _, err := parseFlags([]string{"-shutdown-timeout", "0"}, testRegistry()); err == nil {
-		t.Errorf("parseFlags got nil error, want error for shutdown-timeout=0")
+	if _, err := parseFlags([]string{"-shutdown-timeout-secs", "0"}, testRegistry()); err == nil {
+		t.Errorf("parseFlags got nil error, want error for shutdown-timeout-secs=0")
 	}
 	if _, err := parseFlags([]string{"-ai-action-delay-ms", "-1"}, testRegistry()); err == nil {
 		t.Errorf("parseFlags got nil error, want error for negative delay")

@@ -8,220 +8,85 @@ A WebSocket game server and Bubble Tea TUI client for [Cardcore](https://github.
 
 ## About
 
-Cardcore Server provides a localhost WebSocket server that hosts card games powered by the [cardcore](https://github.com/jrgoldfinemiddleton/cardcore) engine, plus a terminal UI client built with [Bubble Tea](https://charm.land/bubbletea/). The server exposes a JSON-over-WebSocket protocol for real-time gameplay; see [`doc/api.md`](doc/api.md) for the full specification.
+Cardcore Server hosts card games on a localhost WebSocket server, with a terminal UI client for interactive play. The server exposes a JSON-over-WebSocket protocol documented in [`doc/api.md`](doc/api.md).
 
-## Design Philosophy
+Hearts is the first implemented game. Other games will follow the same vertical-slice structure.
 
-- Minimal dependencies: stdlib-first, external deps require explicit approval.
-- Strict transport boundary: all clients use the real API, no in-process shortcuts.
-- Full-state snapshots: no incremental diffs, no sync bugs.
-- [Suckless](https://suckless.org/philosophy/) code design: small, readable, and composable.
-- Contributor-friendly: thorough docs, automated checks, and clear conventions lower the barrier to entry.
+## Quickstart
 
-## Project Layout
-
-```text
-cardcore-server/
-├── cmd/
-│   ├── cardcore-server/ # Game server binary
-│   ├── cardcore-tui/    # Bubble Tea TUI client binary
-│   │   └── games/<game>/ # Game-specific rendering and command-builders
-│   └── cardcore-cli/    # Non-TTY CLI client binary
-│       └── games/<game>/ # Game-specific command builders and formatters
-└── internal/
-    ├── api/              # Shared wire-format envelopes and error codes
-    │   └── games/<game>/ # Game-specific wire-format types
-    ├── client/           # Shared protocol-agnostic client engine
-    │   └── games/<game>/ # Game-specific adapter and DTOs
-    ├── flags/            # Shared environment-variable and flag helpers
-    └── server/
-        ├── session/          # Session lifecycle and game goroutine
-        │   └── games/<game>/ # Game-specific adapter for session manager
-        ├── transport/        # HTTP/WebSocket plumbing
-        └── view/
-            └── games/<game>/ # Seat-filtered snapshot generation
-```
-
-## Requirements
-
-Go 1.25.9+
-
-## Getting Started
+Install [Go](https://go.dev/) 1.25.9+, then build the binaries:
 
 ```bash
-make check
-```
-
-This runs formatting, vetting, linting, and tests. Dev tools like [golangci-lint](https://golangci-lint.run/) are declared in `go.mod` via the Go 1.25 `tool` directive and are compiled automatically on first use.
-
-### TUI Terminal Requirements
-
-The TUI (`cmd/cardcore-tui`) requires a terminal emulator with ANSI escape sequence support. All modern terminals (xterm, iTerm2, Windows Terminal, etc.) meet this.
-
-Specific requirements:
-
-- **Alternate screen buffer** (smcup/rmcup): enabled so the TUI does not scroll the terminal history.
-- **True color (24-bit)**: required for the lipgloss color scheme.
-- **Minimum width**: 80 columns for the layout.
-
-For tmux users: set `TERM=screen-256color` or `tmux-256color`. Focus reporting is not enabled — the game continues regardless of terminal focus.
-
-See [Bubble Tea's terminal docs](https://charm.land/bubbletea/docs/terminal) for details.
-
-## Usage
-
-This project is intended for two different audiences. Use the **binary usage** instructions when running released or locally-built artifacts. Use the **development usage** instructions when iterating on the source code between releases or commits.
-
-### End-user binary usage
-
-Build the binaries once with `make build`, then run them from `bin/`:
-
-```bash
+git clone https://github.com/jrgoldfinemiddleton/cardcore-server.git
+cd cardcore-server
 make build
-./bin/cardcore-server
-./bin/cardcore-tui
-./bin/cardcore-cli -script script.json
 ```
 
-#### Server
+In one terminal, start the server:
 
 ```bash
 ./bin/cardcore-server
 ```
 
-The server listens on `127.0.0.1:8080` by default. It hosts WebSocket game sessions and serves the HTTP API documented in [`doc/api.md`](doc/api.md). Press `Ctrl+C` for graceful shutdown.
-
-| Flag | Env Var | Default | Description |
-|---|---|---|---|
-| `-addr` | `CARDCORE_SERVER_ADDR` | `127.0.0.1:8080` | Listen address |
-| `-log-level` | `CARDCORE_SERVER_LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error` |
-| `-log-file` | `CARDCORE_SERVER_LOG_FILE` | — | Log file path (empty logs to stderr) |
-| `-shutdown-timeout` | `CARDCORE_SERVER_SHUTDOWN_TIMEOUT` | `10` | Graceful shutdown timeout in seconds |
-| `-ai-action-delay-ms` | `CARDCORE_SERVER_AI_ACTION_DELAY_MS` | `1000` | AI action delay in milliseconds |
-| `-deal-display-delay-ms` | `CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS` | `1500` | Deal display delay in milliseconds |
-| `-turn-timeout-ms` | `CARDCORE_SERVER_TURN_TIMEOUT_MS` | `30000` | Human turn timeout in milliseconds |
-| `-hearts-trick-display-delay-ms` | `CARDCORE_SERVER_HEARTS_TRICK_DISPLAY_DELAY_MS` | `3000` | Hearts trick display delay in milliseconds |
-| `-hearts-round-display-delay-ms` | `CARDCORE_SERVER_HEARTS_ROUND_DISPLAY_DELAY_MS` | `5000` | Hearts round display delay in milliseconds |
-
-#### TUI Client
+In another terminal, start the TUI and select **Start Game** from the menu:
 
 ```bash
 ./bin/cardcore-tui
 ```
 
-The default invocation shows an interactive menu. From there you can review the server, game, AI difficulty, observer mode, and theme settings before starting. By default the menu starts a 1-human+3-AI Hearts game as seat 0 once you choose Start Game.
+The default menu starts a 1-human + 3-AI Hearts game. No flags are required.
 
-Key commands during a game:
+## Commands
 
-- `←` / `→` — navigate cards in your hand
-- `Space` — select/deselect a card
-- `Enter` — confirm selection (pass 3 cards or play 1 card)
-- `Esc` — initiate quit, then `Enter` to confirm
+### `cardcore-server`
 
-#### Initial Menu
+The game server. It listens on `127.0.0.1:8080` by default, manages game sessions over HTTP/WebSocket, and runs the game goroutine. Press `Ctrl+C` for graceful shutdown.
 
-When you run the TUI without the flags that start a game directly, it presents an interactive menu:
+### `cardcore-tui`
 
-| Item | Behavior |
-|---|---|
-| Game | Display-only; currently always `hearts`. |
-| Server | The server base URL. Press Enter to edit inline; Esc cancels, Enter confirms. |
-| AI Difficulty | Cycles through Easy (`random`), Medium (`heuristic`), and Hard (`pimc`). |
-| Observer | Toggles receive-only mode with all hands visible. |
-| Theme | Toggles between `dark` and `light`. |
-| Start Game | Starts the game with the selected settings. |
+The interactive terminal client. When run without game-related flags, it shows a menu to choose the server, AI difficulty, observer mode, and theme.
 
-Navigation and controls:
+Menu navigation: `↑` / `↓` to move, `Enter` to change a setting or start the game, `Esc` to exit.
 
-- `↑` / `↓` — move the cursor between items.
-- `Enter` — cycle the value of AI Difficulty, Observer, or Theme; starts the game when Start Game is selected.
-- `Esc` — exit the menu without starting a game.
+During a Hearts game (the only implemented game so far): `←` / `→` to move through your hand, `Space` to select or deselect a card, `Enter` to confirm, and `Esc` to initiate quitting.
 
-The menu is skipped and the game starts immediately if you explicitly set any of these flags: `-session`, `-token`, `-observe`, or `-ai-type`.
+### `cardcore-cli`
 
-| Flag | Env Var | Default | Description |
-|---|---|---|---|
-| `-server` | `CARDCORE_TUI_SERVER` | `http://127.0.0.1:8080` | Server base URL |
-| `-game` | `CARDCORE_TUI_GAME` | `hearts` | Game to play |
-| `-session` | `CARDCORE_TUI_SESSION` | — | Session ID to join |
-| `-token` | `CARDCORE_TUI_TOKEN` | — | Bearer token for the seat being joined |
-| `-seat` | `CARDCORE_TUI_SEAT` | `0` | Seat index to join |
-| `-observe` | `CARDCORE_TUI_OBSERVE` | `false` | Observer mode (receive-only) |
-| `-ai-type` | `CARDCORE_TUI_AI_TYPE` | `random` | AI type for auto-created sessions: `random`, `heuristic`, or `pimc`; when set explicitly, skips the menu |
-| `-theme` | `CARDCORE_TUI_THEME` | `dark` | Color theme: `dark` or `light` |
-| `-debug` | `CARDCORE_TUI_DEBUG` | `false` | Enable debug logging to `tui.log` |
+A non-interactive scripted client. Point it at a JSON script to drive a game automatically and print compact snapshots to stdout. Use `-observe` to watch an all-AI game without sending commands.
 
-#### CLI Client
+## TUI terminal requirements
+
+The TUI requires a terminal emulator that supports ANSI escape sequences and 24-bit true color. All modern terminals (xterm, iTerm2, Windows Terminal, Ghostty, etc.) meet this.
+
+For tmux, set `TERM=screen-256color` or `tmux-256color`. Focus reporting is not enabled. See the [termenv terminal feature support matrix](https://github.com/muesli/termenv#terminal-feature-support) for details.
+
+## Configuration
+
+Each command prints its full flag and environment-variable reference:
 
 ```bash
-./bin/cardcore-cli -script script.json
+./bin/cardcore-server -h
+./bin/cardcore-tui -h
+./bin/cardcore-cli -h
 ```
 
-Runs a non-interactive scripted game. The script is a JSON array of phase-action entries that drive command construction automatically.
+All flags have a matching `CARDCORE_*` environment variable. Explicit flags take precedence.
 
-Example `script.json` for Hearts:
+### Notable flags
 
-```json
-[
-  {
-    "phase": "passing",
-    "action": "pass_cards",
-    "selector": "first_n",
-    "selector_args": {"count": 3}
-  },
-  {
-    "phase": "playing",
-    "action": "play_card",
-    "selector": "first_legal"
-  }
-]
-```
+- `-log-level` (server): minimum severity to log (`debug`, `info`, `warn`, `error`). Default is `info`.
+- `-shutdown-timeout-secs` (server): graceful shutdown timeout in seconds.
+- `-pacing-ms` / `-exit-delay-ms` (CLI): delays between snapshots and before exiting, in milliseconds.
+- `-debug` (TUI): writes debug logs to `tui.log` in the **current working directory**.
+- `-observe` (TUI/CLI): watch the full game state without taking a seat. All hands are visible, and you receive every snapshot, but you cannot send moves.
 
-The CLI prints each snapshot in compact notation to stdout. Use `-observe` to watch an all-AI session without sending commands.
+## Development
 
-| Flag | Env Var | Default | Description |
-|---|---|---|---|
-| `-script` | `CARDCORE_CLI_SCRIPT` | — | Path to JSON script file |
-| `-addr` | `CARDCORE_CLI_ADDR` | `http://127.0.0.1:8080` | Server address |
-| `-game` | `CARDCORE_CLI_GAME` | `hearts` | Game to play |
-| `-ai-type` | `CARDCORE_CLI_AI_TYPE` | `random` | AI player type (`random`, `heuristic`, or `pimc`) |
-| `-pacing` | `CARDCORE_CLI_PACING_MS` | `500` | Pacing delay between snapshots (ms) |
-| `-exit-delay` | `CARDCORE_CLI_EXIT_DELAY_MS` | `1000` | Wait after `game_over` before exiting (ms) |
-| `-observe` | `CARDCORE_CLI_OBSERVE` | `false` | Create 4-AI session and observe |
-| `-session-id` | `CARDCORE_CLI_SESSION_ID` | — | Join an existing session |
-| `-token` | `CARDCORE_CLI_TOKEN` | — | Bearer token for the seat being joined |
-| `-seat` | `CARDCORE_CLI_SEAT` | `0` | Seat index to join |
-| `-delete-on-exit` | `CARDCORE_CLI_DELETE_ON_EXIT` | `false` | Delete session after game ends |
-
-### Development usage
-
-Use these commands when testing changes between releases or commits. They compile the source on every run, so they are slower than running pre-built binaries.
+For build, test, lint, and contribution workflow, see [`CONTRIBUTING.md`](CONTRIBUTING.md) or run:
 
 ```bash
-go run ./cmd/cardcore-server
-go run ./cmd/cardcore-tui
-go run ./cmd/cardcore-cli -script script.json
+make help
 ```
-
-All flags and environment variables described in the binary usage sections above apply equally to `go run`; only the binary path changes.
-
-## Makefile Targets
-
-| Target | Description |
-|---|---|
-| `make test` | Run all tests |
-| `make fmt` | Format code with [gofmt](https://pkg.go.dev/cmd/gofmt) |
-| `make vet` | Run [go vet](https://pkg.go.dev/cmd/vet) |
-| `make lint` | Run [golangci-lint](https://golangci-lint.run/) |
-| `make lint-extra` | Run golangci-lint with the extra-strict config |
-| `make build` | Compile all packages and binaries |
-| `make race` | Run all tests with the race detector |
-| `make doc` | Browse docs locally via [pkgsite](https://pkg.go.dev/golang.org/x/pkgsite) |
-| `make check` | Run fmt, vet, lint, and test |
-| `make clean` | Remove build output directory |
-| `make create-labels` | Provision the repository label set |
-| `make apply-labels` | Compute and apply labels for `PR=<n>` |
-| `make help` | Show available targets |
 
 ## License
 

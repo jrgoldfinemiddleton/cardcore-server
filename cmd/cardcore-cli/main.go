@@ -65,6 +65,9 @@ func main() {
 
 	cfg, err := parseFlags(os.Args[1:])
 	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			os.Exit(0)
+		}
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
@@ -108,13 +111,13 @@ func parseFlags(args []string) (*cliConfig, error) {
 	fs.BoolVar(&cfg.deleteOnExit, "delete-on-exit",
 		flags.BoolEnvOrDefault("CARDCORE_CLI_DELETE_ON_EXIT", false),
 		"delete session on exit (env: CARDCORE_CLI_DELETE_ON_EXIT)")
-	fs.IntVar(&cfg.pacing, "pacing",
+	fs.IntVar(&cfg.pacing, "pacing-ms",
 		flags.IntEnvOrDefault("CARDCORE_CLI_PACING_MS", 500),
 		"pacing delay in milliseconds (env: CARDCORE_CLI_PACING_MS)")
 	fs.StringVar(&cfg.aiType, "ai-type",
 		flags.EnvOrDefault("CARDCORE_CLI_AI_TYPE", aiTypeRandom),
 		"AI player type (env: CARDCORE_CLI_AI_TYPE)")
-	fs.IntVar(&cfg.exitDelay, "exit-delay",
+	fs.IntVar(&cfg.exitDelay, "exit-delay-ms",
 		flags.IntEnvOrDefault("CARDCORE_CLI_EXIT_DELAY_MS", 1000),
 		"exit delay in milliseconds (env: CARDCORE_CLI_EXIT_DELAY_MS)")
 
@@ -148,10 +151,10 @@ func parseFlags(args []string) (*cliConfig, error) {
 		return nil, fmt.Errorf("-seat must be >= 0")
 	}
 	if cfg.pacing < 0 {
-		return nil, fmt.Errorf("-pacing must be >= 0")
+		return nil, fmt.Errorf("-pacing-ms must be >= 0")
 	}
 	if cfg.exitDelay < 0 {
-		return nil, fmt.Errorf("-exit-delay must be >= 0")
+		return nil, fmt.Errorf("-exit-delay-ms must be >= 0")
 	}
 
 	return cfg, nil
