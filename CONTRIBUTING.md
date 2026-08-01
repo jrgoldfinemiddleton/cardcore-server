@@ -61,19 +61,25 @@ An optional `!` after the type/scope indicates a breaking change: `feat(session)
 | Layer | Package(s) | What it tests |
 |-------|-----------|---------------|
 | Unit (api) | `internal/api/`, `internal/api/games/<game>/` | Wire-format DTO serialization round-trips, conversion function correctness (engine ↔ wire mapping). |
-| Unit (client engine) | `internal/client/`, `internal/client/games/hearts/` | Client DTO JSON round-trips, error classification, HTTP session lifecycle (`httptest`), WebSocket message filtering (`maxSeenSeq`), command builder correctness. |
+| Unit (client engine) | `internal/client/`, `internal/client/games/<game>/` | Client DTO JSON round-trips, error classification, HTTP session lifecycle (`httptest`), WebSocket message filtering (`maxSeenSeq`), command builder correctness. |
 | Unit (transport) | `internal/server/transport/` | HTTP handler routing, middleware, request parsing, response shapes. No game logic. Uses `httptest.NewRecorder` — no real WebSocket connections. |
 | Unit (session) | `internal/server/session/` | Session goroutine lifecycle, command enqueue/dequeue, seq incrementing, token validation, AI turn triggering. |
-| Unit (view) | `internal/server/view/<game>/` | Snapshot projection correctness: given engine state + seat, assert correct masking (no other hands visible, correct `legal_actions`, correct scores). |
-| Integration | `internal/server/`, `internal/client/`, `cmd/cardcore-cli/`, or root | Real server on `:0`, real WebSocket client, play through a full game. WebSocket upgrade, message framing, close frames, and concurrent clients use `httptest.Server` + `websocket.Dial`. Exercises the same code path as production. |
-| Protocol conformance | `internal/server/` or root | Table-driven: "send this message, expect this response shape." Validates wire format against `doc/api.md`. |
-| Game protocol | `internal/server/` or root | Game-specific message handling: do commands produce correct snapshots? Do game-specific error cases fire correctly? Full-game integration through all phases. Validates behavior against `doc/games/<game>/protocol.md`. |
-| TUI model | `cmd/cardcore-tui/` | Bubble Tea model tests: send messages, assert on model state without rendering. Visual testing is manual. |
-| Stress | `internal/server/` or root | Full games with all-AI sessions across many iterations. Surfaces protocol issues, state machine edge cases, and resource leaks at volume. |
+| Unit (game adapter) | `internal/server/session/games/<game>/` | Game-specific adapter logic: config validation, engine integration, command dispatch. |
+| Unit (view) | `internal/server/view/games/<game>/` | Snapshot projection correctness: given engine state + seat, assert correct masking (no other hands visible, correct `legal_actions`, correct scores). |
+| Integration | `internal/server/transport/`, `internal/client/`, `cmd/cardcore-cli/`, `cmd/cardcore-tui/games/<game>/` | Real server on `:0`, real WebSocket client, play through a full game. WebSocket upgrade, message framing, close frames, and concurrent clients use `httptest.Server` + `websocket.Dial`. Exercises the same code path as production. |
+| Protocol conformance | `internal/server/transport/` | Table-driven: "send this message, expect this response shape." Validates wire format against `doc/api.md`. |
+| Game protocol | `internal/server/transport/`, `internal/server/session/games/<game>/` | Game-specific message handling: do commands produce correct snapshots? Do game-specific error cases fire correctly? Full-game integration through all phases. Validates behavior against `doc/games/<game>/protocol.md`. |
+| TUI model | `cmd/cardcore-tui/`, `cmd/cardcore-tui/games/<game>/` | Bubble Tea model tests: send messages, assert on model state without rendering. Visual testing is manual. |
+| Stress | `internal/server/transport/` or root | Full games with all-AI sessions across many iterations. Surfaces protocol issues, state machine edge cases, and resource leaks at volume. |
 
 ### Test helpers convention
 
-Shared test fixtures (mock implementations, setup helpers) live in `*_helpers_test.go` files within the package. Examples: `internal/server/session/helpers_test.go` contains `mockGame`, `mockGameFactory`, `mustCreateAndStart`, `validHeartsCfg`. This mirrors the `cardcore` engine's `helpers_test.go` / `bench_helpers_test.go` pattern.
+Shared test fixtures (mock implementations, setup helpers) live in `*_helpers_test.go` files within the package. Examples: `internal/server/session/helpers_test.go` contains `mockGame`, `mockGameRegistry`, `mustCreateAndStart`, `validHeartsCfg`. This mirrors the `cardcore` engine's `helpers_test.go` / `bench_helpers_test.go` pattern.
+
+Fixtures that are reused across multiple packages live in standalone packages:
+
+- `internal/testutil/` — cross-package helpers such as deterministic Hearts fixtures and session/client config builders.
+- `internal/server/transport/testutil/` — real server setup for transport and integration tests.
 
 ### Benchmarks
 
@@ -122,9 +128,15 @@ Methods on the same receiver must be contiguous.
 
 #### Test files
 
-1. Unit tests (`func Test*`)
-2. Integration tests (`func Test*Integration`, `func Test*FullGame*`)
-3. Test helpers and setup functions (at the bottom)
+1. Interface checks (`var _ T = (*Impl)(nil)`)
+2. Unit tests (`func Test*`)
+3. Integration tests (`func Test*Integration`, `func Test*FullGame*`)
+4. Benchmarks (`func Benchmark*`)
+5. Fuzz tests (`func Fuzz*`)
+6. Examples (`func Example*`)
+7. Test helpers and setup functions (at the bottom)
+
+See `convention_test.go` for the canonical ordering logic.
 
 ### Import grouping
 
@@ -133,6 +145,22 @@ Imports are grouped by `gci` (enforced by `make lint`):
 1. Standard library
 2. Third-party packages
 3. Local packages (`github.com/jrgoldfinemiddleton/cardcore-server/...`)
+
+### Project conventions
+
+In addition to the rules above, contributors should follow these conventions:
+
+- **Test assertions:** name expected values `want` and actual values `got`.
+- **Test helpers:** call `t.Helper()` at the start of every test helper function.
+- **Logging:** use `log/slog` and include a `"component"` key for per-component log prefixes.
+- **Global state:** keep all state in structs passed explicitly; avoid global variables.
+- **Commit messages:** use a single-line subject; put detail in the PR description.
+- **Doc comments:** end with a period.
+- **Line length:** keep lines within 100 characters.
+- **Function length:** keep functions under roughly 100 lines / 60 statements.
+- **Package docs:** every Go package must contain a `doc.go`.
+
+The project validates these expectations through `convention_test.go`, `.golangci.yml`, and `.golangci-extra.yml`. Run `make check` and `make lint-extra` to exercise them.
 
 ### Before every commit
 

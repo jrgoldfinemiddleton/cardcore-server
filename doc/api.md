@@ -18,7 +18,7 @@ are defined in per-game protocol files listed in the
 - Optional fields are omitted from the response when not applicable
   (not set to `null`).
 - Unknown fields in request bodies are silently ignored.
-- The server binds to `127.0.0.1` on a dynamic port for local play.
+- The server binds to `127.0.0.1:8080` by default for local play. Tests and the `-addr` flag may use `:0` to request a dynamic port from the OS.
 
 ---
 

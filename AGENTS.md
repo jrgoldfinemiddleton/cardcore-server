@@ -31,7 +31,7 @@ cardcore-server/
 ## WHERE TO LOOK
 | Task | Location | Notes |
 |------|----------|-------|
-| Add a game | `internal/server/session/games/<game>/`, `internal/api/games/<game>/`, `internal/server/view/<game>/`, `internal/client/<game>/`, `cmd/cardcore-tui/<game>/`, `cmd/cardcore-cli/<game>/` | Follow the Hearts vertical slice; wire the factory in `cmd/cardcore-server/main.go` |
+| Add a game | `internal/server/session/games/<game>/`, `internal/api/games/<game>/`, `internal/server/view/games/<game>/`, `internal/client/games/<game>/`, `cmd/cardcore-tui/games/<game>/`, `cmd/cardcore-cli/games/<game>/` | Follow the Hearts vertical slice; wire the factory in `cmd/cardcore-server/main.go` |
 | Change HTTP/WS routes or handlers | `internal/server/transport/` | `Server` registers routes; `http_sessions.go` for REST, `ws_player.go`/`ws_observer.go` for WebSockets |
 | Change session lifecycle | `internal/server/session/` | `Manager` is the mutex-protected registry; `session.run()` is the single goroutine |
 | Change protocol messages | `internal/api/api.go` | `InboundMessage`, `ErrorMessage`, and error codes are shared across server-side packages |
@@ -102,6 +102,7 @@ go run ./cmd/cardcore-cli -script script.json
 - Dev tools (`golangci-lint`, `pkgsite`) are declared via Go 1.25's `tool` directive in `go.mod`.
 - Stress tests are planned but not yet implemented; when added they must be gated by a build tag so they do not run during `make check`.
 - The `internal/client` package mirrors some server DTOs intentionally; client types have JSON tags and decouple the client from server internals.
+- The `internal/testutil/` package provides shared test fixtures (deterministic Hearts configs, session/client builders, bearer token extraction) for integration tests across packages.
 
 ## Maintainer Runbook
 If `doc/maintainer-runbook.md` exists locally, read it for release procedures, PR review workflow, repository settings reference, and recovery steps.
