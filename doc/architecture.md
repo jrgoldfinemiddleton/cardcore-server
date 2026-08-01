@@ -93,7 +93,7 @@ Each session runs in its own goroutine:
 
 ## Network Model
 
-Localhost TCP on `127.0.0.1:0` — the OS picks a free port at startup. No unix sockets (not portable across OSes). The server prints the bound address on startup so the TUI can connect.
+Localhost TCP on `127.0.0.1:8080` by default. The address is configurable via the `-addr` flag; tests typically pass `127.0.0.1:0` so the OS picks a free port. No unix sockets (not portable across OSes). The server prints the bound address on startup so the TUI can connect.
 
 ## Dependency Policy
 
