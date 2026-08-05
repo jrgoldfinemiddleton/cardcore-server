@@ -38,7 +38,7 @@ type Server struct {
 	// bytes. Default is 65536.
 	wsReadLimit int64
 	// wsConns tracks active WebSocket connections for graceful shutdown.
-	// Keys are *websocket.Conn; values are struct{}.
+	// Keys are *[websocket.Conn]; values are struct{}.
 	wsConns sync.Map
 	// closing is set to true when Shutdown() begins to prevent transport
 	// goroutines from sending a redundant NormalClosure close frame after

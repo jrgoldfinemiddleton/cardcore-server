@@ -63,7 +63,7 @@ func (m *menuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the current menu state as a terminal screen. The rendering
-// logic lives in the pure render method; View wraps it in a tea.View. The
+// logic lives in the pure render method; View wraps it in a [tea.View]. The
 // view's background color is set to the theme background so the entire menu
 // area fills with the correct palette.
 func (m *menuModel) View() tea.View {

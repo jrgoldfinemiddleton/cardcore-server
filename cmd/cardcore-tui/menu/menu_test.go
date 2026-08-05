@@ -333,7 +333,7 @@ func sendKey(t *testing.T, m *menuModel, key tea.KeyPressMsg) *menuModel {
 	return result
 }
 
-// isQuitCmd verifies that cmd is a tea.Quit command by calling it and
+// isQuitCmd verifies that cmd is a [tea.Quit] command by calling it and
 // checking the returned message type.
 func isQuitCmd(t *testing.T, cmd tea.Cmd) {
 	t.Helper()

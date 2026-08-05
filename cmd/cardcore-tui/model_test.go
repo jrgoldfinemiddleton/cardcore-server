@@ -697,7 +697,7 @@ func TestModelRenderFooterTimeoutDisabled(t *testing.T) {
 	}
 }
 
-// TestModelWindowSize verifies that a tea.WindowSizeMsg updates the model's
+// TestModelWindowSize verifies that a [tea.WindowSizeMsg] updates the model's
 // stored dimensions, and that zero dimensions default to 80x24.
 func TestModelWindowSize(t *testing.T) {
 	t.Run("stores dimensions", func(t *testing.T) {
@@ -746,7 +746,7 @@ func TestModelWindowSize(t *testing.T) {
 	})
 }
 
-// runCmd executes a tea.Cmd and returns the resulting message.
+// runCmd executes a [tea.Cmd] and returns the resulting message.
 func runCmd(t *testing.T, cmd tea.Cmd) tea.Msg {
 	t.Helper()
 	if cmd == nil {

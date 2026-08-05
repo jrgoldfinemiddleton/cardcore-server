@@ -64,7 +64,7 @@ func (c *Conn) Connect(ctx context.Context, url, token string) error {
 // maxSeenSeq, discarding any stale snapshots (seq <= maxSeenSeq) it
 // encounters. It may block indefinitely if no fresh snapshot arrives
 // and ctx has no deadline. This is the sole owner of maxSeenSeq
-// filtering per ADR-011.
+// filtering. See ADR-011 (doc/decisions/011-client-snapshot-consumption.md).
 //
 // Because this function blocks, callers on a UI thread should run it
 // in a dedicated goroutine and forward results asynchronously.

@@ -30,15 +30,15 @@ type ViewState struct {
 	Paused bool `json:"paused"`
 }
 
-// Compile-time check that ViewState implements the generic view.View interface.
+// Compile-time check that ViewState implements the generic [view.View] interface.
 var _ view.View = ViewState{}
 
-// PlayerSnapshot implements [view.View].PlayerSnapshot for Hearts.
+// PlayerSnapshot implements [view.View.PlayerSnapshot] for Hearts.
 func (vs ViewState) PlayerSnapshot(seat, seq int) any {
 	return PlayerView(vs, hearts.Seat(seat), seq)
 }
 
-// ObserverSnapshot implements [view.View].ObserverSnapshot for Hearts.
+// ObserverSnapshot implements [view.View.ObserverSnapshot] for Hearts.
 func (vs ViewState) ObserverSnapshot(seq int) any {
 	return ObserverView(vs, seq)
 }

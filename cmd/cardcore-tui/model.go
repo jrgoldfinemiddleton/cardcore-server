@@ -46,10 +46,10 @@ type gameClient interface {
 // It is game-agnostic: it owns the connection lifecycle, phase tracking, error
 // handling, and Bubble Tea plumbing, and delegates all game-specific behavior
 // to a gameClient. It uses pointer receivers so the program reference can be
-// set after tea.NewProgram is called (see the comment in main.go).
+// set after [tea.NewProgram] is called (see the comment in main.go).
 type model struct {
 	// program is the Bubble Tea program reference. It is set after
-	// tea.NewProgram is called so the WebSocket goroutine can send
+	// [tea.NewProgram] is called so the WebSocket goroutine can send
 	// messages into the model via program.Send().
 	program *tea.Program
 	// conn is the WebSocket connection to the server.
@@ -59,11 +59,11 @@ type model struct {
 	// theme is the color palette used by all layout and game render functions.
 	theme Theme
 	// width is the current terminal width in columns, updated on resize.
-	// A zero value means no tea.WindowSizeMsg has been received yet; render
+	// A zero value means no [tea.WindowSizeMsg] has been received yet; render
 	// functions default to 80 columns in that case.
 	width int
 	// height is the current terminal height in rows, updated on resize.
-	// A zero value means no tea.WindowSizeMsg has been received yet; render
+	// A zero value means no [tea.WindowSizeMsg] has been received yet; render
 	// functions default to 24 rows in that case.
 	height int
 	// turnDeadline is the server-side auto-play deadline for the current human
@@ -135,7 +135,7 @@ func (m *model) Init() tea.Cmd {
 // Update handles all messages that flow into the model.
 //
 // Every event (snapshot arrival, error message, keypress, timer) arrives here
-// as a tea.Msg. Game-agnostic concerns are handled here; game-specific input
+// as a [tea.Msg]. Game-agnostic concerns are handled here; game-specific input
 // is delegated to the gameClient. All state mutations happen on the single
 // Bubble Tea program goroutine, so no locks are needed.
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -196,7 +196,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the current model state as a terminal screen.
 //
-// In Bubble Tea v2, View returns a tea.View struct holding the content plus
+// In Bubble Tea v2, View returns a [tea.View] struct holding the content plus
 // options like AltScreen. The layout (header, main, footer) is assembled in
 // layout.go; the main area is produced by the gameClient.
 func (m *model) View() tea.View {
@@ -367,7 +367,7 @@ func (m *model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// sendCommandCmd returns a tea.Cmd that sends the command on the WebSocket in a
+// sendCommandCmd returns a [tea.Cmd] that sends the command on the WebSocket in a
 // background goroutine and reports the result as a commandSentMsg. Running the
 // send off the event loop keeps the UI responsive and avoids blocking.
 func (m *model) sendCommandCmd(cmd client.Command) tea.Cmd {

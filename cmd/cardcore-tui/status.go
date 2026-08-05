@@ -159,6 +159,8 @@ func errorMessageForCode(code, serverMsg string) string {
 //	1000 — Normal closure (game ended)
 //	1001 — Server shutdown
 //	1011 — Internal server error
+//
+// See RFC 6455 §7.4: https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.
 func closeMessageForCode(code int) string {
 	switch code {
 	case 1000:

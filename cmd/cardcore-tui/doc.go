@@ -65,7 +65,7 @@
 //     program starts. This avoids a complex connecting state in the model.
 //
 //   - The model uses pointer receivers so it can store a reference to the
-//     tea.Program for goroutine-safe message sending.
+//     [tea.Program] for goroutine-safe message sending.
 //
 //   - A dedicated goroutine (startWSReader) reads from the WebSocket and
 //     sends typed messages into the model via program.Send().

@@ -238,7 +238,7 @@ func (a *GameAdapter) Resume() (session.StepResult, error) {
 		// After Deal, Turn is not updated if PassDir != PassHold.
 		// Ensure Turn is set to a valid seat so processTurns can proceed.
 		// This applies to subsequent rounds after EndRound; the first
-		// round's Turn is implicitly 0 from hearts.New().
+		// round's Turn is implicitly 0 from [hearts.New]().
 		if a.game.Phase == hearts.PhasePass {
 			a.game.Turn = 0
 		}

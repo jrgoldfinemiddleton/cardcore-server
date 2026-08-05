@@ -558,8 +558,8 @@ func readSnapshot(t *testing.T, conn *websocket.Conn, ctx context.Context) (map[
 	return snap, nil
 }
 
-// extractCards extracts a slice of heartsapi.Card from a []any of map[string]any
-// (as returned by json.Unmarshal into map[string]any for legal_actions).
+// extractCards extracts a slice of [heartsapi.Card] from the untyped JSON
+// value produced by json.Unmarshal for the legal_actions field.
 func extractCards(t *testing.T, raw any) []heartsapi.Card {
 	t.Helper()
 	arr, ok := raw.([]any)

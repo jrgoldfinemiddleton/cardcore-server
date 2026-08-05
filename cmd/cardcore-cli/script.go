@@ -33,7 +33,7 @@ type Script map[string]ScriptEntry
 
 // GameBuilder constructs commands for a specific game from script entries.
 type GameBuilder interface {
-	// BuildCommand creates a client.Command for the given script entry and snapshot.
+	// BuildCommand creates a [client.Command] for the given script entry and snapshot.
 	// The action and selector describe what to build; selectorArgs holds
 	// selector-specific parameters. The snapshot is the full JSON snapshot
 	// for card resolution. actionID and seq are injected into the command.

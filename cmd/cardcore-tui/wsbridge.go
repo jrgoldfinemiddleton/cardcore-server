@@ -20,7 +20,7 @@ type WSReader interface {
 	ReadSnapshot(ctx context.Context) (json.RawMessage, error)
 }
 
-// *client.Conn satisfies WSReader (ReadSnapshot is already defined on Conn).
+// *[client.Conn] satisfies WSReader (ReadSnapshot is already defined on Conn).
 
 // wsSnapshotMsg carries a fresh snapshot (already filtered by Conn.ReadSnapshot).
 //
@@ -48,6 +48,7 @@ type wsErrorMsg struct {
 // Close codes: 1000=normal, 1001=shutdown, 1011=internal error.
 type wsCloseMsg struct {
 	// code is the WebSocket close code per RFC 6455.
+	// See RFC 6455 §7.4: https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.
 	code int
 }
 
@@ -55,12 +56,13 @@ type wsCloseMsg struct {
 // Bubble Tea program via program.Send().
 //
 // This function runs in a dedicated goroutine. It reads from the WebSocket
-// in a loop, and sends typed tea.Msg values into the Bubble Tea model via
+// in a loop, and sends typed [tea.Msg] values into the Bubble Tea model via
 // program.Send().
 //
-// Key design: Conn.ReadSnapshot() owns ALL maxSeenSeq filtering (ADR-011).
+// Key design: Conn.ReadSnapshot() owns ALL maxSeenSeq filtering.
+// See ADR-011 (doc/decisions/011-client-snapshot-consumption.md).
 // The wsbridge trusts it — no re-filtering, no seq comparison.
-// Conn.ReadSnapshot() also returns server errors as *client.ErrorMessage,
+// Conn.ReadSnapshot() also returns server errors as *[client.ErrorMessage],
 // which the wsbridge routes as wsErrorMsg for model-level classification.
 // Everything else is sent as wsSnapshotMsg.
 //

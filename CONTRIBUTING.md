@@ -108,7 +108,14 @@ Every exported function, method, type, and constant must have a doc comment. The
 func HandleConnect(w http.ResponseWriter, r *http.Request) {
 ```
 
-When a doc comment references an exported identifier from a **different package** in this module, use a doc link: `[package.Type]` for same-module imports, `["import/path".Identifier]` for cross-module or stdlib when it clarifies. Do not link same-package identifiers or obvious stdlib types (`error`, `context.Context`). Doc links are optional for local/internal references when the surrounding code makes the relationship obvious.
+Use links in comments to help readers navigate to referenced resources. Square brackets are reserved for Go doc links; other targets use a `See` line.
+
+- **Go symbols** — use standard Go doc links: `[package.Symbol]` for a symbol in another package of this module (e.g., `[session.Game]`), and `[package.Symbol.Method]` with the full chain inside the brackets for methods and fields (e.g., `[view.View.PlayerSnapshot]`). Do not link same-package identifiers; name them plainly instead. For standard-library or external-module symbols, use the full import path (e.g., `[log/slog.Default]`); the short form (e.g., `[slog.Default]`) is allowed only in files that already import the package; in a package doc comment (`doc.go`) the short form is allowed when any file in the package imports it. Do not link obvious stdlib types (`error`, `context.Context`).
+- **ADRs** — reference from code comments as `See ADR-NNN (doc/decisions/NNN-slug.md).` Go doc links cannot target Markdown files, so do not bracket ADR references. Place the reference in the package `doc.go` or near the code that embodies the decision.
+- **Repository docs** — reference from code comments as `See doc/<path>.md[#anchor].` (e.g., `See doc/api.md#websocket-inbound-messages.`). In Markdown files, use normal Markdown links with relative paths for in-repo targets and full URLs only for cross-repo targets.
+- **External resources** — put a bare URL on a `See` line (e.g., `See RFC 6455 §7.4: https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.`).
+
+`convention_test.go` (`TestDocLinks`) verifies that bracketed doc links resolve and that `ADR-NNN` and `doc/....md` references in comments point at existing files.
 
 ### Function ordering
 
