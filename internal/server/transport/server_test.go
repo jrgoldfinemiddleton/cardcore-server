@@ -21,7 +21,7 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
 )
 
-// testGameConfig is a minimal session.GameConfig implementation for
+// testGameConfig is a minimal [session.GameConfig] implementation for
 // building a registry in transport tests.
 type testGameConfig struct{}
 
@@ -1458,98 +1458,98 @@ func (unmarshalableTestGameConfig) NewGame(_ session.Config, _ *rand.Rand) (sess
 // ValidateConfig always succeeds for the unmarshalable test config.
 func (unmarshalableTestGameConfig) ValidateConfig(_ session.Config) error { return nil }
 
-// HandleAction implements session.Game.
+// HandleAction implements [session.Game].
 func (stubGame) HandleAction(int, *api.InboundMessage) (session.StepResult, *session.CommandError) {
 	return session.StepResult{}, nil
 }
 
-// AIPlay implements session.Game.
+// AIPlay implements [session.Game].
 func (stubGame) AIPlay(int) (session.StepResult, error) {
 	return session.StepResult{}, nil
 }
 
-// Resume implements session.Game.
+// Resume implements [session.Game].
 func (stubGame) Resume() (session.StepResult, error) {
 	return session.StepResult{}, nil
 }
 
-// Turn implements session.Game.
+// Turn implements [session.Game].
 func (stubGame) Turn() int { return 0 }
 
-// PlayerSnapshot implements session.Game.
+// PlayerSnapshot implements [session.Game].
 func (stubGame) PlayerSnapshot(_, seq int) any {
 	return map[string]any{"type": "snapshot", "seq": seq}
 }
 
-// ObserverSnapshot implements session.Game.
+// ObserverSnapshot implements [session.Game].
 func (stubGame) ObserverSnapshot(seq int) any {
 	return map[string]any{"type": "snapshot", "seq": seq}
 }
 
-// DisplayDelay implements session.Game.
+// DisplayDelay implements [session.Game].
 func (stubGame) DisplayDelay() int { return 0 }
 
-// SetTurnDeadline implements session.Game.
+// SetTurnDeadline implements [session.Game].
 func (stubGame) SetTurnDeadline(time.Time) {}
 
-// TurnDeadline implements session.Game.
+// TurnDeadline implements [session.Game].
 func (stubGame) TurnDeadline() time.Time { return time.Time{} }
 
-// SetPaused implements session.Game.
+// SetPaused implements [session.Game].
 func (stubGame) SetPaused(bool) {}
 
-// Paused implements session.Game.
+// Paused implements [session.Game].
 func (stubGame) Paused() bool { return false }
 
-// ValidateConfig implements session.Game.
+// ValidateConfig implements [session.Game].
 func (stubGame) ValidateConfig(_ session.Config) error { return nil }
 
-// HandleAction implements session.Game for unmarshalableStubGame.
+// HandleAction implements [session.Game] for unmarshalableStubGame.
 func (unmarshalableStubGame) HandleAction(
 	int, *api.InboundMessage,
 ) (session.StepResult, *session.CommandError) {
 	return session.StepResult{}, nil
 }
 
-// AIPlay implements session.Game for unmarshalableStubGame.
+// AIPlay implements [session.Game] for unmarshalableStubGame.
 func (unmarshalableStubGame) AIPlay(int) (session.StepResult, error) {
 	return session.StepResult{}, nil
 }
 
-// Resume implements session.Game for unmarshalableStubGame.
+// Resume implements [session.Game] for unmarshalableStubGame.
 func (unmarshalableStubGame) Resume() (session.StepResult, error) {
 	return session.StepResult{}, nil
 }
 
-// Turn implements session.Game for unmarshalableStubGame.
+// Turn implements [session.Game] for unmarshalableStubGame.
 func (unmarshalableStubGame) Turn() int { return 0 }
 
-// PlayerSnapshot implements session.Game for unmarshalableStubGame.
+// PlayerSnapshot implements [session.Game] for unmarshalableStubGame.
 func (unmarshalableStubGame) PlayerSnapshot(int, int) any {
 	return struct{ Ch chan int }{Ch: make(chan int)}
 }
 
-// ObserverSnapshot implements session.Game for unmarshalableStubGame.
+// ObserverSnapshot implements [session.Game] for unmarshalableStubGame.
 func (unmarshalableStubGame) ObserverSnapshot(int) any {
 	return struct{ Ch chan int }{Ch: make(chan int)}
 }
 
-// DisplayDelay implements session.Game for unmarshalableStubGame.
+// DisplayDelay implements [session.Game] for unmarshalableStubGame.
 func (unmarshalableStubGame) DisplayDelay() int { return 0 }
 
-// SetTurnDeadline implements session.Game for unmarshalableStubGame.
+// SetTurnDeadline implements [session.Game] for unmarshalableStubGame.
 func (unmarshalableStubGame) SetTurnDeadline(time.Time) {}
 
-// TurnDeadline implements session.Game for unmarshalableStubGame.
+// TurnDeadline implements [session.Game] for unmarshalableStubGame.
 func (unmarshalableStubGame) TurnDeadline() time.Time { return time.Time{} }
 
-// SetPaused implements session.Game for unmarshalableStubGame.
+// SetPaused implements [session.Game] for unmarshalableStubGame.
 func (unmarshalableStubGame) SetPaused(bool) {}
 
-// Paused implements session.Game for unmarshalableStubGame.
+// Paused implements [session.Game] for unmarshalableStubGame.
 func (unmarshalableStubGame) Paused() bool { return false }
 
-// ValidateConfig implements session.Game for unmarshalableStubGame.
+// ValidateConfig implements [session.Game] for unmarshalableStubGame.
 func (unmarshalableStubGame) ValidateConfig(_ session.Config) error { return nil }
 
 // mockManager returns a session manager with a stubGame registry.
@@ -1559,7 +1559,7 @@ func mockManager() *session.Manager {
 	return session.NewManager(r, session.DefaultServerDelays)
 }
 
-// validConfig returns a minimal valid session.Config for tests.
+// validConfig returns a minimal valid [session.Config] for tests.
 func validConfig() session.Config {
 	return session.Config{
 		Game:  "hearts",

@@ -15,7 +15,8 @@ import (
 // The layout is a vertical stack of bordered panels: header, main area, footer.
 // Each section is rendered by a separate function for clarity. The terminal
 // width from the model is threaded through so panels scale on resize; a zero
-// width (before the first tea.WindowSizeMsg) defaults to 80 columns.
+// width (before the first [charm.land/bubbletea/v2.WindowSizeMsg]) defaults to
+// 80 columns.
 func (m *model) renderLayout() string {
 	w := m.width
 	if w == 0 {

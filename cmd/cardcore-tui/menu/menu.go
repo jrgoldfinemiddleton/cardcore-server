@@ -10,7 +10,7 @@ import (
 )
 
 // Theme is the color palette for the menu. It is an alias for
-// heartstui.Theme so the menu shares the same palette as the rest of the
+// [heartstui.Theme] so the menu shares the same palette as the rest of the
 // TUI without importing the hearts package's render functions.
 type Theme = heartstui.Theme
 

@@ -161,12 +161,12 @@ func TestStartWSReaderClose(t *testing.T) {
 	}
 }
 
-// Init implements tea.Model.
+// Init implements [tea.Model].
 func (m *testModel) Init() tea.Cmd {
 	return nil
 }
 
-// Update implements tea.Model. It captures all messages for test inspection.
+// Update implements [tea.Model]. It captures all messages for test inspection.
 func (m *testModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.mu.Lock()
 	m.msgs = append(m.msgs, msg)
@@ -174,7 +174,7 @@ func (m *testModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// View implements tea.Model.
+// View implements [tea.Model].
 func (m *testModel) View() tea.View {
 	v := tea.NewView("test")
 	v.AltScreen = true

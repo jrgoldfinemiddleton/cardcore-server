@@ -99,7 +99,7 @@ func TestHandleWSError(t *testing.T) {
 }
 
 // TestHandleWSClose verifies that handleWSClose sets the status message.
-// 1000 returns tea.Quit unless the game is over; 1011 sets modalFatal and does
+// 1000 returns [tea.Quit] unless the game is over; 1011 sets modalFatal and does
 // not quit immediately.
 func TestHandleWSClose(t *testing.T) {
 	t.Run("normal closure quits during live game", func(t *testing.T) {
@@ -171,7 +171,7 @@ func TestFlashTimeoutClearsError(t *testing.T) {
 	}
 }
 
-// isQuitMsg calls cmd and verifies it returns tea.QuitMsg.
+// isQuitMsg calls cmd and verifies it returns [tea.QuitMsg].
 func isQuitMsg(t *testing.T, cmd tea.Cmd) {
 	t.Helper()
 	if cmd == nil {

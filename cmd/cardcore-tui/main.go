@@ -61,7 +61,7 @@ const (
 //  4. Connect the WebSocket before starting the TUI program.
 //  5. Create the Bubble Tea model with the connection.
 //  6. Create the program. The model must use a pointer so that setting
-//     m.program after tea.NewProgram works (see below).
+//     m.program after [tea.NewProgram] works (see below).
 //  7. Start the WebSocket reader goroutine.
 //  8. Run the program. This blocks until the user exits.
 //
@@ -258,7 +258,7 @@ func runMenu(cfg *tuiConfig) (*tuiConfig, error) {
 //
 // Step 6: Create program.
 //
-//	tea.NewProgram takes tea.Model (an interface). When passed a *model,
+//	[tea.NewProgram] takes [tea.Model] (an interface). When passed a *model,
 //	it stores the pointer internally. Any later modification to the
 //	underlying struct (like setting m.program) is visible to the program.
 //
@@ -337,7 +337,7 @@ func runGame(cfg *tuiConfig) error {
 	//
 	// CRITICAL: The model must be a pointer (*model).
 	//
-	// Bubble Tea's tea.NewProgram takes a tea.Model interface. When you pass
+	// Bubble Tea's [tea.NewProgram] takes a [tea.Model] interface. When you pass
 	// a value (not a pointer), Go copies the value into the interface. The
 	// program stores its own copy. If you later set m.program = p, you're
 	// modifying the LOCAL variable, not the copy inside the program. The
@@ -399,7 +399,7 @@ func runGame(cfg *tuiConfig) error {
 //
 // When debug is true, logs are written to tui.log in the working directory.
 // When false, logs are discarded entirely. This must be called before any
-// goroutine that uses slog (notably startWSReader and client.Conn) is started.
+// goroutine that uses slog (notably startWSReader and [client.Conn]) is started.
 func configureLogging(debug bool) {
 	var w io.Writer
 	if debug {

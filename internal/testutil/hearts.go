@@ -17,7 +17,7 @@ const testGameName = "hearts"
 // testAIType is the AI type used by all Hearts test helpers.
 const testAIType = "random"
 
-// TestHeartsConfig is a session.GameConfig for integration tests that
+// TestHeartsConfig is a [session.GameConfig] for integration tests that
 // creates real Hearts adapters with a deterministic RNG.
 type TestHeartsConfig struct {
 	Rng *rand.Rand
@@ -75,7 +75,7 @@ func HumanToken(t *testing.T, seats []client.SeatInfo) string {
 }
 
 // HumanSessionToken extracts the bearer token for the first human seat from
-// the session seat list returned by session.Manager.Create.
+// the session seat list returned by [session.Manager.Create].
 func HumanSessionToken(t *testing.T, seats []session.Seat) string {
 	t.Helper()
 	for _, s := range seats {
@@ -87,7 +87,7 @@ func HumanSessionToken(t *testing.T, seats []session.Seat) string {
 	return ""
 }
 
-// HeartsConfigWithPacing returns a 1-human+3-AI Hearts client.Config with
+// HeartsConfigWithPacing returns a 1-human+3-AI Hearts [client.Config] with
 // the given AI pacing delay.
 func HeartsConfigWithPacing(pacingMS int) client.Config {
 	return client.Config{
@@ -102,7 +102,7 @@ func HeartsConfigWithPacing(pacingMS int) client.Config {
 	}
 }
 
-// HeartsAllAIConfigWithPacing returns a 4-AI Hearts client.Config with the
+// HeartsAllAIConfigWithPacing returns a 4-AI Hearts [client.Config] with the
 // given AI pacing delay.
 func HeartsAllAIConfigWithPacing(pacingMS int) client.Config {
 	return client.Config{
@@ -117,7 +117,7 @@ func HeartsAllAIConfigWithPacing(pacingMS int) client.Config {
 	}
 }
 
-// HeartsSessionConfigWithPacing returns a 1-human+3-AI Hearts session.Config
+// HeartsSessionConfigWithPacing returns a 1-human+3-AI Hearts [session.Config]
 // with the given AI pacing delay.
 func HeartsSessionConfigWithPacing(pacingMS int) session.Config {
 	return session.Config{
@@ -132,7 +132,7 @@ func HeartsSessionConfigWithPacing(pacingMS int) session.Config {
 	}
 }
 
-// HeartsAllAISessionConfigWithPacing returns a 4-AI Hearts session.Config with
+// HeartsAllAISessionConfigWithPacing returns a 4-AI Hearts [session.Config] with
 // the given AI pacing delay.
 func HeartsAllAISessionConfigWithPacing(pacingMS int) session.Config {
 	return session.Config{
@@ -147,7 +147,7 @@ func HeartsAllAISessionConfigWithPacing(pacingMS int) session.Config {
 	}
 }
 
-// HeartsFourHumanSessionConfig returns a 4-human Hearts session.Config with
+// HeartsFourHumanSessionConfig returns a 4-human Hearts [session.Config] with
 // zero pacing delay.
 func HeartsFourHumanSessionConfig() session.Config {
 	delay := 0

@@ -20,7 +20,7 @@ const turnTickInterval = 250 * time.Millisecond
 const clientCutoffBeforeServer = time.Second
 
 // handleTurnTick is the per-tick handler for the model. It updates the countdown
-// state and disables input when appropriate. It returns a new tea.Cmd to keep
+// state and disables input when appropriate. It returns a new [tea.Cmd] to keep
 // ticking while a countdown is active.
 func (m *model) handleTurnTick() tea.Cmd {
 	// If no active countdown, do nothing.

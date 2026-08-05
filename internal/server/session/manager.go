@@ -502,7 +502,7 @@ func (m *Manager) SubmitAction(
 	}
 }
 
-// info builds an [Info] from an entry. Caller must hold at least a
+// info builds an Info from an entry. Caller must hold at least a
 // read lock.
 func (e *entry) info(id string) *Info {
 	details := make([]SeatDetail, len(e.config.Seats))

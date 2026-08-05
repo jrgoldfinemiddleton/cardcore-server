@@ -22,7 +22,7 @@ func (b *Builder) TransitionalPhases() []string {
 	return []string{"trick_complete", "round_complete", "deal"}
 }
 
-// BuildCommand creates a client.Command for the given script entry and snapshot.
+// BuildCommand creates a [client.Command] for the given script entry and snapshot.
 // It dispatches to the appropriate builder based on the action.
 func (b *Builder) BuildCommand(
 	action, selector string,
