@@ -95,6 +95,7 @@ type symbolSet struct {
 type docLinkCache struct {
 	symbols map[string]*symbolSet // importPath → symbols; nil means unresolvable.
 	names   map[string]string     // importPath → declared package name.
+	locals  map[string]*symbolSet // directory → declared top-level symbols.
 	adrs    map[string]bool       // ADR number ("004") → exists.
 	root    string                // Module root directory.
 }
@@ -631,6 +632,7 @@ func newDocLinkCache(t *testing.T) *docLinkCache {
 	return &docLinkCache{
 		symbols: map[string]*symbolSet{},
 		names:   map[string]string{},
+		locals:  map[string]*symbolSet{},
 		adrs:    adrs,
 		root:    root,
 	}
@@ -663,43 +665,62 @@ func checkDocLinks(t *testing.T, path, rel string, cache *docLinkCache) {
 	if filepath.Base(path) == "doc.go" {
 		mergeDirImports(t, path, imports, cache)
 	}
+	localSyms := cache.localSymbols(filepath.Dir(path))
 
 	for _, cg := range f.Comments {
 		for _, c := range cg.List {
 			line := fset.Position(c.Pos()).Line
-			checkBracketLinks(t, rel, line, c.Text, imports, cache)
+			checkBracketLinks(t, rel, line, c.Text, imports, cache, localSyms)
 			checkADRRefs(t, rel, line, c.Text, cache)
 			checkDocPaths(t, rel, line, c.Text, cache)
 		}
 	}
 }
 
-// checkBracketLinks validates every bracketed doc link in a comment:
-// same-package identifier links are forbidden, the short package form
-// must be imported by the file, and referenced symbols must exist.
+// checkBracketLinks validates every bracketed doc link in a comment.
+// Single-word brackets that name an identifier declared in the same
+// package are forbidden: name the identifier plainly instead. Other
+// single-word brackets are package links or index/prose shorthand such
+// as deal[seat], which Go renders as plain text. Links with a package
+// and symbol part must resolve.
 func checkBracketLinks(
 	t *testing.T, rel string, line int, text string,
-	imports map[string]string, cache *docLinkCache,
+	imports map[string]string, cache *docLinkCache, localSyms *symbolSet,
 ) {
 	t.Helper()
 
 	for _, m := range docLinkRE.FindAllStringSubmatch(text, -1) {
 		link := m[1]
 		pkg, sym := splitDocLink(link)
-		hasSym := sym != ""
-		switch {
-		case !hasSym && ast.IsExported(pkg):
-			t.Errorf("%s:%d: same-package doc link [%s] forbidden: "+
-				"name the identifier without brackets", rel, line, link)
-		case !hasSym:
-			if _, ok := imports[pkg]; !ok {
-				t.Errorf("%s:%d: unresolvable doc link [%s]: package %q "+
-					"is not imported by this file", rel, line, link, pkg)
+		if sym == "" {
+			if localSyms.top[pkg] {
+				t.Errorf("%s:%d: same-package doc link [%s] forbidden: "+
+					"name the identifier without brackets", rel, line, link)
 			}
-		default:
-			checkSymbolLink(t, rel, line, link, pkg, sym, imports, cache)
+			continue
+		}
+		checkSymbolLink(t, rel, line, link, pkg, sym, imports, cache)
+	}
+}
+
+// localSymbols collects the top-level symbols declared by every Go
+// file in dir, distinguishing same-package doc links from prose
+// bracket shorthand. Results are memoized per test run.
+func (c *docLinkCache) localSymbols(dir string) *symbolSet {
+	if syms, ok := c.locals[dir]; ok {
+		return syms
+	}
+	syms := &symbolSet{top: map[string]bool{}, members: map[string]map[string]bool{}}
+	entries, err := os.ReadDir(dir)
+	if err == nil {
+		for _, e := range entries {
+			if strings.HasSuffix(e.Name(), ".go") {
+				collectFileSymbols(filepath.Join(dir, e.Name()), syms)
+			}
 		}
 	}
+	c.locals[dir] = syms
+	return syms
 }
 
 // mergeDirImports merges the import sets of all non-test Go files in
