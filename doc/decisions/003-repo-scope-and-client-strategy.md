@@ -10,4 +10,7 @@ The Cardcore engine ([ADR-004](https://github.com/jrgoldfinemiddleton/cardcore/b
 This repository contains the game server and a reference terminal client built with Bubble Tea. Other clients (web, mobile, desktop) reside in separate repositories in their respective languages. The TUI serves as the reference client: it proves the API is sufficient for any client implementation by exercising every endpoint and message type.
 
 ## Consequences
-(+) Server and reference client evolve together — API changes are validated immediately. (+) Contributors only need Go tooling to develop the full stack. (+) The TUI doubles as a developer tool for testing the server.
+
+- (+) Server and reference client evolve together — API changes are validated immediately.
+- (+) Contributors only need Go tooling to develop the full stack.
+- (+) The TUI doubles as a developer tool for testing the server.

@@ -10,4 +10,9 @@ After each game state change, connected clients need to know the new state. Opti
 The server sends a full seat-filtered snapshot after every state change. No incremental diffs, no patch sequences. Each snapshot contains the complete game state visible to that seat. Snapshots are idempotent — a lost, duplicated, or reordered snapshot causes no harm because the client always replaces its state wholesale.
 
 ## Consequences
-(+) Eliminates synchronization bugs — client state cannot diverge from server state. (+) Reconnect is trivial: send the latest snapshot. (+) Client implementation is simple: parse and render, no merge logic. (-) Higher bandwidth per message than diffs (acceptable — card game state is a few KB). (-) Observers with all hands visible get slightly larger payloads (still small).
+
+- (+) Eliminates synchronization bugs — client state cannot diverge from server state.
+- (+) Reconnect is trivial: send the latest snapshot.
+- (+) Client implementation is simple: parse and render, no merge logic.
+- (-) Higher bandwidth per message than diffs (acceptable — card game state is a few KB).
+- (-) Observers with all hands visible get slightly larger payloads (still small).

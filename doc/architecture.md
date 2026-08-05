@@ -7,22 +7,22 @@ The project uses a `cmd/` + `internal/` layout. `cmd/` holds thin entry points f
 ```
 github.com/jrgoldfinemiddleton/cardcore-server
 ├── cmd/
-│   ├── cardcore-server/     ← entry point: parse flags, wire deps, start HTTP listener
-│   ├── cardcore-tui/        ← entry point: parse flags, connect WS, run Bubble Tea
-│   │   └── games/<game>/    ← game-specific rendering and command builders
-│   └── cardcore-cli/        ← entry point: scripted or batch CLI client
-│       └── games/<game>/    ← game-specific command builders and formatters
-├── internal/
-│   ├── api/                 ← wire DTOs used by server-side packages (JSON structs)
-│   ├── client/              ← shared client engine: HTTP lifecycle, WS connection, messages, errors
-│   │   └── games/<game>/    ← game-specific adapter, DTOs, and command builders
-│   ├── flags/               ← shared environment-variable and flag helpers
-│   └── server/
-│       ├── transport/       ← HTTP handlers, WebSocket upgrade, routing, message parsing
-│       ├── session/         ← session lifecycle, game goroutine, token management, seq
-│       │   └── games/<game>/ ← game-specific adapter for the session manager
-│       └── view/            ← engine state → seat-filtered snapshot DTOs
-│           └── games/<game>/ ← game-specific snapshot generation
+│   ├── cardcore-server/      ← entry point: parse flags, wire deps, start HTTP listener
+│   ├── cardcore-tui/         ← entry point: parse flags, connect WS, run Bubble Tea
+│   │   └── games/<game>/     ← game-specific rendering and command builders
+│   └── cardcore-cli/         ← entry point: scripted or batch CLI client
+│       └── games/<game>/     ← game-specific command builders and formatters
+└── internal/
+    ├── api/                  ← wire DTOs used by server-side packages (JSON structs)
+    ├── client/               ← shared client engine: HTTP lifecycle, WS connection, messages, errors
+    │   └── games/<game>/     ← game-specific adapter, DTOs, and command builders
+    ├── flags/                ← shared environment-variable and flag helpers
+    └── server/
+        ├── transport/        ← HTTP handlers, WebSocket upgrade, routing, message parsing
+        ├── session/          ← session lifecycle, game goroutine, token management, seq
+        │   └── games/<game>/ ← game-specific adapter for the session manager
+        └── view/             ← engine state → seat-filtered snapshot DTOs
+            └── games/<game>/ ← game-specific snapshot generation
 ```
 
 ## Data Flow
@@ -136,8 +136,8 @@ graph LR
 
     SG -->|state updates| WH
 
-    style SG fill:#e1f5e1,stroke:#333,stroke-width:2px
-    style M fill:#e1e1f5,stroke:#333
+    style SG fill:#e1f5e1,stroke:#333,stroke-width:2px,color:#000
+    style M fill:#e1e1f5,stroke:#333,color:#000
 ```
 
 ### Two Communication Patterns
@@ -216,9 +216,9 @@ graph LR
     WR -->|WebSocket| Client
     SG -->|results| WH
 
-    style SG fill:#f9f
-    style WH fill:#bbf
-    style WR fill:#bbf
+    style SG fill:#f9f,color:#000
+    style WH fill:#bbf,color:#000
+    style WR fill:#bbf,color:#000
 ```
 
 ### Session Design Decisions
