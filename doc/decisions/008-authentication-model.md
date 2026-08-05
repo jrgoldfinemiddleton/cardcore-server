@@ -10,4 +10,8 @@ Players need to prove they are authorized to act for a specific seat in a specif
 Capability-based authentication: opaque session IDs identify games, per-seat bearer tokens authorize play. Tokens are generated with `crypto/rand` (32 bytes, hex-encoded) at session creation and delivered in the `POST /sessions` response. Possession of the token is the authorization — no further identity verification. Tokens are immutable once issued.
 
 ## Consequences
-(+) Simple — no user accounts, no password storage, no session cookies. (+) Extends naturally to multiplayer: each human player receives their seat token out-of-band. (+) Session ID in URLs does not grant seat access (defense in depth). (-) Token leakage grants full seat control (acceptable for localhost; multiplayer adds TLS).
+
+- (+) Simple — no user accounts, no password storage, no session cookies.
+- (+) Extends naturally to multiplayer: each human player receives their seat token out-of-band.
+- (+) Session ID in URLs does not grant seat access (defense in depth).
+- (-) Token leakage grants full seat control (acceptable for localhost; multiplayer adds TLS).

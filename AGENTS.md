@@ -23,7 +23,7 @@ cardcore-server/
 │   ├── decisions/           # ADRs (architecture decision records)
 │   └── dependencies.md      # approved external dependencies
 ├── .github/workflows/       # CI/CD (first-party actions only)
-├── scripts/                 # label sync/apply and repo configuration
+├── scripts/                 # label sync/apply, for example
 ├── Makefile                 # build/test/lint targets
 └── .golangci.yml            # lint config
 ```
@@ -37,8 +37,8 @@ cardcore-server/
 | Change protocol messages | `internal/api/api.go` | `InboundMessage`, `ErrorMessage`, and error codes are shared across server-side packages |
 | Change client engine | `internal/client/` | `SessionClient` (HTTP), `Conn` (WebSocket), `messages.go` (Command envelope) |
 | Change shared flags/env helpers | `internal/flags/` | Used by all `cmd/` binaries |
-| Change TUI rendering | `cmd/cardcore-tui/games/hearts/` | Pure render functions; `Client` holds cursor/selection state |
-| Change CLI formatting | `cmd/cardcore-cli/games/hearts/` | `Formatter` (compact output), `Builder` (script actions), `session.go` (create helpers) |
+| Change TUI rendering | `cmd/cardcore-tui/games/<game>/` | Pure render functions; `Client` holds cursor/selection state |
+| Change CLI formatting | `cmd/cardcore-cli/games/<game>/` | `Formatter` (compact output), `Builder` (script actions), `session.go` (create helpers) |
 | Read architecture policy | `doc/decisions/` | ADRs-004, 006, 007, 008 are the critical ones |
 
 ## CODE MAP

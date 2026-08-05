@@ -10,4 +10,9 @@ A game session involves mutable state (the Cardcore engine), multiple connected 
 Each game session has one owner goroutine that serializes all engine mutations. Transport handlers enqueue commands via a channel and subscribe to snapshot broadcasts. AI turns run inside the session goroutine's control flow — they are synchronous calls, not separate goroutines. There are no mutexes on game state.
 
 ## Consequences
-(+) No concurrent engine access — race conditions are structurally impossible. (+) The session goroutine is the single authority on turn order, seq numbering, and state transitions. (+) AI delay is trivially implemented as a sleep within the session goroutine. (-) A slow AI blocks other commands for that session (acceptable — AI delay is bounded and configurable). (-) Sessions are independent; no cross-session coordination (fine for card games).
+
+- (+) No concurrent engine access — race conditions are structurally impossible.
+- (+) The session goroutine is the single authority on turn order, seq numbering, and state transitions.
+- (+) AI delay is trivially implemented as a sleep within the session goroutine.
+- (-) A slow AI blocks other commands for that session (acceptable — AI delay is bounded and configurable).
+- (-) Sessions are independent; no cross-session coordination (fine for card games).

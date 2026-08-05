@@ -12,4 +12,9 @@ External dependencies require explicit justification and approval before introdu
 **Approval criteria:** the library must solve a problem that would require substantial effort to implement correctly with stdlib alone, must have a permissive license (MIT, ISC, BSD, Apache-2.0), and must be actively maintained.
 
 ## Consequences
-(+) Dependencies are intentional, not accidental — every one is a conscious decision. (+) The living document can be updated without writing a new ADR. (+) Contributors know where to look for what's allowed. (-) Adds friction to adopting new libraries (intentional friction). (-) Requires periodic review of the approved list for staleness.
+
+- (+) Dependencies are intentional, not accidental — every one is a conscious decision.
+- (+) The living document can be updated without writing a new ADR.
+- (+) Contributors know where to look for what's allowed.
+- (-) Adds friction to adopting new libraries (intentional friction).
+- (-) Requires periodic review of the approved list for staleness.

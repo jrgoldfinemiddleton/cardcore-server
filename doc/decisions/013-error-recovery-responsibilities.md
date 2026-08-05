@@ -26,4 +26,9 @@ ADR-012 assumed all server error responses were recoverable and that clients sho
 
 ## Consequences
 
-(+) Client behavior is predictable across platforms: every error has a defined class and response. (+) Integration tests assert specific error codes and state transitions without guessing server behavior. (+) Non-fatal error messages explain what happened ("AI played for you") rather than blaming the user. (+) Fatal error messages explain that the user did nothing wrong ("Bug: server rejected a valid card"). (-) Interactive clients must implement a modal state machine. (-) Non-interactive clients need a separate error-handling path.
+- (+) Client behavior is predictable across platforms: every error has a defined class and response.
+- (+) Integration tests assert specific error codes and state transitions without guessing server behavior.
+- (+) Non-fatal error messages explain what happened ("AI played for you") rather than blaming the user.
+- (+) Fatal error messages explain that the user did nothing wrong ("Bug: server rejected a valid card").
+- (-) Interactive clients must implement a modal state machine.
+- (-) Non-interactive clients need a separate error-handling path.

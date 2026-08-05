@@ -26,4 +26,8 @@ Duplicate `action_id` is not an error — the server returns the cached snapshot
 
 ## Consequences
 
-(+) Client logic is predictable: every rejection is recoverable (except terminal `game_over`), every error has a clear next step. (+) Integration tests can assert specific error codes and client state transitions without guessing server behavior. (+) Connection stability: a single illegal move never severs the WebSocket. (-) Client must implement distinct handlers for each error code — more state machine complexity than a generic "something went wrong" path. (-) `game_over` arrives only for commands already in flight when the session ends; a well-behaved client that parsed the final snapshot's terminal state should not be sending commands at that point.
+- (+) Client logic is predictable: every rejection is recoverable (except terminal `game_over`), every error has a clear next step.
+- (+) Integration tests can assert specific error codes and client state transitions without guessing server behavior.
+- (+) Connection stability: a single illegal move never severs the WebSocket.
+- (-) Client must implement distinct handlers for each error code — more state machine complexity than a generic "something went wrong" path.
+- (-) `game_over` arrives only for commands already in flight when the session ends; a well-behaved client that parsed the final snapshot's terminal state should not be sending commands at that point.
