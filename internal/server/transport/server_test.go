@@ -79,9 +79,9 @@ func TestNewServerRegistersAllRoutes(t *testing.T) {
 	}
 }
 
-// TestServerStartStop verifies that the server can start on a random
+// TestServerStartShutdown verifies that the server can start on a random
 // port and shut down gracefully.
-func TestServerStartStop(t *testing.T) {
+func TestServerStartShutdown(t *testing.T) {
 	srv, _ := setupTestServer(t)
 
 	// Start the server in a goroutine.
@@ -113,8 +113,8 @@ func TestServerStartStop(t *testing.T) {
 	// Graceful shutdown.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	if err := srv.Stop(ctx); err != nil {
-		t.Fatalf("Stop() error: %v", err)
+	if err := srv.Shutdown(ctx); err != nil {
+		t.Fatalf("Shutdown() error: %v", err)
 	}
 
 	// Wait for Start to return (should be nil or ErrServerClosed).
@@ -124,7 +124,7 @@ func TestServerStartStop(t *testing.T) {
 			t.Fatalf("Start() returned unexpected error: %v", err)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("Start() did not return after Stop()")
+		t.Fatal("Start() did not return after Shutdown()")
 	}
 }
 
@@ -1492,17 +1492,8 @@ func (stubGame) DisplayDelay() int { return 0 }
 // SetTurnDeadline implements [session.Game].
 func (stubGame) SetTurnDeadline(time.Time) {}
 
-// TurnDeadline implements [session.Game].
-func (stubGame) TurnDeadline() time.Time { return time.Time{} }
-
 // SetPaused implements [session.Game].
 func (stubGame) SetPaused(bool) {}
-
-// Paused implements [session.Game].
-func (stubGame) Paused() bool { return false }
-
-// ValidateConfig implements [session.Game].
-func (stubGame) ValidateConfig(_ session.Config) error { return nil }
 
 // HandleAction implements [session.Game] for unmarshalableStubGame.
 func (unmarshalableStubGame) HandleAction(
@@ -1540,17 +1531,8 @@ func (unmarshalableStubGame) DisplayDelay() int { return 0 }
 // SetTurnDeadline implements [session.Game] for unmarshalableStubGame.
 func (unmarshalableStubGame) SetTurnDeadline(time.Time) {}
 
-// TurnDeadline implements [session.Game] for unmarshalableStubGame.
-func (unmarshalableStubGame) TurnDeadline() time.Time { return time.Time{} }
-
 // SetPaused implements [session.Game] for unmarshalableStubGame.
 func (unmarshalableStubGame) SetPaused(bool) {}
-
-// Paused implements [session.Game] for unmarshalableStubGame.
-func (unmarshalableStubGame) Paused() bool { return false }
-
-// ValidateConfig implements [session.Game] for unmarshalableStubGame.
-func (unmarshalableStubGame) ValidateConfig(_ session.Config) error { return nil }
 
 // mockManager returns a session manager with a stubGame registry.
 func mockManager() *session.Manager {

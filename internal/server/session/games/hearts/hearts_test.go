@@ -62,29 +62,26 @@ func TestResumeUpdatesPreviousScores(t *testing.T) {
 	}
 }
 
-// TestSetPausedAndPaused verifies that SetPaused stores the external pause
-// state and that the flag is reflected in viewState.
-func TestSetPausedAndPaused(t *testing.T) {
+// TestSetPausedReflectedInViewState verifies that SetPaused stores the
+// external pause state and that the flag is reflected in viewState.
+func TestSetPausedReflectedInViewState(t *testing.T) {
 	a, err := NewGameAdapter(validSeats(), testRNG(), 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewGameAdapter: %v", err)
 	}
 
-	if a.Paused() {
-		t.Fatalf("Paused() = true, want false")
+	if a.viewState().Paused {
+		t.Fatalf("viewState().Paused = true, want false")
 	}
 
 	a.SetPaused(true)
-	if !a.Paused() {
-		t.Fatalf("Paused() = false after SetPaused(true), want true")
-	}
 	if !a.viewState().Paused {
-		t.Fatalf("viewState().Paused = false, want true")
+		t.Fatalf("viewState().Paused = false after SetPaused(true), want true")
 	}
 
 	a.SetPaused(false)
-	if a.Paused() {
-		t.Fatalf("Paused() = true after SetPaused(false), want false")
+	if a.viewState().Paused {
+		t.Fatalf("viewState().Paused = true after SetPaused(false), want false")
 	}
 }
 
@@ -168,7 +165,7 @@ func TestHandlePlayCard(t *testing.T) {
 	msg := playCardMsg(t, heartsapi.CardFromEngine(moves[0]))
 	res, cmdErr := a.HandleAction(seat, msg)
 	if cmdErr != nil {
-		t.Fatalf("got CommandError: %v", cmdErr)
+		t.Fatalf("got CommandError: %s", cmdErr.Message)
 	}
 	if res.Outcome != session.StepContinue &&
 		res.Outcome != session.StepPause {
@@ -241,7 +238,7 @@ func TestHandlePassCards(t *testing.T) {
 	msg := passCardsMsg(t, cards)
 	res, cmdErr := a.HandleAction(0, msg)
 	if cmdErr != nil {
-		t.Fatalf("got CommandError: %v", cmdErr)
+		t.Fatalf("got CommandError: %s", cmdErr.Message)
 	}
 	if res.Outcome != session.StepContinue {
 		t.Errorf("got outcome %d, want StepContinue", res.Outcome)
@@ -620,27 +617,6 @@ func TestTrickCompletePauseShowsCompletedTrick(t *testing.T) {
 	}
 }
 
-// TestGameAdapterTurnDeadlineRoundTrip verifies that SetTurnDeadline stores the
-// deadline and TurnDeadline returns it, with a zero value meaning none.
-func TestGameAdapterTurnDeadlineRoundTrip(t *testing.T) {
-	a := adapterInPlayPhase(t)
-
-	if !a.TurnDeadline().IsZero() {
-		t.Errorf("TurnDeadline set by default, want zero")
-	}
-
-	deadline := time.Now().Add(30 * time.Second).Truncate(time.Millisecond)
-	a.SetTurnDeadline(deadline)
-	if got := a.TurnDeadline(); !got.Equal(deadline) {
-		t.Errorf("TurnDeadline = %v, want %v", got, deadline)
-	}
-
-	a.SetTurnDeadline(time.Time{})
-	if !a.TurnDeadline().IsZero() {
-		t.Errorf("TurnDeadline not cleared, want zero")
-	}
-}
-
 // TestGameAdapterSnapshotCarriesTurnDeadline verifies that the deadline is forwarded
 // to the view layer and appears in both player and observer snapshots.
 func TestGameAdapterSnapshotCarriesTurnDeadline(t *testing.T) {
@@ -693,7 +669,7 @@ func TestGameAdapterDisplayDelay(t *testing.T) {
 			cards := firstThreeCards(a, i)
 			msg := passCardsMsg(t, cards)
 			if _, cmdErr := a.HandleAction(i, msg); cmdErr != nil {
-				t.Fatalf("pass seat %d: %v", i, cmdErr)
+				t.Fatalf("pass seat %d: %s", i, cmdErr.Message)
 			}
 		}
 	}
@@ -924,7 +900,7 @@ func advanceToPlayPhase(t *testing.T, a *GameAdapter, seats []session.SeatConfig
 			cards := firstThreeCards(a, i)
 			msg := passCardsMsg(t, cards)
 			if _, cmdErr := a.HandleAction(i, msg); cmdErr != nil {
-				t.Fatalf("pass seat %d: %v", i, cmdErr)
+				t.Fatalf("pass seat %d: %s", i, cmdErr.Message)
 			}
 		}
 	}

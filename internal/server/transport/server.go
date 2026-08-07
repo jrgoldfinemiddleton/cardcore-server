@@ -103,11 +103,6 @@ func (s *Server) Start() error {
 	return s.srv.Serve(ln)
 }
 
-// Stop gracefully shuts down the server.
-func (s *Server) Stop(ctx context.Context) error {
-	return s.srv.Shutdown(ctx)
-}
-
 // Shutdown gracefully shuts down the server. It sends a GoingAway close
 // frame to every tracked WebSocket connection, deletes all non-expired
 // sessions from the [session.Manager], and then shuts down the HTTP server.

@@ -62,9 +62,6 @@ type delayGame struct {
 // seq value so tests can verify the sequence number in the wire format.
 type seqSnapshotGame struct{}
 
-// ValidateConfig implements Game.ValidateConfig for seqSnapshotGame.
-func (seqSnapshotGame) ValidateConfig(Config) error { return nil }
-
 // HandleAction implements Game.HandleAction for seqSnapshotGame.
 func (seqSnapshotGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
 	return StepResult{}, nil
@@ -99,17 +96,8 @@ func (seqSnapshotGame) DisplayDelay() int { return 0 }
 // SetTurnDeadline implements Game.SetTurnDeadline for seqSnapshotGame.
 func (seqSnapshotGame) SetTurnDeadline(time.Time) {}
 
-// TurnDeadline implements Game.TurnDeadline for seqSnapshotGame.
-func (seqSnapshotGame) TurnDeadline() time.Time { return time.Time{} }
-
 // SetPaused implements Game.SetPaused for seqSnapshotGame.
 func (seqSnapshotGame) SetPaused(bool) {}
-
-// Paused implements Game.Paused for seqSnapshotGame.
-func (seqSnapshotGame) Paused() bool { return false }
-
-// ValidateConfig implements Game.ValidateConfig for aiPlayPauseGame.
-func (a *aiPlayPauseGame) ValidateConfig(Config) error { return nil }
 
 // HandleAction implements Game.HandleAction for aiPlayPauseGame.
 func (a *aiPlayPauseGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -152,17 +140,8 @@ func (a *aiPlayPauseGame) DisplayDelay() int { return 0 }
 // SetTurnDeadline implements Game.SetTurnDeadline for aiPlayPauseGame.
 func (a *aiPlayPauseGame) SetTurnDeadline(time.Time) {}
 
-// TurnDeadline implements Game.TurnDeadline for aiPlayPauseGame.
-func (a *aiPlayPauseGame) TurnDeadline() time.Time { return time.Time{} }
-
 // SetPaused implements Game.SetPaused for aiPlayPauseGame.
 func (a *aiPlayPauseGame) SetPaused(bool) {}
-
-// Paused implements Game.Paused for aiPlayPauseGame.
-func (a *aiPlayPauseGame) Paused() bool { return false }
-
-// ValidateConfig implements Game.ValidateConfig for delayGame.
-func (d *delayGame) ValidateConfig(Config) error { return nil }
 
 // HandleAction implements Game.HandleAction for delayGame.
 func (d *delayGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -194,17 +173,8 @@ func (d *delayGame) DisplayDelay() int { return d.delay }
 // SetTurnDeadline implements Game.SetTurnDeadline for delayGame.
 func (d *delayGame) SetTurnDeadline(time.Time) {}
 
-// TurnDeadline implements Game.TurnDeadline for delayGame.
-func (d *delayGame) TurnDeadline() time.Time { return time.Time{} }
-
 // SetPaused implements Game.SetPaused for delayGame.
 func (d *delayGame) SetPaused(bool) {}
-
-// Paused implements Game.Paused for delayGame.
-func (d *delayGame) Paused() bool { return false }
-
-// ValidateConfig implements Game.ValidateConfig for mockGame.
-func (m *mockGame) ValidateConfig(Config) error { return nil }
 
 // HandleAction implements Game.HandleAction for mockGame.
 func (m *mockGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -242,17 +212,8 @@ func (m *mockGame) DisplayDelay() int { return 0 }
 // SetTurnDeadline implements Game.SetTurnDeadline for mockGame.
 func (m *mockGame) SetTurnDeadline(time.Time) {}
 
-// TurnDeadline implements Game.TurnDeadline for mockGame.
-func (m *mockGame) TurnDeadline() time.Time { return time.Time{} }
-
 // SetPaused implements Game.SetPaused for mockGame.
 func (m *mockGame) SetPaused(bool) {}
-
-// Paused implements Game.Paused for mockGame.
-func (m *mockGame) Paused() bool { return false }
-
-// ValidateConfig implements Game.ValidateConfig for stepFinishedGame.
-func (s *stepFinishedGame) ValidateConfig(Config) error { return nil }
 
 // HandleAction implements Game.HandleAction for stepFinishedGame.
 func (s *stepFinishedGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -290,17 +251,8 @@ func (s *stepFinishedGame) DisplayDelay() int { return 0 }
 // SetTurnDeadline implements Game.SetTurnDeadline for stepFinishedGame.
 func (s *stepFinishedGame) SetTurnDeadline(time.Time) {}
 
-// TurnDeadline implements Game.TurnDeadline for stepFinishedGame.
-func (s *stepFinishedGame) TurnDeadline() time.Time { return time.Time{} }
-
 // SetPaused implements Game.SetPaused for stepFinishedGame.
 func (s *stepFinishedGame) SetPaused(bool) {}
-
-// Paused implements Game.Paused for stepFinishedGame.
-func (s *stepFinishedGame) Paused() bool { return false }
-
-// ValidateConfig implements Game.ValidateConfig for unmarshalableGame.
-func (u *unmarshalableGame) ValidateConfig(Config) error { return nil }
 
 // HandleAction implements Game.HandleAction for unmarshalableGame.
 func (u *unmarshalableGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -338,17 +290,8 @@ func (u *unmarshalableGame) DisplayDelay() int { return 0 }
 // SetTurnDeadline implements Game.SetTurnDeadline for unmarshalableGame.
 func (u *unmarshalableGame) SetTurnDeadline(time.Time) {}
 
-// TurnDeadline implements Game.TurnDeadline for unmarshalableGame.
-func (u *unmarshalableGame) TurnDeadline() time.Time { return time.Time{} }
-
 // SetPaused implements Game.SetPaused for unmarshalableGame.
 func (u *unmarshalableGame) SetPaused(bool) {}
-
-// Paused implements Game.Paused for unmarshalableGame.
-func (u *unmarshalableGame) Paused() bool { return false }
-
-// ValidateConfig implements Game.ValidateConfig for playerSnapshotUnmarshalableGame.
-func (p *playerSnapshotUnmarshalableGame) ValidateConfig(Config) error { return nil }
 
 // HandleAction implements Game.HandleAction for playerSnapshotUnmarshalableGame.
 func (p *playerSnapshotUnmarshalableGame) HandleAction(
@@ -388,17 +331,8 @@ func (p *playerSnapshotUnmarshalableGame) DisplayDelay() int { return 0 }
 // SetTurnDeadline implements Game.SetTurnDeadline for playerSnapshotUnmarshalableGame.
 func (p *playerSnapshotUnmarshalableGame) SetTurnDeadline(time.Time) {}
 
-// TurnDeadline implements Game.TurnDeadline for playerSnapshotUnmarshalableGame.
-func (p *playerSnapshotUnmarshalableGame) TurnDeadline() time.Time { return time.Time{} }
-
 // SetPaused implements Game.SetPaused for playerSnapshotUnmarshalableGame.
 func (p *playerSnapshotUnmarshalableGame) SetPaused(bool) {}
-
-// Paused implements Game.Paused for playerSnapshotUnmarshalableGame.
-func (p *playerSnapshotUnmarshalableGame) Paused() bool { return false }
-
-// ValidateConfig implements Game.ValidateConfig for timeoutGame.
-func (g *timeoutGame) ValidateConfig(Config) error { return nil }
 
 // HandleAction implements Game.HandleAction for timeoutGame.
 func (g *timeoutGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -437,17 +371,8 @@ func (g *timeoutGame) DisplayDelay() int { return 0 }
 // SetTurnDeadline implements Game.SetTurnDeadline for timeoutGame.
 func (g *timeoutGame) SetTurnDeadline(time.Time) {}
 
-// TurnDeadline implements Game.TurnDeadline for timeoutGame.
-func (g *timeoutGame) TurnDeadline() time.Time { return time.Time{} }
-
 // SetPaused implements Game.SetPaused for timeoutGame.
 func (g *timeoutGame) SetPaused(bool) {}
-
-// Paused implements Game.Paused for timeoutGame.
-func (g *timeoutGame) Paused() bool { return false }
-
-// ValidateConfig implements Game.ValidateConfig for aiPlayFinishedGame.
-func (a *aiPlayFinishedGame) ValidateConfig(Config) error { return nil }
 
 // HandleAction implements Game.HandleAction for aiPlayFinishedGame.
 func (a *aiPlayFinishedGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -486,17 +411,8 @@ func (a *aiPlayFinishedGame) DisplayDelay() int { return 0 }
 // SetTurnDeadline implements Game.SetTurnDeadline for aiPlayFinishedGame.
 func (a *aiPlayFinishedGame) SetTurnDeadline(time.Time) {}
 
-// TurnDeadline implements Game.TurnDeadline for aiPlayFinishedGame.
-func (a *aiPlayFinishedGame) TurnDeadline() time.Time { return time.Time{} }
-
 // SetPaused implements Game.SetPaused for aiPlayFinishedGame.
 func (a *aiPlayFinishedGame) SetPaused(bool) {}
-
-// Paused implements Game.Paused for aiPlayFinishedGame.
-func (a *aiPlayFinishedGame) Paused() bool { return false }
-
-// ValidateConfig implements Game.ValidateConfig for invalidTurnGame.
-func (i *invalidTurnGame) ValidateConfig(Config) error { return nil }
 
 // HandleAction implements Game.HandleAction for invalidTurnGame.
 func (i *invalidTurnGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -534,17 +450,8 @@ func (i *invalidTurnGame) DisplayDelay() int { return 0 }
 // SetTurnDeadline implements Game.SetTurnDeadline for invalidTurnGame.
 func (i *invalidTurnGame) SetTurnDeadline(time.Time) {}
 
-// TurnDeadline implements Game.TurnDeadline for invalidTurnGame.
-func (i *invalidTurnGame) TurnDeadline() time.Time { return time.Time{} }
-
 // SetPaused implements Game.SetPaused for invalidTurnGame.
 func (i *invalidTurnGame) SetPaused(bool) {}
-
-// Paused implements Game.Paused for invalidTurnGame.
-func (i *invalidTurnGame) Paused() bool { return false }
-
-// ValidateConfig implements Game.ValidateConfig for deadlineBroadcastGame.
-func (d *deadlineBroadcastGame) ValidateConfig(Config) error { return nil }
 
 // HandleAction implements Game.HandleAction for deadlineBroadcastGame.
 func (d *deadlineBroadcastGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -591,11 +498,5 @@ func (d *deadlineBroadcastGame) SetTurnDeadline(deadline time.Time) {
 	d.deadline = deadline
 }
 
-// TurnDeadline implements Game.TurnDeadline for deadlineBroadcastGame.
-func (d *deadlineBroadcastGame) TurnDeadline() time.Time { return d.deadline }
-
 // SetPaused implements Game.SetPaused for deadlineBroadcastGame.
 func (d *deadlineBroadcastGame) SetPaused(bool) {}
-
-// Paused implements Game.Paused for deadlineBroadcastGame.
-func (d *deadlineBroadcastGame) Paused() bool { return false }

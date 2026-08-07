@@ -24,7 +24,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 - Debug logging utilities: `testutil.LogSnapshot` and `testutil.LogCommand` for structured snapshot/command logging in integration tests
 - WebSocket close-message disambiguation: transport logs now differentiate `ws close on cleanup`, `ws close on marshal failure`, and related close paths
 - Game registry and `GameConfig` abstraction (`internal/server/session/registry.go`) so the server discovers games and their flags without hardcoding Hearts-specific wiring in `cmd/cardcore-server`
-- `session.Game.ValidateConfig` hook invoked by `Manager.Create()` so game adapters can reject invalid session configurations before a session is created
+- `session.GameConfig.ValidateConfig` hook invoked by `Manager.Create()` so game adapters can reject invalid session configurations before a session is created
 - `internal/server/view.View` interface for game-specific snapshot generation
 - Human fallback AI type override for Hearts: a human seat's `ai_type` is now used as the bot that plays when the turn timeout fires; empty `ai_type` still defaults to `"random"`
 - TUI and CLI `CreateSession` helpers pass the selected AI difficulty to the human seat's `ai_type` so the same bot strength is used for AI seats and the human fallback
@@ -118,6 +118,10 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 - Unified flag/env-var configuration across all binaries: every binary-level flag now has a corresponding `CARDCORE_SERVER_*`, `CARDCORE_CLI_*`, or `CARDCORE_TUI_*` environment variable, and vice versa. Explicit flags take precedence over environment variables, which take precedence over hardcoded defaults. Added custom `flag.Usage` output to `cmd/cardcore-server`, `cmd/cardcore-cli`, and `cmd/cardcore-tui` documenting both the flag and its env var
 - `make build` now actually compiles binaries to `bin/` (`go build -o bin/ ./cmd/...`) instead of merely verifying compilation in-place with `go build ./...`. `make clean` removes `bin/` as before
 - Bumped `cardcore` engine dependency to v0.5.0: the engine now requires an explicit `*rand.Rand` for `hearts.New()` and `Deck.Shuffle()`, making seeded games fully deterministic. The server's `NewAdapter` passes its existing RNG through to the engine
+
+### Removed
+
+- Dead-code audit cleanup: `session.Game` no longer requires `ValidateConfig`, `TurnDeadline`, or `Paused` (never called through the interface — config validation flows through the `GameConfig` factory interface, and pause/deadline state already surfaces via snapshots), and their Hearts `GameAdapter` implementations are gone with them; `(*CommandError).Error` removed (production reads `Code`/`Message` struct fields directly); `(*Server).Stop` removed (weaker duplicate of `Shutdown` that skipped WebSocket/session cleanup, sole test caller migrated); unused `internal/server/transport/testutil.SetupTestServerWithManager` helper removed
 
 ### Fixed
 

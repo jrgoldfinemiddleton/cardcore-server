@@ -107,11 +107,6 @@ func NewGameAdapter(
 	return a, nil
 }
 
-// ValidateConfig implements [session.Game].ValidateConfig for Hearts.
-func (a *GameAdapter) ValidateConfig(cfg session.Config) error {
-	return validateConfig(cfg)
-}
-
 // HandleAction processes an inbound player action. It validates turn
 // order, phase, and legality, returning a CommandError for rejected
 // actions.
@@ -261,19 +256,9 @@ func (a *GameAdapter) SetTurnDeadline(deadline time.Time) {
 	a.turnDeadline = deadline
 }
 
-// TurnDeadline returns the last deadline passed to SetTurnDeadline.
-func (a *GameAdapter) TurnDeadline() time.Time {
-	return a.turnDeadline
-}
-
 // SetPaused sets the external UX pause state.
 func (a *GameAdapter) SetPaused(paused bool) {
 	a.isPaused = paused
-}
-
-// Paused reports the external UX pause state.
-func (a *GameAdapter) Paused() bool {
-	return a.isPaused
 }
 
 // DisplayDelay returns the number of milliseconds to wait before
