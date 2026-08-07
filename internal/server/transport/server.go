@@ -232,7 +232,7 @@ func requestLogMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 		start := time.Now()
 		ww := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 		next.ServeHTTP(ww, r)
-		logger.Debug("request",
+		logger.Info("request",
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", ww.statusCode,

@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
 ## OVERVIEW
-`cardcore-server` is a WebSocket game server and Bubble Tea TUI client for the `cardcore` engine. It hosts card games over a JSON-over-WebSocket protocol. Module: `github.com/jrgoldfinemiddleton/cardcore-server`. Go 1.25.9.
+`cardcore-server` is a WebSocket game server and Bubble Tea TUI client for the `cardcore` engine. It hosts card games over a JSON-over-WebSocket protocol. Module: `github.com/jrgoldfinemiddleton/cardcore-server`. Go 1.25.12.
 
 ## STRUCTURE
 ```

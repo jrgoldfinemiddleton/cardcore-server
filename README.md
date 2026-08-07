@@ -14,7 +14,7 @@ Hearts is the first implemented game. Other games will follow the same vertical-
 
 ## Quickstart
 
-Install [Go](https://go.dev/) 1.25.9+, then build the binaries:
+Install [Go](https://go.dev/) 1.25.12+, then build the binaries:
 
 ```bash
 git clone https://github.com/jrgoldfinemiddleton/cardcore-server.git

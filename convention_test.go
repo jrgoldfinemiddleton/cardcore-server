@@ -82,6 +82,9 @@ var docPathRE = regexp.MustCompile(`\bdoc/[\w./#-]*\.md(?:#[\w-]+)?`)
 // last element, e.g. the v2 in charm.land/bubbletea/v2.
 var versionSuffixRE = regexp.MustCompile(`^v\d+$`)
 
+// agentsPathTokenRE matches backticked spans in AGENTS.md files.
+var agentsPathTokenRE = regexp.MustCompile("`([^`]+)`")
+
 // symbolSet captures the exported symbols of a package for doc link
 // resolution: top-level names and per-type member names.
 type symbolSet struct {
@@ -171,6 +174,20 @@ func TestDocLinks(t *testing.T) {
 	walkGoFiles(t, walkOpts{}, func(path, rel string) {
 		checkDocLinks(t, path, rel, cache)
 	})
+}
+
+// TestAgentsMDPaths walks every nested AGENTS.md file and verifies that
+// backticked path references in them resolve: relative to the file's
+// own directory first, then relative to the module root. The root
+// AGENTS.md is exempt; only nested files carry directory inventories.
+func TestAgentsMDPaths(t *testing.T) {
+	walkGoFiles(t, walkOpts{suffix: "AGENTS.md", skipDirs: []string{".omo"}},
+		func(path, rel string) {
+			if rel == "AGENTS.md" {
+				return
+			}
+			checkAgentsMDPaths(t, path, rel)
+		})
 }
 
 // walkGoFiles walks Go source files under opts.root (default: cwd) and
@@ -976,4 +993,58 @@ func collectTypeMembers(ts *ast.TypeSpec, syms *symbolSet) {
 			}
 		}
 	}
+}
+
+// checkAgentsMDPaths validates the path-like backticked tokens of one
+// nested AGENTS.md file.
+func checkAgentsMDPaths(t *testing.T, path, rel string) {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Errorf("%s: read: %v", rel, err)
+		return
+	}
+	dir := filepath.Dir(path)
+	selfLabel := filepath.Base(dir) + "/"
+
+	for _, m := range agentsPathTokenRE.FindAllStringSubmatch(string(data), -1) {
+		token := m[1]
+		if !isAgentsPathCandidate(token, selfLabel) {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(dir, token)); err == nil {
+			continue
+		}
+		if _, err := os.Stat(token); err == nil {
+			continue
+		}
+		t.Errorf("%s: referenced path `%s` does not exist relative to "+
+			"the file's directory or the module root", rel, token)
+	}
+}
+
+// isAgentsPathCandidate reports whether a backticked token looks like a
+// file or directory path reference: path-safe characters only, no ".."
+// or placeholders, no dots outside the final file extension, and either
+// a .go/.md extension, a trailing slash, or an interior slash.
+func isAgentsPathCandidate(token, selfLabel string) bool {
+	if token == selfLabel {
+		return false
+	}
+	if strings.ContainsAny(token, " <>:*?\"'()[]{}&,;=#") {
+		return false
+	}
+	if strings.Contains(token, "..") {
+		return false
+	}
+	isPathish := strings.HasSuffix(token, ".go") ||
+		strings.HasSuffix(token, ".md") ||
+		strings.HasSuffix(token, "/") ||
+		strings.Contains(token, "/")
+	if !isPathish {
+		return false
+	}
+	stem := strings.TrimSuffix(strings.TrimSuffix(token, ".go"), ".md")
+	return !strings.Contains(stem, ".")
 }

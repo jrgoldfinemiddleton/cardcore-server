@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -516,6 +517,192 @@ func TestFourHumansFullGameIntegration(t *testing.T) {
 	}
 }
 
+// TestObserverSnapshotParityIntegration verifies that the observer
+// stream is a consistent view of the same game the seated player sees:
+// observer snapshots form a strictly increasing subsequence of the
+// player's (delivery is lossy under burst, so drops are tolerated),
+// snapshots sharing a seq agree on every shared field, and the streams
+// diverge exactly where seat filtering requires it — the player sees
+// only their own hand, while the observer sees all four hands and the
+// trick history.
+func TestObserverSnapshotParityIntegration(t *testing.T) {
+	t.Parallel()
+	srv, mgr := setupHeartsServer(t)
+	httpSrv := mustStartTestServer(t, srv)
+
+	info, seats, err := mgr.Create(testutil.HeartsSessionConfigWithPacing(10))
+	if err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+	id := info.SessionID
+	token := testutil.HumanSessionToken(t, seats)
+
+	if err := mgr.Start(id); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+
+	playerConn := mustDialPlayerWS(t, httpSrv.URL, id, token)
+	obsConn := mustDialObserverWS(t, httpSrv.URL, id)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	// A goroutine drains the observer stream until game_over; the main
+	// goroutine drives the player, keeping both streams drained.
+	var obsSnaps []map[string]any
+	obsDone := make(chan struct{})
+	go func() {
+		defer close(obsDone)
+		for {
+			snap, err := readSnapshot(t, obsConn, ctx)
+			if err != nil {
+				return
+			}
+			obsSnaps = append(obsSnaps, snap)
+			if phase, _ := snap["phase"].(string); phase == "game_over" {
+				return
+			}
+		}
+	}()
+
+	var playerSnaps []map[string]any
+	actionCount := 0
+	maxSeq := -1
+
+	var snap map[string]any
+	for {
+		if snap == nil {
+			snap = mustReadSnapshot(t, playerConn, ctx)
+		}
+		playerSnaps = append(playerSnaps, snap)
+
+		seq := snapSeq(t, snap)
+		if seq <= maxSeq {
+			t.Fatalf("seq not strictly monotonic: got %d after max %d", seq, maxSeq)
+		}
+		maxSeq = seq
+
+		phase, _ := snap["phase"].(string)
+		if phase == "game_over" {
+			break
+		}
+
+		turn, _ := snap["turn"].(float64)
+		if int(turn) == 0 && (phase == "passing" || phase == "playing") {
+			legalActionsRaw, ok := snap["legal_actions"]
+			if !ok {
+				t.Fatalf("snapshot missing legal_actions when human turn: %v", snap)
+			}
+			legalActions := extractCards(t, legalActionsRaw)
+			if len(legalActions) == 0 {
+				t.Fatalf("no legal actions available for human player")
+			}
+
+			actionID := fmt.Sprintf("parity-action-%d", actionCount)
+			actionCount++
+
+			switch phase {
+			case "passing":
+				if len(legalActions) < 3 {
+					t.Fatalf("expected at least 3 legal actions, got %d", len(legalActions))
+				}
+				sendPassCards(t, playerConn, actionID, maxSeq, legalActions[:3])
+			case "playing":
+				sendPlayCard(t, playerConn, actionID, maxSeq, legalActions[0])
+			}
+
+			respSnap := mustReadSnapshot(t, playerConn, ctx)
+			playerSnaps = append(playerSnaps, respSnap)
+			respSeq := snapSeq(t, respSnap)
+			if respSeq <= maxSeq {
+				t.Fatalf("response seq not monotonic: got %d after max %d", respSeq, maxSeq)
+			}
+			maxSeq = respSeq
+
+			if msgType, ok := respSnap["type"].(string); ok && msgType == "error" {
+				t.Fatalf("received error response for command: %v", respSnap)
+			}
+		}
+		snap = mustReadSnapshot(t, playerConn, ctx)
+	}
+
+	<-obsDone
+
+	if len(obsSnaps) == 0 {
+		t.Fatal("observer received no snapshots")
+	}
+
+	// Both streams must terminate at the same game_over snapshot. An
+	// observer that stops earlier means the connection closed or the
+	// terminal snapshot was dropped — a failure, not an EOF.
+	lastObs := obsSnaps[len(obsSnaps)-1]
+	if phase, _ := lastObs["phase"].(string); phase != "game_over" {
+		t.Fatalf("observer stream ended at phase %q, want game_over", phase)
+	}
+	lastPlayer := playerSnaps[len(playerSnaps)-1]
+	if got, want := snapSeq(t, lastObs), snapSeq(t, lastPlayer); got != want {
+		t.Fatalf("terminal seq: observer got %d, player got %d, want equal", got, want)
+	}
+
+	// The observer stream must be strictly increasing and a subsequence
+	// of the player stream.
+	playerBySeq := make(map[int]map[string]any, len(playerSnaps))
+	for _, ps := range playerSnaps {
+		playerBySeq[snapSeq(t, ps)] = ps
+	}
+
+	sharedFields := []string{
+		"type", "phase", "round_number", "trick_number", "pass_direction",
+		"turn", "trick_winner", "hearts_broken", "hand_counts", "trick",
+		"scores", "round_points", "turn_deadline_ms", "paused",
+	}
+
+	maxObs := -1
+	for _, os := range obsSnaps {
+		seq := snapSeq(t, os)
+		if seq <= maxObs {
+			t.Fatalf("observer seq not strictly monotonic: got %d after max %d", seq, maxObs)
+		}
+		maxObs = seq
+
+		ps, ok := playerBySeq[seq]
+		if !ok {
+			t.Errorf("observer saw seq %d that the player never saw", seq)
+			continue
+		}
+		for _, field := range sharedFields {
+			if !reflect.DeepEqual(os[field], ps[field]) {
+				t.Errorf("seq %d field %q: observer got %v, player got %v",
+					seq, field, os[field], ps[field])
+			}
+		}
+	}
+
+	// Seat filtering must diverge exactly at the hidden-information
+	// boundary: hands for the observer, own hand for the player.
+	for _, ps := range playerSnaps {
+		if _, ok := ps["hand"]; !ok {
+			t.Errorf("player snapshot seq %d missing hand", snapSeq(t, ps))
+		}
+		if _, ok := ps["hands"]; ok {
+			t.Errorf("player snapshot seq %d unexpectedly contains hands", snapSeq(t, ps))
+		}
+		if _, ok := ps["trick_history"]; ok {
+			t.Errorf("player snapshot seq %d unexpectedly contains trick_history", snapSeq(t, ps))
+		}
+	}
+	for _, os := range obsSnaps {
+		hands, ok := os["hands"].([]any)
+		if !ok || len(hands) != hearts.NumPlayers {
+			t.Errorf("observer snapshot seq %d: got hands %v, want %d-element array",
+				snapSeq(t, os), os["hands"], hearts.NumPlayers)
+		}
+		if _, ok := os["hand"]; ok {
+			t.Errorf("observer snapshot seq %d unexpectedly contains hand", snapSeq(t, os))
+		}
+	}
+}
+
 // trickLengthFromSnap returns the number of entries in the snapshot's trick
 // array. It returns 0 if the field is missing or not an array.
 func trickLengthFromSnap(t *testing.T, snap map[string]any) int {
@@ -577,4 +764,14 @@ func extractCards(t *testing.T, raw any) []heartsapi.Card {
 		cards = append(cards, heartsapi.Card{Rank: rank, Suit: suit})
 	}
 	return cards
+}
+
+// snapSeq extracts the seq field from an untyped snapshot.
+func snapSeq(t *testing.T, snap map[string]any) int {
+	t.Helper()
+	seq, ok := snap["seq"].(float64)
+	if !ok {
+		t.Fatalf("snapshot missing seq: %v", snap)
+	}
+	return int(seq)
 }

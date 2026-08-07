@@ -533,6 +533,59 @@ func TestClientTogglePauseBuildsResume(t *testing.T) {
 	}
 }
 
+// TestRenderTrickCompleteHighlightsWinner verifies that the live seated
+// view applies the CardWinner style to the winning card during the
+// trick_complete phase: the raw line holding the winner's card differs
+// from the no-winner render while every other card renders identically.
+// ANSI strings cannot be compared against a standalone RenderCard call
+// because lipgloss restyles each line during composition, so the proof
+// is differential.
+func TestRenderTrickCompleteHighlightsWinner(t *testing.T) {
+	render := func(winner int) string {
+		c := NewClient(0, false, NewDarkTheme())
+		c.HandleSnapshot(mustMarshal(t, heartsclient.PlayerSnapshot{
+			Phase:       heartsclient.PhaseTrickComplete,
+			Turn:        1,
+			TrickWinner: winner,
+			Trick: []heartsclient.TrickEntry{
+				{Seat: 0, Card: heartsclient.Card{Rank: "two", Suit: "clubs"}},
+				{Seat: 1, Card: heartsclient.Card{Rank: "ace", Suit: "clubs"}},
+				{Seat: 2, Card: heartsclient.Card{Rank: "king", Suit: "clubs"}},
+				{Seat: 3, Card: heartsclient.Card{Rank: "queen", Suit: "clubs"}},
+			},
+			Hand:       []heartsclient.Card{{Rank: "three", Suit: "clubs"}},
+			HandCounts: []int{1, 1, 1, 1},
+		}))
+		return c.Render(80, 24)
+	}
+
+	withWinner := strings.Split(render(2), "\n")
+	withoutWinner := strings.Split(render(-1), "\n")
+
+	// The winner's card (K♣, top of the diamond) must change styling.
+	won := lineContaining(t, withWinner, "♣K")
+	wonPlain := lineContaining(t, withoutWinner, "♣K")
+	if won == wonPlain {
+		t.Error("winner card line identical with and without TrickWinner; want CardWinner styling")
+	}
+
+	// A non-winning card (2♣, bottom of the diamond) must be untouched.
+	otherWon := lineContaining(t, withWinner, "♣2")
+	otherPlain := lineContaining(t, withoutWinner, "♣2")
+	if otherWon != otherPlain {
+		t.Error("non-winner card line changed; want identical rendering")
+	}
+
+	// The visible content must be complete: all four trick cards and the
+	// winner announcement.
+	stripped := stripANSI(render(2))
+	for _, want := range []string{"♣2", "♣A", "♣K", "♣Q", "Seat 2 won the trick"} {
+		if !strings.Contains(stripped, want) {
+			t.Errorf("stripped trick_complete view missing %q", want)
+		}
+	}
+}
+
 // newPassingClient returns a player client with a four-card hand in the
 // passing phase, ready for navigation and selection tests.
 func newPassingClient(t *testing.T) *Client {
@@ -559,4 +612,18 @@ func mustMarshal(t *testing.T, v any) json.RawMessage {
 		t.Fatalf("marshal: %v", err)
 	}
 	return data
+}
+
+// lineContaining returns the first line whose visible text contains sub,
+// failing the test when no line matches. The returned line keeps its ANSI
+// styling so callers can compare styling across renders.
+func lineContaining(t *testing.T, lines []string, sub string) string {
+	t.Helper()
+	for _, ln := range lines {
+		if strings.Contains(stripANSI(ln), sub) {
+			return ln
+		}
+	}
+	t.Fatalf("no line contains %q", sub)
+	return ""
 }

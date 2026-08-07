@@ -4,7 +4,9 @@ linters:
   enable:
     - errorlint    # mishandling wrapped errors (errors.Is/As, %w)
     - goconst      # repeated string/number literals that should be constants
+    - godoclint    # godoc structure; catches duplicate package docs that convention_test.go cannot
     - godot        # doc comments end with a period
+    - gosec        # security static analysis
     - lll          # line length
     - misspell     # common English misspellings
     - nilerr       # returning nil after seeing a non-nil error
@@ -23,6 +25,22 @@ linters:
 
   exclusions:
     generated: lax
+    rules:
+      - path: (_test\.go$|/testutil/)
+        linters:
+          - gosec    # tests and test-support fixtures intentionally use deterministic RNG, subprocesses, and variable paths/URLs
+      - path: internal/server/(session|view)/games/hearts
+        text: "G115:"
+        linters:
+          - gosec    # seat indices are bounded by hearts.NumPlayers by construction; G115 cannot see the range proof
+      - path: internal/server/session/manager\.go
+        text: "G404:"
+        linters:
+          - gosec    # newRNG is seeded from crypto/rand; the time-based fallback only fires if crypto/rand fails
+      - path: cmd/cardcore-cli/main\.go
+        text: "G703:"
+        linters:
+          - gosec    # reading the user-specified -script path is the tool's documented purpose
     paths:
       - third_party$
       - builtin$

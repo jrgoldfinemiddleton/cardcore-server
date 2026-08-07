@@ -39,7 +39,6 @@ coverage.html
 
 # Local-only doc files (not committed)
 doc/maintainer-runbook.md
-doc/integration-testing.md
 doc/implementation-plans.md
 doc/future-considerations.md
 
@@ -49,7 +48,4 @@ doc/plans/
 # Repository configuration script (local only)
 scripts/configure-repo.sh
 
-# Ignore nested AGENTS.md files (root AGENTS.md is the authority)
-**/AGENTS.md
-!/AGENTS.md
 .omo/

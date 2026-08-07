@@ -139,43 +139,6 @@ func TestRenderTrickHighlightsWinner(t *testing.T) {
 	}
 }
 
-// TestRenderTrickCompleteViewWinner verifies the winner is shown when the
-// trick has all 4 cards.
-func TestRenderTrickCompleteViewWinner(t *testing.T) {
-	snap := heartsclient.PlayerSnapshot{
-		Trick: []heartsclient.TrickEntry{
-			{Seat: 0, Card: heartsclient.Card{Rank: "two", Suit: "clubs"}},
-			{Seat: 1, Card: heartsclient.Card{Rank: "ace", Suit: "clubs"}},
-			{Seat: 2, Card: heartsclient.Card{Rank: "king", Suit: "clubs"}},
-			{Seat: 3, Card: heartsclient.Card{Rank: "queen", Suit: "clubs"}},
-		},
-		Turn:        3,
-		TrickWinner: 1,
-	}
-	got := RenderTrickCompleteView(snap, 0, NewDarkTheme(), 80, 14)
-	if !strings.Contains(got, "Seat 1 won") {
-		t.Errorf("RenderTrickCompleteView = %q, want to contain 'Seat 1 won'", got)
-	}
-}
-
-// TestRenderTrickCompleteViewIncomplete verifies no winner is claimed when
-// the trick is not complete.
-func TestRenderTrickCompleteViewIncomplete(t *testing.T) {
-	snap := heartsclient.PlayerSnapshot{
-		Trick: []heartsclient.TrickEntry{
-			{Seat: 0, Card: heartsclient.Card{Rank: "two", Suit: "clubs"}},
-			{Seat: 1, Card: heartsclient.Card{Rank: "ace", Suit: "clubs"}},
-		},
-	}
-	got := RenderTrickCompleteView(snap, 0, NewDarkTheme(), 80, 14)
-	if strings.Contains(got, "won") {
-		t.Errorf("RenderTrickCompleteView = %q, should not claim winner for incomplete trick", got)
-	}
-	if !strings.Contains(got, "Trick Completed") {
-		t.Errorf("RenderTrickCompleteView = %q, want to contain 'Trick Completed'", got)
-	}
-}
-
 // TestRenderRoundCompleteView verifies the round-complete view shows scores
 // inside a bordered box.
 func TestRenderRoundCompleteView(t *testing.T) {
@@ -490,27 +453,6 @@ func TestRenderPausedViewBordered(t *testing.T) {
 	plain := "Paused — press P to resume"
 	if got == plain {
 		t.Errorf("RenderPausedView should add a border around the content")
-	}
-}
-
-// TestRenderTrickCompleteViewBordered verifies the trick-complete view is
-// wrapped in a bordered box.
-func TestRenderTrickCompleteViewBordered(t *testing.T) {
-	snap := heartsclient.PlayerSnapshot{
-		Trick: []heartsclient.TrickEntry{
-			{Seat: 0, Card: heartsclient.Card{Rank: "two", Suit: "clubs"}},
-		},
-	}
-	got := RenderTrickCompleteView(snap, 0, NewDarkTheme(), 80, 14)
-	if !strings.Contains(stripANSI(got), "Seat 0") {
-		t.Errorf("RenderTrickCompleteView = %q, want to contain 'Seat 0'", got)
-	}
-	if !strings.Contains(stripANSI(got), "Trick Completed") {
-		t.Errorf("RenderTrickCompleteView = %q, want to contain 'Trick Completed'", got)
-	}
-	// The box adds border characters to the output.
-	if got == RenderTrick(snap.Trick, -1, -1, NewDarkTheme())+"\nTrick Completed" {
-		t.Errorf("RenderTrickCompleteView should add a border around the content")
 	}
 }
 

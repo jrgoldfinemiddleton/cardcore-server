@@ -19,3 +19,5 @@ New dependencies require discussion and explicit approval before introduction
 | Module | Purpose | License |
 |---|---|---|
 | `github.com/golangci/golangci-lint` | Linter aggregator (via `go tool`) | GPL-3.0 |
+| `golang.org/x/pkgsite` | Local documentation browser (via `go tool`) | BSD-3-Clause |
+| `golang.org/x/vuln` | `govulncheck` vulnerability scanner (via `go tool`) | BSD-3-Clause |

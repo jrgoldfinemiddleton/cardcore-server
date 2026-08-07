@@ -183,35 +183,6 @@ func RenderPlayingView(
 	return placeContent(content, width, height, lipgloss.Top, theme)
 }
 
-// RenderTrickCompleteView renders the view shown when a trick is complete,
-// using the provided theme for colors and sizing the summary box to the given
-// terminal width.
-//
-// It displays the completed trick with seat labels and a status line inside a
-// bordered box. The winner is provided by the server in snap.TrickWinner; the
-// fallback generic message is used when the trick is not complete or the
-// server did not provide a winner.
-func RenderTrickCompleteView(
-	snap heartsclient.PlayerSnapshot,
-	seat int,
-	theme Theme,
-	width, height int,
-) string {
-	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
-	trick := RenderTrick(snap.Trick, seat, snap.TrickWinner, theme)
-
-	var status string
-	if len(snap.Trick) == 4 && snap.TrickWinner >= 0 {
-		status = fmt.Sprintf("Trick Completed — Seat %d won", snap.TrickWinner)
-	} else {
-		status = "Trick Completed"
-	}
-
-	content := joinLines([]string{trick, textStyle.Render(status)})
-	boxed := summaryBoxStyle(theme, width).Render(content)
-	return placeContent(boxed, width, height, lipgloss.Bottom, theme)
-}
-
 // RenderRoundCompleteView renders the round scores overlay, using the provided
 // theme for colors and sizing the summary box to the given terminal width.
 //
@@ -418,10 +389,17 @@ func renderPlayerDiamond(
 
 	const cardW = 5
 
-	topCard := trickCardForSeat(snap.Trick, topSeat, theme, width)
-	bottomCard := trickCardForSeat(snap.Trick, seat, theme, width)
-	leftCard := trickCardForSeat(snap.Trick, leftSeat, theme, cardW)
-	rightCard := trickCardForSeat(snap.Trick, rightSeat, theme, cardW)
+	// The server reports a winner only during trick_complete; in all
+	// other phases TrickWinner is -1 and every card renders normally.
+	winnerSeat := -1
+	if snap.Phase == heartsclient.PhaseTrickComplete {
+		winnerSeat = snap.TrickWinner
+	}
+
+	topCard := trickCardForSeat(snap.Trick, topSeat, winnerSeat, theme, width)
+	bottomCard := trickCardForSeat(snap.Trick, seat, winnerSeat, theme, width)
+	leftCard := trickCardForSeat(snap.Trick, leftSeat, winnerSeat, theme, cardW)
+	rightCard := trickCardForSeat(snap.Trick, rightSeat, winnerSeat, theme, cardW)
 
 	var infoText string
 	switch {
@@ -523,13 +501,23 @@ func safeHandCount(counts []int, seat int) int {
 
 // trickCardForSeat returns the rendered card for the given seat in the trick,
 // or an invisible placeholder of the requested size if the seat has not played
-// a card yet.
-func trickCardForSeat(trick []heartsclient.TrickEntry, seat int, theme Theme, width int) string {
+// a card yet. When winnerSeat is non-negative and matches the seat, the card
+// is rendered with the CardWinner state.
+func trickCardForSeat(
+	trick []heartsclient.TrickEntry,
+	seat, winnerSeat int,
+	theme Theme,
+	width int,
+) string {
 	bgStyle := lipgloss.NewStyle().Background(theme.Background)
 	for _, entry := range trick {
 		if entry.Seat == seat {
+			state := CardNormal
+			if winnerSeat >= 0 && entry.Seat == winnerSeat {
+				state = CardWinner
+			}
 			return lipgloss.Place(width, 3, lipgloss.Center, lipgloss.Center,
-				RenderCard(entry.Card, CardNormal, theme),
+				RenderCard(entry.Card, state, theme),
 				lipgloss.WithWhitespaceStyle(bgStyle))
 		}
 	}
