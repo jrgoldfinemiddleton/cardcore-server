@@ -253,14 +253,5 @@ func (errorGame) DisplayDelay() int { return 0 }
 // SetPaused implements [session.Game] for errorGame.
 func (errorGame) SetPaused(bool) {}
 
-// Paused implements [session.Game] for errorGame.
-func (errorGame) Paused() bool { return false }
-
-// ValidateConfig implements [session.Game] for errorGame.
-func (errorGame) ValidateConfig(_ session.Config) error { return nil }
-
 // SetTurnDeadline implements [session.Game] for errorGame.
 func (errorGame) SetTurnDeadline(time.Time) {}
-
-// TurnDeadline implements [session.Game] for errorGame.
-func (errorGame) TurnDeadline() time.Time { return time.Time{} }

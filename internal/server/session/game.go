@@ -56,12 +56,6 @@ type CommandError struct {
 // pacing, or stop because the game is over. The session goroutine
 // reacts to the StepOutcome without knowing what caused it.
 type Game interface {
-	// ValidateConfig checks game-specific constraints on the session
-	// configuration before the session is created. It is called by the
-	// Manager during Create so invalid configs are rejected immediately
-	// rather than surfacing at Start.
-	ValidateConfig(cfg Config) error
-
 	// HandleAction processes an inbound player action. The
 	// implementation validates turn order, phase, and legality. It
 	// returns a non-nil CommandError if the action is rejected, or a
@@ -113,18 +107,6 @@ type Game interface {
 	// deadline is active.
 	SetTurnDeadline(deadline time.Time)
 
-	// TurnDeadline returns the last deadline passed to SetTurnDeadline,
-	// or a zero time.Time if no deadline is active.
-	TurnDeadline() time.Time
-
 	// SetPaused sets whether the game is paused externally (e.g., UX pause).
 	SetPaused(paused bool)
-
-	// Paused reports whether the game is currently paused externally.
-	Paused() bool
-}
-
-// Error implements the error interface.
-func (e *CommandError) Error() string {
-	return e.Message
 }

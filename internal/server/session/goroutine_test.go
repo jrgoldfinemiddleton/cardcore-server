@@ -1156,7 +1156,7 @@ func TestHandlePauseCmdRejectsAlreadyPaused(t *testing.T) {
 // TestHandleResumeCmdSuccess verifies that resume restores the paused state
 // and recalculates the turn deadline.
 func TestHandleResumeCmdSuccess(t *testing.T) {
-	g := &mockGame{}
+	g := &pauseSpyGame{}
 	timeout := 5000
 	cfg := Config{Seats: []SeatConfig{{Type: SeatHuman}}}
 	delays := DefaultDelays{TurnTimeoutMS: timeout}
@@ -1165,6 +1165,7 @@ func TestHandleResumeCmdSuccess(t *testing.T) {
 
 	s.waitingForHuman = true
 	s.paused = true
+	g.SetPaused(true)
 	s.pauseRemaining = 2 * time.Second
 
 	resp := make(chan SubmitResult, 1)
@@ -1229,7 +1230,7 @@ func TestHandleResumeCmdRejectsNotPaused(t *testing.T) {
 // TestAutoUnpauseOnHumanDisconnect verifies that a paused game auto-unpauses
 // when a human seat disconnects.
 func TestAutoUnpauseOnHumanDisconnect(t *testing.T) {
-	g := &mockGame{}
+	g := &pauseSpyGame{}
 	timeout := 5000
 	cfg := Config{Seats: []SeatConfig{{Type: SeatHuman}}}
 	delays := DefaultDelays{TurnTimeoutMS: timeout}
@@ -1238,6 +1239,7 @@ func TestAutoUnpauseOnHumanDisconnect(t *testing.T) {
 
 	s.waitingForHuman = true
 	s.paused = true
+	g.SetPaused(true)
 	s.pauseRemaining = 2 * time.Second
 
 	ch := make(chan SubscriberMessage, subChanSize)
@@ -1283,7 +1285,7 @@ func (p *pauseSpyGame) SetPaused(paused bool) {
 	p.paused = paused
 }
 
-// Paused implements Game.Paused for pauseSpyGame.
+// Paused reports the pause state recorded by SetPaused.
 func (p *pauseSpyGame) Paused() bool {
 	return p.paused
 }
