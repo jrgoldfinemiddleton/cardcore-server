@@ -1,4 +1,4 @@
-.PHONY: test fmt vet lint lint-extra race build doc check help create-labels apply-labels clean
+.PHONY: test fmt vet lint lint-extra vuln race build doc check help create-labels apply-labels clean
 
 test: ## Run all tests
 	go test ./...
@@ -14,6 +14,9 @@ lint: ## Run golangci-lint
 
 lint-extra: ## Run golangci-lint with the extra-strict config
 	go tool golangci-lint run --config .golangci-extra.yml
+
+vuln: ## Run govulncheck vulnerability scan
+	go tool govulncheck ./...
 
 race: ## Run all tests with the race detector
 	go test -race ./...

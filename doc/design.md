@@ -20,6 +20,19 @@ Authorization is possession-based: opaque session IDs identify games, per-seat b
 ## Session-Per-Goroutine Concurrency
 Each game session owns a single goroutine that serializes all engine mutations. Transport handlers enqueue commands; the session goroutine processes them in order. AI turns run inside the session goroutine's control flow. No concurrent engine access, no locks on game state.
 
+## Client Design
+Clients treat the documented protocol — not server implementation behavior — as the contract ([ADR-005](decisions/005-api-contract-strategy.md)). A game-agnostic client engine owns session lifecycle, WebSocket connections, protocol-envelope decoding, sequence deduplication, and error classification. Game-specific adapters interpret snapshots, expose legal actions, construct commands, and supply rendering and phase information. New games add adapters; new frontends reuse the engine behind platform-specific presentation.
+
+Client core state is platform-neutral: sessions, snapshots, and commands — never terminals, colors, or keybindings. The TUI renders that state for humans; the CLI renders it for machines. Human UX and test UX are different products: the TUI optimizes readability and interaction, the CLI optimizes determinism and scriptability. They share the engine, not presentation code.
+
+Deterministic automation is a first-class product feature. The CLI uses explicit, stable scripted input and compact, parseable output; reproducibility outranks presentation. This makes full-game client/server testing possible without a display.
+
+Client development proceeds in complete, tested vertical slices: validate one usable path before broadening scope ([ADR-010](decisions/010-development-order.md)).
+
+The UI is reactive, not authoritative ([ADR-007](decisions/007-state-sync-model.md), [ADR-011](decisions/011-client-snapshot-consumption.md)). At every decision point, the protocol must provide the complete set of legal actions, and clients must disable every choice outside that set. This client-side constraint is a UX obligation, not an authority boundary: the server still validates every command. After sending a command, the client waits for the next accepted snapshot or error rather than mutating game state optimistically. Clients map errors to deliberate UX states ([ADR-013](decisions/013-error-recovery-responsibilities.md)). A single component owns each connection from opening through shutdown and cancellation, and WebSocket close codes map to explicit user-visible states.
+
+Client work will reveal missing protocol affordances. Capture those as deliberate protocol changes — never private hacks against undocumented fields — and add protocol conformance tests whenever behavior becomes client-visible ([ADR-004](decisions/004-strict-transport-boundary.md)).
+
 ## Error Handling
 The server follows `cardcore`'s error-handling convention: functions return errors for conditions the caller cannot prevent; precondition violations trigger panics. WebSocket command errors are typed events sent over the connection — the connection stays open. Close frames are reserved for unrecoverable protocol violations.
 

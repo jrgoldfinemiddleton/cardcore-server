@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"time"
 
 	"github.com/coder/websocket"
@@ -68,5 +70,25 @@ func writeErrorToOutCh(ctx context.Context, outCh chan []byte, code, message, ac
 	select {
 	case outCh <- b:
 	case <-ctx.Done():
+	}
+}
+
+// guarded returns fn wrapped in panic recovery: a panic is logged with
+// its stack trace and swallowed so the goroutine returns normally
+// instead of crashing the process. The wrapped function's own defers
+// (context cancellation, cleanup) still run during panic unwinding, so
+// peer goroutines unblock and connection teardown proceeds.
+func guarded(logger *slog.Logger, name string, fn func()) func() {
+	return func() {
+		defer func() {
+			if rec := recover(); rec != nil {
+				logger.Error("connection goroutine panic",
+					"goroutine", name,
+					"error", rec,
+					"stack", string(debug.Stack()),
+				)
+			}
+		}()
+		fn()
 	}
 }

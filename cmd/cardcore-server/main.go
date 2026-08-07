@@ -69,7 +69,7 @@ func runWithArgsAndSignal(args []string, sigCh <-chan os.Signal) int {
 
 	var logWriter io.Writer = os.Stderr
 	if cfg.logFile != "" {
-		f, err := os.OpenFile(cfg.logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
+		f, err := os.OpenFile(cfg.logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "open log file: %v\n", err)
 			return 1

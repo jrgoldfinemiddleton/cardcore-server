@@ -10,6 +10,10 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- TUI Hearts winner highlight in the live seated view: during `trick_complete`, the winning card in the playing diamond renders with the `CardWinner` style (winner background, accent border, bold label), matching the observer view; the standalone `RenderTrickCompleteView` (unused since the table-layout refresh) and its focused tests are removed
+- Observer/player snapshot parity integration test (`TestObserverSnapshotParityIntegration`): proves the observer stream is a strictly increasing subsequence of the player stream, that snapshots sharing a `seq` agree on every shared field, and that seat filtering diverges exactly at the hidden-information boundary (observer `hands`/`trick_history` vs player `hand`)
+- Security and documentation linting: `godoclint` (catches duplicate package docs) and `gosec` are enabled in the default lint config, and `govulncheck` runs locally and in CI via the new `make vuln` target
+- `doc/integration-testing.md` (full-game integration testing principles) and per-package `AGENTS.md` guides are now committed to the repository; `convention_test.go` verifies that paths referenced in nested `AGENTS.md` files exist
 - `.gopls.json` workspace settings enabling gopls analyzers: `unusedparams`, `shadow`, `unusedfunc`, `unusedvariable`, `modernize`, and `staticcheck`
 - Server-side canonical Hearts game name constant (`GameName` in `internal/server/session/games/hearts/config.go`) so the adapter's `Name()` no longer returns a raw string literal
 - Unit tests for shared test scaffolding: `internal/testutil/hearts_test.go` (deterministic `HashTestName`, `HeartsRegistry` contents/validation) and `internal/server/transport/testutil/server_test.go` (real server starts on free port and shuts down cleanly)
@@ -85,6 +89,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- Server HTTP request logging (method, path, status, duration) now emits at INFO level so upgrade failures and routing are visible at the default `-log-level` (revisiting the earlier demotion to Debug)
+- Server `-log-file` output file is now created with owner-only permissions (0600)
 - README restructured for users first: quickstart, concise command descriptions, and a pointer to `-h` for full flag/environment-variable reference instead of exhaustive tables
 - Renamed CLI flags for unit clarity: `-pacing` → `-pacing-ms`, `-exit-delay` → `-exit-delay-ms` (matching the existing `_MS` environment variables)
 - Renamed server shutdown flag for unit clarity: `-shutdown-timeout` → `-shutdown-timeout-secs` and its environment variable `CARDCORE_SERVER_SHUTDOWN_TIMEOUT` → `CARDCORE_SERVER_SHUTDOWN_TIMEOUT_SECS`
@@ -115,6 +121,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- WebSocket connection goroutines (player and observer connection manager, reader, and writer) now recover panics via a shared `guarded` wrapper: the panic is logged with a stack trace and connection teardown (unsubscribe, close, unregister) proceeds normally instead of crashing the server process
 - All binaries now handle `-h`/`--help` correctly: print usage and exit 0 instead of exiting 2 with a raw `flag: help requested` error
 - README dead link to Bubble Tea terminal docs replaced with the current [termenv terminal feature support matrix](https://github.com/muesli/termenv#terminal-feature-support)
 - TUI timeout integration test speed: `TestTUITimeoutAutoPlayIntegration` now exits early after observing timeout-eligible human turns in both the passing and playing phases, dropping runtime from ~103s to ~0.5s while preserving timeout-path coverage

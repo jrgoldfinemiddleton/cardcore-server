@@ -47,3 +47,6 @@ jobs:
 
       - name: Race detector
         run: make race
+
+      - name: Vulnerability scan
+        run: make vuln

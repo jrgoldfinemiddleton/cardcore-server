@@ -1,4 +1,3 @@
-// Package testutil provides shared helpers for integration tests.
 package testutil
 
 import (

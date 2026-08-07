@@ -56,13 +56,13 @@ func (pc *playerConn) run(ctx context.Context) {
 
 	var wg sync.WaitGroup
 
-	wg.Go(func() {
+	wg.Go(guarded(pc.logger, "player-reader", func() {
 		pc.reader(ctx, cancel)
-	})
+	}))
 
-	wg.Go(func() {
+	wg.Go(guarded(pc.logger, "player-writer", func() {
 		pc.writer(ctx, cancel)
-	})
+	}))
 
 	wg.Wait()
 
@@ -299,7 +299,8 @@ func (s *Server) handlePlayerWS(w http.ResponseWriter, r *http.Request) {
 		closing:   &s.closing,
 	}
 	s.RegisterWSConn(conn)
-	go func() {
+	go guarded(logger, "player-conn", func() {
+		defer s.UnregisterWSConn(conn)
 		// If Shutdown began before this connection registered, its close
 		// sweep missed us; send GoingAway here so a connection accepted
 		// during shutdown still sees 1001 rather than an abrupt close.
@@ -307,6 +308,5 @@ func (s *Server) handlePlayerWS(w http.ResponseWriter, r *http.Request) {
 			_ = conn.Close(websocket.StatusGoingAway, "server shutting down")
 		}
 		pc.run(context.Background())
-		s.UnregisterWSConn(conn)
-	}()
+	})()
 }

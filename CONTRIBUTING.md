@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-[Go](https://go.dev/) 1.25.9+. Dev tools like [golangci-lint](https://golangci-lint.run/) are managed via the `tool` directive in `go.mod` and compiled automatically on first use.
+[Go](https://go.dev/) 1.25.12+. Dev tools like [golangci-lint](https://golangci-lint.run/) are managed via the `tool` directive in `go.mod` and compiled automatically on first use.
 
 ## Development Workflow
 
@@ -56,6 +56,8 @@ An optional `!` after the type/scope indicates a breaking change: `feat(session)
 
 ## Testing
 
+For guidance on designing, assessing, and debugging full-game integration tests, see [doc/integration-testing.md](doc/integration-testing.md).
+
 ### Test layers
 
 | Layer | Package(s) | What it tests |
@@ -80,6 +82,21 @@ Fixtures that are reused across multiple packages live in standalone packages:
 
 - `internal/testutil/` — cross-package helpers such as deterministic Hearts fixtures and session/client config builders.
 - `internal/server/transport/testutil/` — real server setup for transport and integration tests.
+
+### Bubble Tea test safety
+
+Bubble Tea v2 tests that run a `tea.Program` are prone to data races and hangs because the program runs its own event loop while the test goroutine inspects model state. Follow these rules whenever a `cmd/cardcore-tui/` test starts a program or accesses model state concurrently:
+
+- **Treat every helper that reads model state as concurrent.** Methods like `waitForMsg` or `getState` that read model fields from outside the event loop must guard access with `sync.Mutex`.
+- **Synchronize mutable slices and maps shared with the event loop.** Guard both the event-loop mutation and every test-side read with the same mutex. Operations such as `append` and `len` can race because appending may reallocate a slice's backing array.
+- **Run `make race` before pushing.** `make check` does not run the race detector.
+- **Always disable interactive input with `tea.WithInput(&bytes.Buffer{})`.** `tea.WithInput(nil)` attempts to open `/dev/tty` and blocks forever.
+- **Always bound the program with `tea.WithContext(ctx)`** using a short timeout (e.g., `context.WithTimeout(ctx, 3*time.Second)`) so tests exit even when something goes wrong.
+- **Let the event loop start before sending.** After `go p.Run()`, wait briefly (e.g., 50ms) before launching goroutines that call `p.Send()` — `Send` blocks until the loop is reading.
+- **Poll model state with a deadline; never busy-wait.** Tests may need to wait for the event loop to process messages — for example, until `m.msgs` contains an expected entry. A tight loop such as `for len(m.msgs) == 0 {}` does not deliberately yield and can starve the event-loop goroutine that must update the state, especially on single-core or CPU-constrained systems. It also hangs forever if the message never arrives. Read the state under its mutex, release the lock, sleep briefly between checks, and fail with a useful message when an overall deadline expires.
+- **Shut the program down with a deadline.** Call `p.Quit()` and wait for `p.Run()` to return with a timeout so a failed test cannot leak a running program.
+
+Production models need no explicit synchronization: the framework calls `Update` sequentially on the event-loop goroutine, and `p.Send()` is thread-safe. Mutexes are only for test code that reads model state from outside the loop.
 
 ### Benchmarks
 
@@ -166,6 +183,7 @@ In addition to the rules above, contributors should follow these conventions:
 - **Line length:** keep lines within 100 characters.
 - **Function length:** keep functions under roughly 100 lines / 60 statements.
 - **Package docs:** every Go package must contain a `doc.go`.
+- **Agent guidance files:** nested `AGENTS.md` files are committed. When you change a package's structure or conventions, update its `AGENTS.md` in the same PR; `convention_test.go` verifies that paths referenced in those files exist.
 
 The project validates these expectations through `convention_test.go`, `.golangci.yml`, and `.golangci-extra.yml`. Run `make check` and `make lint-extra` to exercise them.
 

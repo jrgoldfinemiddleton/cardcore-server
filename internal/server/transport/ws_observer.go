@@ -55,14 +55,14 @@ func (oc *observerConn) run(ctx context.Context) {
 	// the connection closes; wait on that so run() does not return (and
 	// fire defer cancel()) before Shutdown's conn.Close(GoingAway) has
 	// torn the connection down during shutdown.
-	wg.Go(func() {
+	wg.Go(guarded(oc.logger, "observer-closereader", func() {
 		readCtx := oc.ws.CloseRead(ctx)
 		<-readCtx.Done()
-	})
+	}))
 
-	wg.Go(func() {
+	wg.Go(guarded(oc.logger, "observer-writer", func() {
 		oc.writer(ctx, cancel)
-	})
+	}))
 
 	wg.Wait()
 
@@ -186,7 +186,8 @@ func (s *Server) handleObserverWS(w http.ResponseWriter, r *http.Request) {
 		closing:   &s.closing,
 	}
 	s.RegisterWSConn(conn)
-	go func() {
+	go guarded(logger, "observer-conn", func() {
+		defer s.UnregisterWSConn(conn)
 		// If Shutdown began before this connection registered, its close
 		// sweep missed us; send GoingAway here so a connection accepted
 		// during shutdown still sees 1001 rather than an abrupt close.
@@ -194,6 +195,5 @@ func (s *Server) handleObserverWS(w http.ResponseWriter, r *http.Request) {
 			_ = conn.Close(websocket.StatusGoingAway, "server shutting down")
 		}
 		oc.run(context.Background())
-		s.UnregisterWSConn(conn)
-	}()
+	})()
 }
