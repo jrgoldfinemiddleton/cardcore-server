@@ -1280,7 +1280,8 @@ func TestAutoUnpauseSkippedForObserverDisconnect(t *testing.T) {
 	}
 }
 
-// SetPaused implements Game.SetPaused for pauseSpyGame.
+// SetPaused records the pause flag so tests can assert via Paused that the
+// session forwarded the pause state change to the game.
 func (p *pauseSpyGame) SetPaused(paused bool) {
 	p.paused = paused
 }

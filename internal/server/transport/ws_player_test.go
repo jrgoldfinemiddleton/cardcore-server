@@ -197,24 +197,29 @@ func TestPlayerWSCleanupOnDisconnectIntegration(t *testing.T) {
 	}
 }
 
-// Name returns the game name for the error game config.
+// Name returns "hearts" so the registry resolves the test session config
+// to the error game config.
 func (errorGameConfig) Name() string { return "hearts" }
 
-// RegisterFlags registers no flags for the error game config.
+// RegisterFlags is a no-op; the error game config takes no flags.
 func (errorGameConfig) RegisterFlags(*flag.FlagSet) {}
 
-// Validate always succeeds for the error game config.
+// Validate is a no-op; the error game config has no flag values to check.
 func (errorGameConfig) Validate() error { return nil }
 
-// NewGame returns an errorGame for the error game config.
+// NewGame returns an errorGame so the test can verify that a rejected
+// action surfaces as an error message on the player's WebSocket.
 func (errorGameConfig) NewGame(_ session.Config, _ *rand.Rand) (session.Game, error) {
 	return errorGame{}, nil
 }
 
-// ValidateConfig always succeeds for the error game config.
+// ValidateConfig is a no-op; the error game config accepts any seat
+// configuration.
 func (errorGameConfig) ValidateConfig(_ session.Config) error { return nil }
 
-// HandleAction implements [session.Game] for errorGame.
+// HandleAction rejects every action with an illegal_move CommandError so
+// the test can verify that a game rejection is delivered to the player as
+// an error message.
 func (errorGame) HandleAction(
 	int, *api.InboundMessage,
 ) (session.StepResult, *session.CommandError) {
@@ -224,34 +229,40 @@ func (errorGame) HandleAction(
 	}
 }
 
-// AIPlay implements [session.Game] for errorGame.
+// AIPlay reports StepContinue without doing anything; errorGame has no AI
+// logic, and the test drives the game only through the rejected command.
 func (errorGame) AIPlay(int) (session.StepResult, error) {
 	return session.StepResult{}, nil
 }
 
-// Resume implements [session.Game] for errorGame.
+// Resume reports StepContinue without changing state; errorGame never
+// returns StepPause, so Resume only satisfies the interface.
 func (errorGame) Resume() (session.StepResult, error) {
 	return session.StepResult{}, nil
 }
 
-// Turn implements [session.Game] for errorGame.
+// Turn always returns 0; errorGame does not model turn order.
 func (errorGame) Turn() int { return 0 }
 
-// PlayerSnapshot implements [session.Game] for errorGame.
+// PlayerSnapshot returns the same minimal map for every seat, carrying only
+// type and seq; the test needs a deliverable initial snapshot before its
+// command is rejected, nothing more.
 func (errorGame) PlayerSnapshot(_, seq int) any {
 	return map[string]any{"type": "snapshot", "seq": seq}
 }
 
-// ObserverSnapshot implements [session.Game] for errorGame.
+// ObserverSnapshot returns a minimal map carrying only type and seq;
+// errorGame has no real state to expose.
 func (errorGame) ObserverSnapshot(seq int) any {
 	return map[string]any{"type": "snapshot", "seq": seq}
 }
 
-// DisplayDelay implements [session.Game] for errorGame.
+// DisplayDelay returns 0; errorGame has no pacing states, and zero delay
+// keeps the test fast.
 func (errorGame) DisplayDelay() int { return 0 }
 
-// SetPaused implements [session.Game] for errorGame.
+// SetPaused is a no-op; errorGame does not track pause state.
 func (errorGame) SetPaused(bool) {}
 
-// SetTurnDeadline implements [session.Game] for errorGame.
+// SetTurnDeadline is a no-op; errorGame does not track turn deadlines.
 func (errorGame) SetTurnDeadline(time.Time) {}

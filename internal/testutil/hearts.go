@@ -23,21 +23,28 @@ type TestHeartsConfig struct {
 	Rng *rand.Rand
 }
 
-// Name returns the game name for the test config.
+// Name returns "hearts" so the test config registers under the same name
+// as the production Hearts config.
 func (c *TestHeartsConfig) Name() string { return testGameName }
 
-// RegisterFlags is a no-op for the test config.
+// RegisterFlags is a no-op; test configs are created programmatically and
+// take no flags.
 func (c *TestHeartsConfig) RegisterFlags(*flag.FlagSet) {}
 
-// Validate is a no-op for the test config.
+// Validate is a no-op; test configs have no flag values to check since
+// they are created programmatically.
 func (c *TestHeartsConfig) Validate() error { return nil }
 
-// NewGame creates a real Hearts adapter using the deterministic RNG.
+// NewGame creates a real Hearts adapter using the test config's
+// deterministic RNG and zero display delays, so tests get reproducible
+// games without pacing overhead.
 func (c *TestHeartsConfig) NewGame(cfg session.Config, _ *rand.Rand) (session.Game, error) {
 	return heartssession.NewGameAdapter(cfg.Seats, c.Rng, 0, 0, 0)
 }
 
-// ValidateConfig delegates to the Hearts config validator.
+// ValidateConfig delegates to the production Hearts config validator so
+// test sessions enforce the same seat-validation rules as production
+// sessions.
 func (c *TestHeartsConfig) ValidateConfig(cfg session.Config) error {
 	return heartssession.NewGameConfig().ValidateConfig(cfg)
 }

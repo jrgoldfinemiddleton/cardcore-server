@@ -229,32 +229,36 @@ func stripANSILayout(s string) string {
 	return b.String()
 }
 
-// HandleSnapshot ignores the snapshot for the stub.
+// HandleSnapshot is a no-op; tallGameClient does not track snapshot state.
 func (tallGameClient) HandleSnapshot(_ json.RawMessage) {}
 
-// LastError returns an empty error for the stub.
+// LastError always returns an empty string; tallGameClient ignores
+// snapshots, so it has no decode error to report.
 func (tallGameClient) LastError() string { return "" }
 
-// HandleKey ignores key presses for the stub.
+// HandleKey is a no-op; tallGameClient does not handle input, so it
+// never produces a command or status.
 func (tallGameClient) HandleKey(_ tea.KeyPressMsg) (client.Command, bool, string) {
 	return client.Command{}, false, ""
 }
 
-// Render returns content twice the requested height to simulate overflow.
+// Render returns content twice the requested height; tallGameClient
+// overflows the main panel on purpose so the layout clipping path is
+// exercised.
 func (tallGameClient) Render(_, height int) string {
 	return strings.Repeat("line\n", height*2)
 }
 
-// ResetSubmitted does nothing for the stub.
+// ResetSubmitted is a no-op; tallGameClient does not track submitted state.
 func (tallGameClient) ResetSubmitted() {}
 
-// SetInputDisabled does nothing for the stub.
+// SetInputDisabled is a no-op; tallGameClient does not track input-disabled state.
 func (tallGameClient) SetInputDisabled(_ bool) {}
 
-// IsHumanTurn always returns false for the stub.
+// IsHumanTurn always returns false; tallGameClient does not model turn state.
 func (tallGameClient) IsHumanTurn() bool { return false }
 
-// TogglePause returns no command for the stub.
+// TogglePause always returns no command; tallGameClient does not model pause state.
 func (tallGameClient) TogglePause(_ bool) (client.Command, bool) {
 	return client.Command{}, false
 }

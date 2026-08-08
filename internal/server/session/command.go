@@ -63,18 +63,22 @@ type unsubscribeCmd struct {
 	ch chan SubscriberMessage
 }
 
-// isCommand is the marker method that satisfies the sealed command interface
-// for playCmd.
+// isCommand is the marker method that seals the command interface so only
+// command types in this package can be sent on the session goroutine's
+// channel.
 func (playCmd) isCommand() {}
 
-// isCommand is the marker method that satisfies the sealed command interface
-// for subscribePlayerCmd.
+// isCommand is the marker method that seals the command interface so only
+// command types in this package can be sent on the session goroutine's
+// channel.
 func (subscribePlayerCmd) isCommand() {}
 
-// isCommand is the marker method that satisfies the sealed command interface
-// for subscribeObserverCmd.
+// isCommand is the marker method that seals the command interface so only
+// command types in this package can be sent on the session goroutine's
+// channel.
 func (subscribeObserverCmd) isCommand() {}
 
-// isCommand is the marker method that satisfies the sealed command interface
-// for unsubscribeCmd.
+// isCommand is the marker method that seals the command interface so only
+// command types in this package can be sent on the session goroutine's
+// channel.
 func (unsubscribeCmd) isCommand() {}

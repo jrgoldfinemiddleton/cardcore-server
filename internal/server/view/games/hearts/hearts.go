@@ -33,12 +33,14 @@ type ViewState struct {
 // Compile-time check that ViewState implements the generic [view.View] interface.
 var _ view.View = ViewState{}
 
-// PlayerSnapshot implements [view.View.PlayerSnapshot] for Hearts.
+// PlayerSnapshot delegates to PlayerView, which clones the engine state
+// and returns a seat-filtered snapshot hiding other seats' hands.
 func (vs ViewState) PlayerSnapshot(seat, seq int) any {
 	return PlayerView(vs, hearts.Seat(seat), seq)
 }
 
-// ObserverSnapshot implements [view.View.ObserverSnapshot] for Hearts.
+// ObserverSnapshot delegates to ObserverView, which clones the engine
+// state and returns a full-information snapshot showing all hands.
 func (vs ViewState) ObserverSnapshot(seq int) any {
 	return ObserverView(vs, seq)
 }

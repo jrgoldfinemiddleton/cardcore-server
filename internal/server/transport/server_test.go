@@ -1424,114 +1424,139 @@ func TestServerShutdownPropagatesGoingAwayToObserverIntegration(t *testing.T) {
 	}
 }
 
-// Name returns the game name for the test config.
+// Name returns "hearts" so the registry resolves session configs with
+// Game: "hearts" to the test config.
 func (testGameConfig) Name() string { return "hearts" }
 
-// RegisterFlags registers no flags for the test config.
+// RegisterFlags is a no-op; the test config is created programmatically and
+// takes no flags.
 func (testGameConfig) RegisterFlags(*flag.FlagSet) {}
 
-// Validate always succeeds for the test config.
+// Validate is a no-op; the test config has no flag values to check.
 func (testGameConfig) Validate() error { return nil }
 
-// NewGame returns a stubGame for the test config.
+// NewGame returns a stubGame so transport tests can run sessions without a
+// real game engine.
 func (testGameConfig) NewGame(_ session.Config, _ *rand.Rand) (session.Game, error) {
 	return stubGame{}, nil
 }
 
-// ValidateConfig always succeeds for the test config.
+// ValidateConfig is a no-op; the test config accepts any seat configuration.
 func (testGameConfig) ValidateConfig(_ session.Config) error { return nil }
 
-// Name returns the game name for the unmarshalable test config.
+// Name returns "hearts" so the registry resolves session configs with
+// Game: "hearts" to the unmarshalable test config.
 func (unmarshalableTestGameConfig) Name() string { return "hearts" }
 
-// RegisterFlags registers no flags for the unmarshalable test config.
+// RegisterFlags is a no-op; the unmarshalable test config takes no flags.
 func (unmarshalableTestGameConfig) RegisterFlags(*flag.FlagSet) {}
 
-// Validate always succeeds for the unmarshalable test config.
+// Validate is a no-op; the unmarshalable test config has no flag values to
+// check.
 func (unmarshalableTestGameConfig) Validate() error { return nil }
 
-// NewGame returns an unmarshalableStubGame for the unmarshalable test config.
+// NewGame returns an unmarshalableStubGame so tests can exercise the
+// session goroutine's snapshot marshal failure path.
 func (unmarshalableTestGameConfig) NewGame(_ session.Config, _ *rand.Rand) (session.Game, error) {
 	return unmarshalableStubGame{}, nil
 }
 
-// ValidateConfig always succeeds for the unmarshalable test config.
+// ValidateConfig is a no-op; the unmarshalable test config accepts any seat
+// configuration.
 func (unmarshalableTestGameConfig) ValidateConfig(_ session.Config) error { return nil }
 
-// HandleAction implements [session.Game].
+// HandleAction accepts every action and reports StepContinue; stubGame
+// enforces no rules, so transport tests can send any command and still get
+// a snapshot broadcast.
 func (stubGame) HandleAction(int, *api.InboundMessage) (session.StepResult, *session.CommandError) {
 	return session.StepResult{}, nil
 }
 
-// AIPlay implements [session.Game].
+// AIPlay reports StepContinue without doing anything; stubGame has no AI
+// logic, and transport tests do not depend on AI moves.
 func (stubGame) AIPlay(int) (session.StepResult, error) {
 	return session.StepResult{}, nil
 }
 
-// Resume implements [session.Game].
+// Resume reports StepContinue without changing state; stubGame never
+// returns StepPause, so Resume only satisfies the interface.
 func (stubGame) Resume() (session.StepResult, error) {
 	return session.StepResult{}, nil
 }
 
-// Turn implements [session.Game].
+// Turn always returns 0; stubGame does not model turn order.
 func (stubGame) Turn() int { return 0 }
 
-// PlayerSnapshot implements [session.Game].
+// PlayerSnapshot returns the same minimal map for every seat, carrying only
+// type and seq; transport tests assert on the snapshot envelope, not on
+// seat-specific game state.
 func (stubGame) PlayerSnapshot(_, seq int) any {
 	return map[string]any{"type": "snapshot", "seq": seq}
 }
 
-// ObserverSnapshot implements [session.Game].
+// ObserverSnapshot returns a minimal map carrying only type and seq;
+// transport tests assert on the snapshot envelope, not on game state.
 func (stubGame) ObserverSnapshot(seq int) any {
 	return map[string]any{"type": "snapshot", "seq": seq}
 }
 
-// DisplayDelay implements [session.Game].
+// DisplayDelay returns 0; stubGame has no pacing states, and zero delay
+// keeps transport tests fast.
 func (stubGame) DisplayDelay() int { return 0 }
 
-// SetTurnDeadline implements [session.Game].
+// SetTurnDeadline is a no-op; stubGame does not track turn deadlines.
 func (stubGame) SetTurnDeadline(time.Time) {}
 
-// SetPaused implements [session.Game].
+// SetPaused is a no-op; stubGame does not track pause state.
 func (stubGame) SetPaused(bool) {}
 
-// HandleAction implements [session.Game] for unmarshalableStubGame.
+// HandleAction accepts every action and reports StepContinue;
+// unmarshalableStubGame exists to break snapshot marshaling, not to enforce
+// rules.
 func (unmarshalableStubGame) HandleAction(
 	int, *api.InboundMessage,
 ) (session.StepResult, *session.CommandError) {
 	return session.StepResult{}, nil
 }
 
-// AIPlay implements [session.Game] for unmarshalableStubGame.
+// AIPlay reports StepContinue without doing anything;
+// unmarshalableStubGame has no AI logic.
 func (unmarshalableStubGame) AIPlay(int) (session.StepResult, error) {
 	return session.StepResult{}, nil
 }
 
-// Resume implements [session.Game] for unmarshalableStubGame.
+// Resume reports StepContinue without changing state;
+// unmarshalableStubGame never returns StepPause, so Resume only satisfies
+// the interface.
 func (unmarshalableStubGame) Resume() (session.StepResult, error) {
 	return session.StepResult{}, nil
 }
 
-// Turn implements [session.Game] for unmarshalableStubGame.
+// Turn always returns 0; unmarshalableStubGame does not model turn order.
 func (unmarshalableStubGame) Turn() int { return 0 }
 
-// PlayerSnapshot implements [session.Game] for unmarshalableStubGame.
+// PlayerSnapshot returns a struct holding a channel, which json.Marshal
+// cannot serialize, forcing the player-snapshot marshal failure the test
+// needs.
 func (unmarshalableStubGame) PlayerSnapshot(int, int) any {
 	return struct{ Ch chan int }{Ch: make(chan int)}
 }
 
-// ObserverSnapshot implements [session.Game] for unmarshalableStubGame.
+// ObserverSnapshot returns a struct holding a channel, which json.Marshal
+// cannot serialize, forcing the observer-snapshot marshal failure the test
+// needs.
 func (unmarshalableStubGame) ObserverSnapshot(int) any {
 	return struct{ Ch chan int }{Ch: make(chan int)}
 }
 
-// DisplayDelay implements [session.Game] for unmarshalableStubGame.
+// DisplayDelay returns 0; unmarshalableStubGame has no pacing states.
 func (unmarshalableStubGame) DisplayDelay() int { return 0 }
 
-// SetTurnDeadline implements [session.Game] for unmarshalableStubGame.
+// SetTurnDeadline is a no-op; unmarshalableStubGame does not track turn
+// deadlines.
 func (unmarshalableStubGame) SetTurnDeadline(time.Time) {}
 
-// SetPaused implements [session.Game] for unmarshalableStubGame.
+// SetPaused is a no-op; unmarshalableStubGame does not track pause state.
 func (unmarshalableStubGame) SetPaused(bool) {}
 
 // mockManager returns a session manager with a stubGame registry.

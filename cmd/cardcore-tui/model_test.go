@@ -759,42 +759,53 @@ func runCmd(t *testing.T, cmd tea.Cmd) tea.Msg {
 	return msg
 }
 
-// HandleSnapshot records the snapshot delegation call.
+// HandleSnapshot increments snapshotCalls so tests can verify the model
+// delegated the snapshot; fakeGame keeps no game state, so the payload is
+// ignored.
 func (f *fakeGame) HandleSnapshot(_ json.RawMessage) {
 	f.snapshotCalls++
 }
 
-// LastError returns the configured last error.
+// LastError returns the configured lastErr so tests can simulate a
+// game-client decode failure without real decoding.
 func (f *fakeGame) LastError() string {
 	return f.lastErr
 }
 
-// HandleKey records the key delegation call and returns configured results.
+// HandleKey increments keyCalls and returns the configured keyCmd,
+// keySend, and keyStatus so each test controls what a key press yields
+// and can verify the delegation happened.
 func (f *fakeGame) HandleKey(_ tea.KeyPressMsg) (client.Command, bool, string) {
 	f.keyCalls++
 	return f.keyCmd, f.keySend, f.keyStatus
 }
 
-// Render returns the configured render output.
+// Render returns the configured renderOut so tests can assert the model
+// embeds game output without invoking a real renderer.
 func (f *fakeGame) Render(_, _ int) string {
 	return f.renderOut
 }
 
-// ResetSubmitted is a no-op for the fake game client.
+// ResetSubmitted is a no-op; fakeGame does not track submitted state.
 func (f *fakeGame) ResetSubmitted() {}
 
-// SetInputDisabled records the input-disabled flag.
+// SetInputDisabled stores the flag in inputDisabled so tests can assert
+// the model disabled or re-enabled input on the game client.
 func (f *fakeGame) SetInputDisabled(disabled bool) {
 	f.inputDisabled = disabled
 }
 
-// IsHumanTurn returns the configured human-turn flag.
+// IsHumanTurn increments humanTurnCalls and returns the configured
+// humanTurn flag so tests control turn state and can verify the model
+// consulted it.
 func (f *fakeGame) IsHumanTurn() bool {
 	f.humanTurnCalls++
 	return f.humanTurn
 }
 
-// TogglePause returns a configured pause/resume command for the fake game client.
+// TogglePause returns a "resume" command when paused and a "pause"
+// command otherwise, mirroring the real client's toggle semantics so
+// pause tests get a sendable command.
 func (f *fakeGame) TogglePause(paused bool) (client.Command, bool) {
 	if paused {
 		return client.Command{Type: "resume"}, true

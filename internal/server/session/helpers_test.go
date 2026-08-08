@@ -15,21 +15,25 @@ type testGameConfig struct {
 	newGame func() Game
 }
 
-// Name returns the game name for the test config.
+// Name returns the configured name so the registry can look up this
+// config by the same name used in session Config.Game.
 func (c *testGameConfig) Name() string { return c.name }
 
-// RegisterFlags is a no-op for test configs.
+// RegisterFlags is a no-op; test configs are created programmatically and
+// take no flags.
 func (c *testGameConfig) RegisterFlags(*flag.FlagSet) {}
 
-// Validate is a no-op for test configs.
+// Validate is a no-op; test configs have no flag values to check.
 func (c *testGameConfig) Validate() error { return nil }
 
-// NewGame creates the configured test game.
+// NewGame calls the test's newGame closure, which returns a mock Game —
+// no real engine is created, keeping session-layer tests fast and
+// isolated.
 func (c *testGameConfig) NewGame(_ Config, _ *rand.Rand) (Game, error) {
 	return c.newGame(), nil
 }
 
-// ValidateConfig is a no-op for test configs.
+// ValidateConfig is a no-op; test configs accept any seat configuration.
 func (c *testGameConfig) ValidateConfig(_ Config) error { return nil }
 
 // mockGameRegistry returns a registry containing a mock game registered
