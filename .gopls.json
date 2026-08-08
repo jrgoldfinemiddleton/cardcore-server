@@ -1,4 +1,5 @@
 {
+  "build.buildFlags": ["-tags=stress"],
   "ui.diagnostic.analyses": {
     "unusedparams": true,
     "shadow": true,

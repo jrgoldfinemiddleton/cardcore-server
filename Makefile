@@ -1,4 +1,4 @@
-.PHONY: test fmt vet lint lint-extra vuln race build doc check help create-labels apply-labels clean
+.PHONY: test fmt vet lint lint-extra vuln race bench stress build doc check help create-labels apply-labels clean
 
 test: ## Run all tests
 	go test ./...
@@ -20,6 +20,12 @@ vuln: ## Run govulncheck vulnerability scan
 
 race: ## Run all tests with the race detector
 	go test -race ./...
+
+bench: ## Run benchmarks (benchstat-compatible output)
+	go test -bench=. -benchmem -count=6 -run=^$$ ./...
+
+stress: ## Run build-tag-gated stress tests (excluded from check)
+	go test -v -tags stress -run=^TestStress -count=1 -timeout=30m ./internal/server/transport/
 
 build: ## Compile all packages and binaries to bin/
 	@mkdir -p bin

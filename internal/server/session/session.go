@@ -30,7 +30,12 @@ type SeatConfig struct {
 
 // Config holds the parameters for creating a new session.
 type Config struct {
-	// Game is the game identifier (e.g., "hearts").
+	// Game selects which registered GameConfig validates and builds this
+	// session: it is the lookup key in the server's game registry (e.g.,
+	// "hearts"), not the cardcore engine's canonical game name. A registry
+	// may hold multiple entries that build the same engine game with
+	// different configurations, so the key need not match any engine-level
+	// name.
 	Game string `json:"game"`
 	// Seats defines each seat's configuration.
 	Seats []SeatConfig `json:"seats"`

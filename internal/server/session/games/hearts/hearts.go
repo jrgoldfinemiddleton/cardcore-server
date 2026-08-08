@@ -183,7 +183,10 @@ func (a *GameAdapter) AIPlay(seat int) (session.StepResult, error) {
 }
 
 // Resume advances the game past a pausable state. Only valid when the
-// adapter is paused after returning StepPause.
+// adapter is paused after returning StepPause. Resume can itself return
+// StepPause when pauses chain — resolving a completed trick that also ends
+// the round pauses again for round completion — so callers must keep
+// resuming until the outcome is StepContinue or StepFinished.
 func (a *GameAdapter) Resume() (session.StepResult, error) {
 	a.logger.Debug("Resume", "paused", a.paused != nil)
 
