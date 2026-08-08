@@ -28,7 +28,8 @@ func NewGameConfig() *GameConfig {
 	}
 }
 
-// Name returns the canonical Hearts game name.
+// Name returns "hearts", the canonical game name used for registry
+// lookup and session config matching.
 func (c *GameConfig) Name() string { return GameName }
 
 // RegisterFlags adds Hearts-specific display delay flags to the server
@@ -50,7 +51,9 @@ func (c *GameConfig) Validate() error {
 	return nil
 }
 
-// NewGame creates a new Hearts GameAdapter.
+// NewGame creates a Hearts GameAdapter using the configured trick and
+// round display delays, delegating to NewGameAdapter with the session's
+// seat config and RNG.
 func (c *GameConfig) NewGame(
 	cfg session.Config, rng *rand.Rand,
 ) (session.Game, error) {
@@ -62,7 +65,9 @@ func (c *GameConfig) NewGame(
 	)
 }
 
-// ValidateConfig checks game-specific constraints for a Hearts session.
+// ValidateConfig delegates to validateConfig, which enforces exactly 4
+// seats and supported AI types — the same validation NewGameAdapter
+// performs, checked early before session creation.
 func (c *GameConfig) ValidateConfig(cfg session.Config) error {
 	return validateConfig(cfg)
 }

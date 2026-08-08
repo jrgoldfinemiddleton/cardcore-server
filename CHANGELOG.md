@@ -92,6 +92,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- Interface-method doc comments brought to the "behavior + type-specific why" standard across the codebase: Hearts production implementations (`GameAdapter`, `GameConfig`, `ViewState`), shared test utilities (`TestHeartsConfig`, session `testGameConfig`), all `session.Game` test mocks, TUI stubs (`tallGameClient`, `fakeGame`, `mockWSReader`), and the sealed `command` markers now state what each type does and why, replacing thin `implements X` restatements
 - Server HTTP request logging (method, path, status, duration) now emits at INFO level so upgrade failures and routing are visible at the default `-log-level` (revisiting the earlier demotion to Debug)
 - Server `-log-file` output file is now created with owner-only permissions (0600)
 - README restructured for users first: quickstart, concise command descriptions, and a pointer to `-h` for full flag/environment-variable reference instead of exhaustive tables

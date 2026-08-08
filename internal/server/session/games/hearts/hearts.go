@@ -141,7 +141,10 @@ func (a *GameAdapter) HandleAction(
 	}
 }
 
-// AIPlay executes the AI player's move for the given seat.
+// AIPlay executes the AI player's move for the given seat. It dispatches
+// to the Hearts engine's ChoosePass or ChoosePlay depending on phase, and
+// advances Turn manually during passing since the engine only
+// auto-advances on the 4th pass.
 func (a *GameAdapter) AIPlay(seat int) (session.StepResult, error) {
 	a.logger.Debug("AIPlay", "seat", seat, "phase", heartsapi.PhaseToWire(a.game.Phase))
 
@@ -248,7 +251,9 @@ func (a *GameAdapter) Resume() (session.StepResult, error) {
 	return session.StepResult{}, errors.New("unknown pause state")
 }
 
-// Turn returns the seat index whose turn it is.
+// Turn returns the seat index whose turn it is. It reads directly from
+// the Hearts engine's Turn field, which the engine manages during play
+// and the adapter manages during passing.
 func (a *GameAdapter) Turn() int {
 	return int(a.game.Turn)
 }
@@ -259,13 +264,17 @@ func (a *GameAdapter) SetTurnDeadline(deadline time.Time) {
 	a.turnDeadline = deadline
 }
 
-// SetPaused sets the external UX pause state.
+// SetPaused stores the external UX pause flag so the view layer can
+// include it in snapshots. The adapter does not enforce pause logic
+// itself — that is the session goroutine's responsibility.
 func (a *GameAdapter) SetPaused(paused bool) {
 	a.isPaused = paused
 }
 
-// DisplayDelay returns the number of milliseconds to wait before
-// advancing past the current game state.
+// DisplayDelay returns phase-aware pacing: deal delay on fresh deals,
+// trick delay on trick completion, round delay on round completion, and
+// zero otherwise. This gives clients time to render each phase
+// transition.
 func (a *GameAdapter) DisplayDelay() int {
 	if a.dealPending {
 		a.dealPending = false
@@ -282,12 +291,15 @@ func (a *GameAdapter) DisplayDelay() int {
 	return 0
 }
 
-// PlayerSnapshot builds a seat-filtered snapshot for the given player.
+// PlayerSnapshot delegates to heartsview.PlayerView, which clones the
+// engine state and masks other seats' hands so each player sees only
+// their own cards.
 func (a *GameAdapter) PlayerSnapshot(seat int, seq int) any {
 	return heartsview.PlayerView(a.viewState(), hearts.Seat(seat), seq)
 }
 
-// ObserverSnapshot builds a full-information snapshot.
+// ObserverSnapshot delegates to heartsview.ObserverView, which clones the
+// engine state and exposes all seats' hands for omniscient viewing.
 func (a *GameAdapter) ObserverSnapshot(seq int) any {
 	return heartsview.ObserverView(a.viewState(), seq)
 }

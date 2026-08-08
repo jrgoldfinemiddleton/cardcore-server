@@ -224,7 +224,10 @@ func (m *testModel) waitForMsg(t *testing.T) tea.Msg {
 	}
 }
 
-// ReadSnapshot implements WSReader for testing.
+// ReadSnapshot returns the configured err if one is set, otherwise
+// replays the queued messages in order and reports a normal close once
+// they run out; mockWSReader scripts the read stream so tests drive the
+// snapshot, error, and close paths without a real WebSocket.
 func (m *mockWSReader) ReadSnapshot(_ context.Context) (json.RawMessage, error) {
 	if m.err != nil {
 		return nil, m.err
