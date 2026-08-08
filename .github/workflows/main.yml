@@ -24,5 +24,8 @@ jobs:
       - name: Race detector
         run: make race
 
+      - name: Stress test compile check
+        run: go test -tags stress -run '^$' ./...
+
       - name: Vulnerability scan
         run: make vuln
