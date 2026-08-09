@@ -11,8 +11,9 @@ import (
 // creates the same game type. It is used by test helpers to build a
 // registry without pulling in a real game engine.
 type testGameConfig struct {
-	name    string
-	newGame func() Game
+	name           string
+	newGame        func() Game
+	validateConfig func(Config) error
 }
 
 // Name returns the configured name so the registry can look up this
@@ -33,8 +34,15 @@ func (c *testGameConfig) NewGame(_ Config, _ *rand.Rand) (Game, error) {
 	return c.newGame(), nil
 }
 
-// ValidateConfig is a no-op; test configs accept any seat configuration.
-func (c *testGameConfig) ValidateConfig(_ Config) error { return nil }
+// ValidateConfig calls the test's validateConfig closure when one is set
+// and otherwise accepts any configuration, so tests that do not exercise
+// game-specific validation need no extra wiring.
+func (c *testGameConfig) ValidateConfig(cfg Config) error {
+	if c.validateConfig != nil {
+		return c.validateConfig(cfg)
+	}
+	return nil
+}
 
 // mockGameRegistry returns a registry containing a mock game registered
 // under the Hearts game name.

@@ -93,6 +93,9 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- Nested `AGENTS.md` directory trees now cover every functional production file in their subtree (adding the previously missing `internal/server/session/registry.go` and `internal/client/games/hearts/symbols.go`, and expanding `session/games/hearts/`) and omit `doc.go` and plain unit-test files; helper, benchmark, stress, and integration test files remain listed
+- Session-layer documentation accuracy: `Config.AIActionDelayMS` now documents that the pacing delay elapses before the Cardcore engine computes the AI's move, so the observed gap between AI turns is the delay plus the engine's computation time; `TurnTimeoutMS` notes the AI move is auto-played on the human's behalf; `Summary` is identified as the abbreviated form of `Info`; each `Manager` sentinel error has its own doc comment; the `Manager` type comment explains why its maps are mutex-protected (concurrent transport handler goroutines, with ADR-006 covering the session-goroutine side); and the `SubscribePlayer`/`SubscribeObserver` doc comments now state that subscriptions are handed to the session goroutine via commands
+- Renamed `session.buildSeat` to `session.buildSeats` since it builds the full seat slice
 - Interface-method doc comments brought to the "behavior + type-specific why" standard across the codebase: Hearts production implementations (`GameAdapter`, `GameConfig`, `ViewState`), shared test utilities (`TestHeartsConfig`, session `testGameConfig`), all `session.Game` test mocks, TUI stubs (`tallGameClient`, `fakeGame`, `mockWSReader`), and the sealed `command` markers now state what each type does and why, replacing thin `implements X` restatements
 - Server HTTP request logging (method, path, status, duration) now emits at INFO level so upgrade failures and routing are visible at the default `-log-level` (revisiting the earlier demotion to Debug)
 - Server `-log-file` output file is now created with owner-only permissions (0600)
@@ -130,6 +133,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Fixed
 
+- `Manager.Update` no longer drops delay/timeout overrides from a draft-state patch that also changes the seat configuration: the seats branch previously returned early, silently discarding `ai_action_delay_ms`, `deal_display_delay_ms`, and `turn_timeout_ms`; all provided fields are now applied together, and the replacement seats are built before any state is mutated so a failure leaves the session untouched (regression: `TestUpdateSeatsAndDelaysApplyTogether`)
+- `Manager.Update` now validates seat-configuration changes against the registered game's `GameConfig.ValidateConfig`, matching `Create` and the documented `PATCH /sessions/{id}` error contract in `doc/api.md`; game-specific violations such as a wrong Hearts seat count or an unknown `ai_type` are rejected at PATCH time instead of failing later at game start (regression: `TestUpdateSeatConfigGameValidation`)
 - WebSocket connection goroutines (player and observer connection manager, reader, and writer) now recover panics via a shared `guarded` wrapper: the panic is logged with a stack trace and connection teardown (unsubscribe, close, unregister) proceeds normally instead of crashing the server process
 - All binaries now handle `-h`/`--help` correctly: print usage and exit 0 instead of exiting 2 with a raw `flag: help requested` error
 - README dead link to Bubble Tea terminal docs replaced with the current [termenv terminal feature support matrix](https://github.com/muesli/termenv#terminal-feature-support)

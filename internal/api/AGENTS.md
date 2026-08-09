@@ -7,11 +7,9 @@ Game-agnostic wire-format types and error codes. Server-side packages import thi
 ```
 api/
 ├── api.go           # InboundMessage, ErrorMessage, error codes, validation
-├── api_test.go      # Round-trip and validation tests
 └── games/hearts/    # Hearts-specific wire DTOs and conversion
     ├── hearts.go    # Card, snapshots, payloads
-    ├── convert.go   # Engine-to-wire conversion
-    └── hearts_test.go
+    └── convert.go   # Engine-to-wire conversion
 ```
 
 ## WHERE TO LOOK

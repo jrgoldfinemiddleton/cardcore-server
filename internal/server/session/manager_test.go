@@ -2,6 +2,7 @@ package session
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -314,6 +315,72 @@ func TestUpdateTurnTimeout(t *testing.T) {
 	}
 }
 
+// TestUpdateSeatsAndDelaysApplyTogether verifies that a patch carrying
+// both a seat configuration and delay/timeout overrides applies every
+// field, returning fresh seat tokens and the merged delay values.
+func TestUpdateSeatsAndDelaysApplyTogether(t *testing.T) {
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
+	cfg := validHeartsCfg()
+
+	info, _, err := m.Create(cfg)
+	if err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+	id := info.SessionID
+
+	newAIDelay := 250
+	newDealDelay := 750
+	newTimeout := 45000
+	info, updatedSeats, err := m.Update(id, PatchConfig{
+		Seats:              validHeartsCfg().Seats,
+		AIActionDelayMS:    &newAIDelay,
+		DealDisplayDelayMS: &newDealDelay,
+		TurnTimeoutMS:      &newTimeout,
+	})
+	if err != nil {
+		t.Fatalf("Update() error: %v", err)
+	}
+	if updatedSeats == nil {
+		t.Fatal("got nil seats from Update, want seat info with new tokens")
+	}
+	if info.AIActionDelayMS != 250 {
+		t.Errorf("got ai_action_delay_ms %d, want 250", info.AIActionDelayMS)
+	}
+	if info.DealDisplayDelayMS != 750 {
+		t.Errorf(
+			"got deal_display_delay_ms %d, want 750",
+			info.DealDisplayDelayMS,
+		)
+	}
+	if info.TurnTimeoutMS != 45000 {
+		t.Errorf("got turn_timeout_ms %d, want 45000", info.TurnTimeoutMS)
+	}
+
+	// Get confirms the delay updates persisted to the session.
+	info, err = m.Get(id)
+	if err != nil {
+		t.Fatalf("Get() error: %v", err)
+	}
+	if info.AIActionDelayMS != 250 {
+		t.Errorf(
+			"got persisted ai_action_delay_ms %d, want 250",
+			info.AIActionDelayMS,
+		)
+	}
+	if info.DealDisplayDelayMS != 750 {
+		t.Errorf(
+			"got persisted deal_display_delay_ms %d, want 750",
+			info.DealDisplayDelayMS,
+		)
+	}
+	if info.TurnTimeoutMS != 45000 {
+		t.Errorf(
+			"got persisted turn_timeout_ms %d, want 45000",
+			info.TurnTimeoutMS,
+		)
+	}
+}
+
 // TestUpdateSeatConfigRegeneratesTokens verifies that changing seats
 // produces new tokens and returns them to the caller.
 func TestUpdateSeatConfigRegeneratesTokens(t *testing.T) {
@@ -347,6 +414,49 @@ func TestUpdateSeatConfigRegeneratesTokens(t *testing.T) {
 	}
 	if updatedSeats[0].Token == originalSeats[0].Token {
 		t.Error("seat 0 token was not regenerated after seat update")
+	}
+}
+
+// TestUpdateSeatConfigGameValidation verifies that a seat-configuration
+// patch is validated against the registered game's rules, and that a
+// rejected patch leaves the session and its existing tokens unchanged.
+func TestUpdateSeatConfigGameValidation(t *testing.T) {
+	r := NewRegistry()
+	r.Register(&testGameConfig{
+		name:    "hearts",
+		newGame: func() Game { return &mockGame{} },
+		validateConfig: func(cfg Config) error {
+			if len(cfg.Seats) != 4 {
+				return fmt.Errorf(
+					"%w: hearts requires 4 seats, got %d",
+					ErrInvalidConfig, len(cfg.Seats),
+				)
+			}
+			return nil
+		},
+	})
+	m := NewManager(r, DefaultServerDelays)
+
+	info, originalSeats, err := m.Create(validHeartsCfg())
+	if err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+	id := info.SessionID
+
+	_, _, err = m.Update(id, PatchConfig{Seats: validHeartsCfg().Seats[:3]})
+	if !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("got error %v, want ErrInvalidConfig", err)
+	}
+
+	info, err = m.Get(id)
+	if err != nil {
+		t.Fatalf("Get() error: %v", err)
+	}
+	if got := len(info.Seats); got != 4 {
+		t.Errorf("got %d seats after rejected patch, want 4", got)
+	}
+	if _, _, err := m.LookupToken(originalSeats[0].Token); err != nil {
+		t.Errorf("original seat token invalidated by rejected patch: %v", err)
 	}
 }
 
@@ -969,9 +1079,9 @@ func TestManagerMarshalFailureTransitionsToFinished(t *testing.T) {
 	}
 }
 
-// TestBuildSeatTokens verifies token generation for mixed human/AI
+// TestBuildSeatsTokens verifies token generation for mixed human/AI
 // seat configurations.
-func TestBuildSeatTokens(t *testing.T) {
+func TestBuildSeatsTokens(t *testing.T) {
 	tests := []struct {
 		name       string
 		configs    []SeatConfig
@@ -1006,9 +1116,9 @@ func TestBuildSeatTokens(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			seats, err := buildSeat(tc.configs)
+			seats, err := buildSeats(tc.configs)
 			if err != nil {
-				t.Fatalf("buildSeat error: %v", err)
+				t.Fatalf("buildSeats error: %v", err)
 			}
 			if len(seats) != len(tc.configs) {
 				t.Fatalf("got %d seats, want %d", len(seats), len(tc.configs))

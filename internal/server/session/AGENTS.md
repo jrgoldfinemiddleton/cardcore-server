@@ -9,16 +9,21 @@ The session package owns game session lifecycle, goroutine management, and the c
 ```
 session/
 ├── session.go         # Config, State, Seat, SeatDetail, Summary, Info DTOs
-├── manager.go         # Thread-safe registry: Create, Start, Delete, Subscribe, Enqueue
+├── manager.go         # Mutex-protected session registry: Create, Get, List, Update, Start, Delete, Subscribe, SubmitAction
+├── registry.go        # Game adapter registry: GameConfig interface, Registry (register, validate, build games)
 ├── goroutine.go       # session.run() event loop, turn driving, lifecycle
 ├── command.go         # playCmd, subscribeCmd, unsubscribeCmd, SubmitResult
 ├── commands.go        # Command dispatch and handlers: handlePlay, handlePauseCmd, handleResumeCmd
 ├── subscribers.go     # Player/observer subscriber management and WebSocket message sending
 ├── snapshot.go        # Snapshot generation, broadcast, and idempotent replay cache
 ├── game.go            # Game interface: HandleAction, AIPlay, Resume, Turn, Snapshot methods
-├── doc.go             # Package documentation
+├── helpers_test.go    # Shared test fixtures: testGameConfig, mock registries, validHeartsCfg
+├── mockgame_test.go   # Mock Game implementations used across session tests
 └── games/
     └── hearts/        # Hearts adapter: implements Game interface
+        ├── hearts.go      # GameAdapter: HandleAction, AIPlay, Resume, Snapshot; seat/ai_type validation
+        ├── config.go      # GameConfig: Hearts flags, NewGame, ValidateConfig wiring
+        └── bench_test.go  # BenchmarkAIPlay (passing/playing phases, random/heuristic)
 ```
 
 ## Where to Look
@@ -26,6 +31,7 @@ session/
 | Task | File | Notes |
 |------|------|-------|
 | Add a Manager method | `manager.go` | Must acquire `mu` (RLock for reads, Lock for writes) |
+| Change game registration or lookup | `registry.go` | `Registry.Register` panics on duplicate names; `ValidateConfig`/`NewGame` look up by `Config.Game` |
 | Change command types | `command.go` | Add to sealed `command` interface; update `handleCommand` switch |
 | Change command handling | `commands.go` | `handlePlay()`, `handlePauseCmd()`, `handleResumeCmd()`, `handleTurnTimeout()` |
 | Change broadcast behavior | `snapshot.go` | `broadcastSnapshot()` or `sendNonBlocking()` |
