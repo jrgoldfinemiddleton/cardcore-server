@@ -5,16 +5,29 @@ type State string
 
 // Session lifecycle states.
 const (
-	Draft    State = "draft"
-	Active   State = "active"
+	// Draft is the state of a session that has been created but not yet
+	// started; its configuration may still be changed via Update.
+	Draft State = "draft"
+	// Active is the state of a session whose game is running; commands
+	// are accepted and snapshots are emitted to subscribers.
+	Active State = "active"
+	// Finished is the state of a session whose game ended naturally.
+	// It is read-only and never auto-expires.
 	Finished State = "finished"
-	Expired  State = "expired"
+	// Expired is the state of a session that has been deleted; its ID is
+	// no longer valid and it is omitted from Get and List results.
+	Expired State = "expired"
 )
 
 // Seat type identifiers.
 const (
+	// SeatHuman identifies a seat played by a human client. Human seats
+	// receive a bearer token on creation and the session waits for their
+	// input, subject to the turn timeout.
 	SeatHuman = "human"
-	SeatAI    = "ai"
+	// SeatAI identifies a seat played by an AI. AI seats require an
+	// ai_type in the seat configuration and receive no bearer token.
+	SeatAI = "ai"
 )
 
 // SeatConfig describes a single seat's setup at session creation time.

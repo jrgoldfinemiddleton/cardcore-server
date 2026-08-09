@@ -33,6 +33,8 @@ type GameConfig interface {
 
 // Registry holds GameConfig implementations keyed by game name.
 type Registry struct {
+	// factories maps game name to its registered GameConfig. It is
+	// populated by Register and consulted by ValidateConfig and NewGame.
 	factories map[string]GameConfig
 }
 
