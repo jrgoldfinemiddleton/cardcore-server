@@ -3,6 +3,7 @@ version: "2"
 linters:
   enable:
     - errorlint    # mishandling wrapped errors (errors.Is/As, %w)
+    - exhaustive   # missing cases in switch over enum-like types (session.State, hearts.Phase)
     - goconst      # repeated string/number literals that should be constants
     - godoclint    # godoc structure; catches duplicate package docs that convention_test.go cannot
     - godot        # doc comments end with a period
@@ -17,6 +18,8 @@ linters:
     - whitespace   # leading/trailing whitespace inside funcs
 
   settings:
+    exhaustive:
+      default-signifies-exhaustive: true
     goconst:
       ignore-tests: true
     lll:

@@ -125,6 +125,24 @@ Every exported function, method, type, and constant must have a doc comment. The
 func HandleConnect(w http.ResponseWriter, r *http.Request) {
 ```
 
+Every constant in a grouped const declaration must have its own doc comment, and every field of an exported struct must have a doc comment beginning with the field name:
+
+```go
+const (
+	// PhasePlaying indicates that trick-taking is in progress.
+	PhasePlaying = "playing"
+	// PhasePaused indicates the Hearts game is paused.
+	PhasePaused = "paused"
+)
+
+type Card struct {
+	// Rank is the rank name, for example "ace".
+	Rank string `json:"rank"`
+}
+```
+
+`convention_test.go` enforces these rules: `TestDocComments` covers functions and methods, and `TestConstAndFieldDocComments` covers constants and exported struct fields.
+
 Use links in comments to help readers navigate to referenced resources. Square brackets are reserved for Go doc links; other targets use a `See` line.
 
 - **Go symbols** — use standard Go doc links: `[package.Symbol]` for a symbol in another package of this module (e.g., `[session.Game]`), and `[package.Symbol.Method]` with the full chain inside the brackets for methods and fields (e.g., `[view.View.PlayerSnapshot]`). Do not link same-package identifiers; name them plainly instead. For standard-library or external-module symbols, use the full import path (e.g., `[log/slog.Default]`); the short form (e.g., `[slog.Default]`) is allowed only in files that already import the package; in a package doc comment (`doc.go`) the short form is allowed when any file in the package imports it. Do not link obvious stdlib types (`error`, `context.Context`).

@@ -28,8 +28,15 @@ type GameAdapter struct {
 	players [hearts.NumPlayers]hearts.Player
 	// paused tracks which UX pause is active. Nil when not paused.
 	paused *pauseState
-	// display delays for phase-aware pacing.
-	dealDelay, trickDelay, roundDelay int
+	// dealDelay is the display delay in milliseconds returned after a
+	// fresh deal.
+	dealDelay int
+	// trickDelay is the display delay in milliseconds returned when a
+	// trick completes.
+	trickDelay int
+	// roundDelay is the display delay in milliseconds returned when a
+	// round completes.
+	roundDelay int
 	// dealPending is true after a fresh Deal() and consumed by the first
 	// DisplayDelay() call in the new round.
 	dealPending bool

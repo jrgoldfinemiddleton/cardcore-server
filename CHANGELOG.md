@@ -10,6 +10,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- `TestConstAndFieldDocComments` convention test: every exported const (grouped, iota, or single) and every field of an exported struct must have a doc comment starting with its name; the `exhaustive` linter is enabled with `default-signifies-exhaustive: true`, and the rules are documented in CONTRIBUTING.md
 - `make bench` target: runs all benchmarks with `-benchmem -count=6` for `benchstat` comparison (supporting the release-flow performance spot-check), backed by the new `golang.org/x/perf` tool dependency
 - Benchmarks: Hearts snapshot serialization (`BenchmarkPlayerSnapshotSerialization`, `BenchmarkObserverSnapshotSerialization` across pass/mid/late game stages), Hearts adapter AI turn latency (`BenchmarkAIPlay`, passing/playing phases × random/heuristic AI), and client-visible session command round-trip latency over a real WebSocket (`BenchmarkSessionCommandRoundTrip`)
 - `make stress` target and `TestStressAllAIGames` stress test (gated behind the `stress` build tag, excluded from `make check`, with a compile-only rot guard in CI): plays 100 zero-pacing all-AI Hearts games against one real server (10 concurrently), measures terminal `game_over` snapshot loss and intermediate snapshot drops across 2 observer streams per game, and asserts the goroutine census returns to baseline — feeding the delivery-policy evidence gate
