@@ -195,7 +195,7 @@ player may legally play, filtered by Hearts rules:
 - Must follow the led suit if able.
 - Cannot lead hearts until hearts are broken (unless hand is all hearts).
 - Cannot play penalty cards (hearts or Q♠) on the first trick.
-- The player holding 2♣ must lead it on the first trick of the first round.
+- The player holding 2♣ must lead it on the first trick.
 
 `legal_actions` is empty when it is not the player's turn.
 
@@ -227,7 +227,7 @@ field contains the engine's explanation of the specific rule violation
 
 | Code | Condition |
 |------|-----------|
-| `pause_not_allowed` | A `pause` or `resume` command was rejected because it is not the requesting human seat's turn, the game is not in an actionable phase, or another seat already paused the game. |
+| `pause_not_allowed` | A `pause` or `resume` command was rejected because it is not the requesting human seat's turn, the game is not in an actionable phase, or another seat already paused the game (theoretically only possible if a human player disconnected and later re-joined in a different seat position). |
 
 ---
 
@@ -244,7 +244,7 @@ Player view, seat 0, round 1, trick 3:
   "trick_number": 3,
   "pass_direction": "left",
   "turn": 0,
-  "hearts_broken": false,
+  "hearts_broken": true,
   "hand": [
     { "rank": "four", "suit": "clubs" },
     { "rank": "jack", "suit": "clubs" },
@@ -264,7 +264,7 @@ Player view, seat 0, round 1, trick 3:
     { "seat": 3, "card": { "rank": "five", "suit": "diamonds" } }
   ],
   "scores": [0, 0, 0, 0],
-  "round_points": [0, 1, 0, 3],
+  "round_points": [0, 1, 0, 0],
   "paused": false,
   "legal_actions": [
     { "rank": "seven", "suit": "diamonds" },
@@ -280,5 +280,5 @@ zero), tricks 1-2 are complete (2 cards played per seat = 11 remaining
 each). Seat 2 led this trick (now 10 cards), seat 3 followed (now 10
 cards). Seats 0 and 1 haven't played yet (still 11 cards each).
 Diamonds was led, so `legal_actions` shows only the diamonds in seat
-0's hand. `round_points` reflects 4 total penalty points taken across
-tricks 1-2 (1 for seat 1, 3 for seat 3).
+0's hand. `round_points` reflects 1 total penalty points taken across
+tricks 1-2 (1 for seat 1).

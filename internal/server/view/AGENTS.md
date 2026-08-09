@@ -7,13 +7,10 @@ Defines the interface between the session layer and game-specific snapshot gener
 ```
 view/
 ├── view.go           # View interface: PlayerSnapshot, ObserverSnapshot
-├── doc.go            # Package documentation
-├── view_test.go      # Compile-time and runtime interface conformance test
 └── games/
     └── hearts/       # Hearts-specific snapshot generation
-        ├── hearts.go # ViewState, PlayerView, ObserverView
-        ├── hearts_test.go
-        └── doc.go    # Package documentation
+        ├── hearts.go     # ViewState, PlayerView, ObserverView
+        └── bench_test.go # Snapshot serialization benchmarks
 ```
 
 ## WHERE TO LOOK

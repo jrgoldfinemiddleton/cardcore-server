@@ -7,19 +7,14 @@ Non-interactive scripted client. The top-level package parses flags and runs eit
 ```
 cardcore-cli/
 ├── main.go              # Entry point, parseFlags, run modes
-├── main_test.go         # Flag parsing and mode tests
 ├── script.go            # ScriptExecutor: evaluates snapshots against JSON script
-├── script_test.go       # ScriptExecutor tests
 ├── integration_test.go  # Full-game scripted tests
 ├── testdata/            # JSON script fixtures for integration tests
 └── games/
     └── hearts/
         ├── session.go       # CreateHumanSession, CreateObserverSession
         ├── format.go        # Formatter: compact one-line snapshot output
-        ├── script.go        # Builder: BuildCommand for pass_cards/play_card
-        ├── format_test.go   # Formatter tests
-        ├── script_test.go   # Builder tests
-        └── doc.go           # Package documentation
+        └── script.go        # Builder: BuildCommand for pass_cards/play_card
 ```
 
 ## WHERE TO LOOK

@@ -11,20 +11,14 @@ client/
 ├── url.go               # WebSocket URL construction from HTTP base URL
 ├── messages.go          # Command and ErrorMessage envelopes
 ├── errors.go            # Error code constants and recovery classification
-├── doc.go               # Package documentation
-├── http_test.go         # HTTP client tests
-├── ws_test.go           # WebSocket client tests
-├── url_test.go          # URL construction tests
-├── messages_test.go     # Message envelope tests
-├── logger_test.go       # Logger setup tests
+├── bench_test.go        # BenchmarkSessionCommandRoundTrip (real WebSocket latency)
 └── integration_test.go  # End-to-end tests with real server
 
 client/games/hearts/
 ├── dto.go               # Hearts-specific DTOs
 ├── phases.go            # Hearts phase constants
-├── commands.go          # Command envelope builders
-├── dto_test.go          # DTO round-trip tests
-└── commands_test.go     # Command builder tests
+├── symbols.go           # GameName constant, rank/suit display symbols
+└── commands.go          # Command envelope builders
 ```
 
 ## WHERE TO LOOK

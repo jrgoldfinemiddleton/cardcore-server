@@ -6,9 +6,7 @@ The `cardcore-server` binary entry point. Parses command-line flags, configures 
 ## STRUCTURE
 ```
 cardcore-server/
-├── main.go      # Entry point: parseFlags, run, parseLogLevel
-├── doc.go       # Package documentation
-└── main_test.go # Flag parsing and validation tests
+└── main.go      # Entry point: parseFlags, run, parseLogLevel
 ```
 
 ## WHERE TO LOOK

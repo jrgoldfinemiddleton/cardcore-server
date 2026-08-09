@@ -24,9 +24,17 @@ var DefaultServerDelays = DefaultDelays{
 
 // Sentinel errors returned by Manager methods.
 var (
-	ErrNotFound      = errors.New("session not found")
-	ErrNotDraft      = errors.New("session is not in draft state")
-	ErrNotActive     = errors.New("session not active")
+	// ErrNotFound is returned when a session ID does not resolve to a
+	// live session, or a bearer token does not resolve to a seat.
+	ErrNotFound = errors.New("session not found")
+	// ErrNotDraft is returned when an operation requires a session in
+	// draft state but the session has already been started.
+	ErrNotDraft = errors.New("session is not in draft state")
+	// ErrNotActive is returned when an operation requires an active
+	// session but the session is still in draft state or has finished.
+	ErrNotActive = errors.New("session not active")
+	// ErrInvalidConfig is returned when a session configuration fails
+	// validation; the wrapped message describes the specific violation.
 	ErrInvalidConfig = errors.New("invalid session configuration")
 )
 
@@ -51,7 +59,11 @@ type tokenInfo struct {
 	seat      int
 }
 
-// Manager is a thread-safe registry of game sessions.
+// Manager is a thread-safe registry of game sessions. Transport handlers
+// call Manager methods concurrently — one goroutine per HTTP request or
+// WebSocket connection — so the sessions and tokenIndex maps are guarded
+// by mu. Game state, by contrast, is owned by the single session
+// goroutine and needs no lock (see ADR-006).
 type Manager struct {
 	// mu protects sessions and tokenIndex maps.
 	mu sync.RWMutex
@@ -69,17 +81,18 @@ type Manager struct {
 
 // DefaultDelays holds server-wide default timing values.
 type DefaultDelays struct {
-	// AIActionDelayMS is the default delay in milliseconds between AI
-	// turns, applied when a session's Config.AIActionDelayMS is nil.
+	// AIActionDelayMS is the default pacing delay in milliseconds applied
+	// before each AI turn, applied when a session's Config.AIActionDelayMS
+	// is nil.
 	AIActionDelayMS int
 	// DealDisplayDelayMS is the default delay in milliseconds for showing
 	// a fresh deal before play advances, applied when a session's
 	// Config.DealDisplayDelayMS is nil.
 	DealDisplayDelayMS int
 	// TurnTimeoutMS is the default maximum time in milliseconds to wait
-	// for a human player to act before auto-playing an AI move, applied
-	// when a session's Config.TurnTimeoutMS is nil. 0 disables the
-	// timeout.
+	// for a human player to act before auto-playing an AI move on their
+	// behalf, applied when a session's Config.TurnTimeoutMS is nil.
+	// 0 disables the timeout.
 	TurnTimeoutMS int
 }
 
@@ -113,7 +126,7 @@ func (m *Manager) Create(cfg Config) (*Info, []Seat, error) {
 		return nil, nil, fmt.Errorf("generating session ID: %w", err)
 	}
 
-	seats, err := buildSeat(cfg.Seats)
+	seats, err := buildSeats(cfg.Seats)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -184,11 +197,15 @@ func (m *Manager) List() []Summary {
 }
 
 // Update applies patch to the session identified by id. Only the seat
-// configuration and AI delay may be changed, and only while the session
-// is in draft state. When patch.Seats is non-nil the returned []Seat
-// contains freshly minted bearer tokens for human seats; otherwise it is
+// configuration and the delay/timeout values may be changed, and only
+// while the session is in draft state; all provided fields are applied
+// together. When patch.Seats is non-nil, all former seat tokens are
+// invalidated and the returned []Seat contains freshly minted bearer
+// tokens for every human seat, including unchanged ones; otherwise it is
 // nil. The returned *Info never contains tokens. Returns
-// ErrNotFound (missing/expired) or ErrNotDraft (already started).
+// ErrNotFound (missing/expired), ErrNotDraft (already started), or
+// ErrInvalidConfig if the resulting configuration fails game-agnostic or
+// game-specific validation.
 func (m *Manager) Update(
 	id string, patch PatchConfig,
 ) (*Info, []Seat, error) {
@@ -203,6 +220,7 @@ func (m *Manager) Update(
 		return nil, nil, ErrNotDraft
 	}
 
+	var seats []Seat
 	if patch.Seats != nil {
 		cfg := Config{
 			Game:               e.config.Game,
@@ -214,24 +232,28 @@ func (m *Manager) Update(
 		if err := validateConfig(cfg); err != nil {
 			return nil, nil, err
 		}
+		if err := m.registry.ValidateConfig(cfg); err != nil {
+			return nil, nil, err
+		}
+		// Build the replacement seats before mutating the entry so a
+		// token-generation failure leaves the session untouched.
+		newSeats, err := buildSeats(patch.Seats)
+		if err != nil {
+			return nil, nil, err
+		}
 		for _, s := range e.seats {
 			if s.Token != "" {
 				delete(m.tokenIndex, s.Token)
 			}
 		}
 		e.config.Seats = patch.Seats
-
-		seats, err := buildSeat(patch.Seats)
-		if err != nil {
-			return nil, nil, err
-		}
-		e.seats = seats
-		for i, s := range seats {
+		e.seats = newSeats
+		for i, s := range newSeats {
 			if s.Token != "" {
 				m.tokenIndex[s.Token] = tokenInfo{sessionID: id, seat: i}
 			}
 		}
-		return e.info(id), seats, nil
+		seats = newSeats
 	}
 
 	if patch.AIActionDelayMS != nil {
@@ -244,7 +266,7 @@ func (m *Manager) Update(
 		e.config.TurnTimeoutMS = patch.TurnTimeoutMS
 	}
 
-	return e.info(id), nil, nil
+	return e.info(id), seats, nil
 }
 
 // Start transitions the session from draft to active. It creates the
@@ -342,10 +364,11 @@ func (m *Manager) LookupToken(token string) (string, int, error) {
 	return ti.sessionID, ti.seat, nil
 }
 
-// SubscribePlayer opens a buffered channel that receives snapshot updates
-// for seat. If seat already has an active subscriber, the previous
-// channel is closed and replaced. Returns ErrNotFound (missing/expired)
-// or ErrNotActive if the session is not active.
+// SubscribePlayer sends a subscribe command to the session goroutine and
+// returns a new buffered channel that receives snapshot updates for seat.
+// If seat already has an active subscriber, the goroutine closes the
+// previous channel and replaces it with the new one. Returns ErrNotFound
+// (missing/expired) or ErrNotActive if the session is not active.
 func (m *Manager) SubscribePlayer(id string, seat int) (chan SubscriberMessage, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -374,11 +397,11 @@ func (m *Manager) SubscribePlayer(id string, seat int) (chan SubscriberMessage, 
 	}
 }
 
-// SubscribeObserver opens a buffered channel that receives every
-// broadcast snapshot for the session. Observers do not replace each
-// other; multiple observer channels may be active concurrently. Returns
-// ErrNotFound (missing/expired) or ErrNotActive if the session is not
-// active.
+// SubscribeObserver sends a subscribe command to the session goroutine
+// and returns a new buffered channel that receives every broadcast
+// snapshot for the session. Observers do not replace each other; multiple
+// observer channels may be active concurrently. Returns ErrNotFound
+// (missing/expired) or ErrNotActive if the session is not active.
 func (m *Manager) SubscribeObserver(id string) (chan SubscriberMessage, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -600,8 +623,8 @@ func generateSeatToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// buildSeat creates Seat entries with tokens for human seats.
-func buildSeat(configs []SeatConfig) ([]Seat, error) {
+// buildSeats creates Seat entries with tokens for human seats.
+func buildSeats(configs []SeatConfig) ([]Seat, error) {
 	seats := make([]Seat, len(configs))
 	for i, sc := range configs {
 		seats[i] = Seat{Index: i, Type: sc.Type}

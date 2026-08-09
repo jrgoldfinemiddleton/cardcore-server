@@ -6,15 +6,17 @@ HTTP/WebSocket server and route handlers. This package owns the strict transport
 ## STRUCTURE
 ```
 transport/
-├── server.go           # Server struct, route registration, Start/Shutdown
-├── config.go           # Server config (Manager reference, timeouts, limits)
-├── http_sessions.go    # REST endpoints for session lifecycle
-├── http_errors.go      # HTTP error response helpers
-├── ws_player.go        # Player WebSocket connection (read/write goroutines)
-├── ws_observer.go      # Observer WebSocket connection (write goroutine)
-├── ws_helpers.go       # Shared WS utilities (guarded, readJSON, writeBytes, parseBearerToken)
-├── helpers_test.go     # Test server and WebSocket dial helpers
-└── *_test.go           # Unit, protocol-conformance, and full-game integration tests
+├── server.go              # Server struct, route registration, Start/Shutdown
+├── config.go              # Server config (Manager reference, timeouts, limits)
+├── http_sessions.go       # REST endpoints for session lifecycle
+├── http_errors.go         # HTTP error response helpers
+├── ws_player.go           # Player WebSocket connection (read/write goroutines)
+├── ws_observer.go         # Observer WebSocket connection (write goroutine)
+├── ws_helpers.go          # Shared WS utilities (guarded, readJSON, writeBytes, parseBearerToken)
+├── helpers_test.go        # Test server and WebSocket dial helpers
+├── fullgame_test.go       # Full-game integration tests (real server + WebSocket)
+├── stress_test.go         # Stress tests (gated behind the stress build tag)
+└── stress_harness_test.go # Stress test harness
 ```
 
 ## WHERE TO LOOK

@@ -13,35 +13,19 @@ cardcore-tui/
 ├── status.go            # Status bar and close/error messages
 ├── timeout.go           # Shared timer helpers for UI flashes
 ├── theme.go             # Boundary alias for the hearts theme type
-├── doc.go               # Package documentation
-├── main_test.go         # Flag parsing and model tests
-├── layout_test.go       # Layout assembly tests
-├── model_test.go        # Model update tests
-├── status_test.go       # Status/footer tests
-├── wsbridge_test.go     # WS-to-UI bridge tests
 ├── menu/                # Pre-game menu wizard (server, AI difficulty, observer, theme)
 │   ├── menu.go          # Menu Config and option definitions
-│   ├── model.go         # Menu tea.Model
-│   ├── menu_test.go     # Menu model tests
-│   └── doc.go           # Package documentation
+│   └── model.go         # Menu tea.Model
 └── games/
     └── hearts/          # Hearts-specific rendering and command building
-        ├── client.go        # Stateful Client: snapshot decode, key handling
-        ├── views.go         # Pure render functions per phase
-        ├── commands.go      # BuildPassCommand, BuildPlayCommand
-        ├── card.go          # Card symbol and lipgloss styling
-        ├── observer.go      # Observer view rendering
-        ├── theme.go         # Theme struct and constructors
-        ├── session.go       # Auto-create Hearts session via HTTP
-        ├── client_test.go   # Client key handling tests
-        ├── commands_test.go # Command builder tests
-        ├── card_test.go     # Card rendering tests
-        ├── views_test.go    # Phase view tests
-        ├── observer_test.go # Observer view tests
-        ├── theme_test.go    # Theme tests
-        ├── session_test.go  # Session helper tests
-        ├── integration_test.go # TUI full-game integration
-        └── doc.go           # Package documentation
+        ├── client.go           # Stateful Client: snapshot decode, key handling
+        ├── views.go            # Pure render functions per phase
+        ├── commands.go         # BuildPassCommand, BuildPlayCommand
+        ├── card.go             # Card symbol and lipgloss styling
+        ├── observer.go         # Observer view rendering
+        ├── theme.go            # Theme struct and constructors
+        ├── session.go          # Auto-create Hearts session via HTTP
+        └── integration_test.go # TUI full-game integration
 ```
 
 ## WHERE TO LOOK
