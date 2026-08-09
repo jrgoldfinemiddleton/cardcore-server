@@ -69,9 +69,18 @@ type Manager struct {
 
 // DefaultDelays holds server-wide default timing values.
 type DefaultDelays struct {
-	AIActionDelayMS    int
+	// AIActionDelayMS is the default delay in milliseconds between AI
+	// turns, applied when a session's Config.AIActionDelayMS is nil.
+	AIActionDelayMS int
+	// DealDisplayDelayMS is the default delay in milliseconds for showing
+	// a fresh deal before play advances, applied when a session's
+	// Config.DealDisplayDelayMS is nil.
 	DealDisplayDelayMS int
-	TurnTimeoutMS      int
+	// TurnTimeoutMS is the default maximum time in milliseconds to wait
+	// for a human player to act before auto-playing an AI move, applied
+	// when a session's Config.TurnTimeoutMS is nil. 0 disables the
+	// timeout.
+	TurnTimeoutMS int
 }
 
 // NewManager creates an empty session manager. The registry creates and

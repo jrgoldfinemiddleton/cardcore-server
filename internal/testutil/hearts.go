@@ -20,6 +20,9 @@ const testAIType = "random"
 // TestHeartsConfig is a [session.GameConfig] for integration tests that
 // creates real Hearts adapters with a deterministic RNG.
 type TestHeartsConfig struct {
+	// Rng is the deterministic random source passed to every Hearts
+	// adapter this config creates, replacing the session-provided RNG so
+	// tests are reproducible.
 	Rng *rand.Rand
 }
 

@@ -38,7 +38,12 @@ const (
 // SubscriberMessage carries either a data payload or a close code
 // for the transport layer to use when closing the WebSocket.
 type SubscriberMessage struct {
-	Data      []byte
+	// Data is a marshaled snapshot to write to the subscriber's
+	// WebSocket connection. It is empty when CloseCode is set.
+	Data []byte
+	// CloseCode is a WebSocket close status code. When nonzero, the
+	// transport layer closes the connection with this code instead of
+	// writing a snapshot (e.g., 1011 on snapshot marshal failure).
 	CloseCode int
 }
 

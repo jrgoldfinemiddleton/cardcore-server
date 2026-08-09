@@ -16,7 +16,14 @@ const GameName = "hearts"
 // GameConfig implements [session.GameConfig] for Hearts. It owns the
 // Hearts-specific command-line flags and creates GameAdapter instances.
 type GameConfig struct {
+	// trickDisplayDelayMS is the display delay in milliseconds applied
+	// when a trick completes, giving clients time to render the finished
+	// trick before play resumes. Set by the
+	// -hearts-trick-display-delay-ms flag; defaults to 3000.
 	trickDisplayDelayMS int
+	// roundDisplayDelayMS is the display delay in milliseconds applied
+	// when a round completes, before the next deal begins. Set by the
+	// -hearts-round-display-delay-ms flag; defaults to 5000.
 	roundDisplayDelayMS int
 }
 
