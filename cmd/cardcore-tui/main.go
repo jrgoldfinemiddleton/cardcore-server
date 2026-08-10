@@ -14,6 +14,7 @@ import (
 
 	heartstui "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/games/hearts"
 	"github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/menu"
+	"github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/theme"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/flags"
 )
@@ -194,9 +195,9 @@ func runMenu(cfg *tuiConfig) (*tuiConfig, error) {
 		return cfg, nil
 	}
 
-	theme := NewDarkTheme()
+	shellTheme := theme.NewDarkTheme()
 	if cfg.theme == themeLight {
-		theme = NewLightTheme()
+		shellTheme = theme.NewLightTheme()
 	}
 
 	initial := menu.Config{
@@ -208,7 +209,7 @@ func runMenu(cfg *tuiConfig) (*tuiConfig, error) {
 		Debug:    cfg.debug,
 	}
 
-	result, err := menu.Run(initial, theme)
+	result, err := menu.Run(initial, shellTheme)
 	if err != nil {
 		if errors.Is(err, menu.ErrCancelled) {
 			return nil, nil
@@ -358,14 +359,16 @@ func runGame(cfg *tuiConfig) error {
 	// variable both point to the same struct. Setting m.program = p modifies
 	// the shared struct, so the goroutine sees the correct program reference.
 
-	// Construct the theme from the configured string. The value is
-	// validated by parseFlags, so only "dark" or "light" reach here.
-	theme := NewDarkTheme()
+	// Construct the shell palette from the configured theme name. The value
+	// is validated by parseFlags, so only "dark" or "light" reach here. The
+	// game client builds its own palette (with game-specific fields) from
+	// the same name inside newGameClient.
+	shellTheme := theme.NewDarkTheme()
 	if cfg.theme == themeLight {
-		theme = NewLightTheme()
+		shellTheme = theme.NewLightTheme()
 	}
 
-	game, err := newGameClient(cfg.game, cfg.seat, cfg.observer, theme)
+	game, err := newGameClient(cfg.game, cfg.seat, cfg.observer, cfg.theme)
 	if err != nil {
 		return err
 	}
@@ -373,7 +376,7 @@ func runGame(cfg *tuiConfig) error {
 		conn:  conn,
 		game:  game,
 		phase: "connecting",
-		theme: theme,
+		theme: shellTheme,
 	}
 
 	// Step 6: Create program.
@@ -426,12 +429,17 @@ func configureLogging(debug bool) {
 
 // newGameClient constructs the game-specific client for the named game. It is
 // the single composition point where concrete games are wired into the
-// game-agnostic model; add new games by extending the switch. The theme is
-// passed through to the game client for use in rendering.
-func newGameClient(game string, seat int, observer bool, theme Theme) (gameClient, error) {
+// game-agnostic model; add new games by extending the switch. Each game case
+// constructs its own palette from themeName so the shell never carries
+// game-specific theme fields.
+func newGameClient(game string, seat int, observer bool, themeName string) (gameClient, error) {
 	switch game {
 	case "hearts":
-		return heartstui.NewClient(seat, observer, theme), nil
+		heartsTheme := heartstui.NewDarkTheme()
+		if themeName == themeLight {
+			heartsTheme = heartstui.NewLightTheme()
+		}
+		return heartstui.NewClient(seat, observer, heartsTheme), nil
 	default:
 		return nil, fmt.Errorf("unsupported game: %q", game)
 	}

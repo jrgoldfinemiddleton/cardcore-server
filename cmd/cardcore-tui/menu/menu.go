@@ -6,13 +6,13 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	heartstui "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/games/hearts"
+	"github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/theme"
 )
 
 // Theme is the color palette for the menu. It is an alias for
-// [heartstui.Theme] so the menu shares the same palette as the rest of the
-// TUI without importing the hearts package's render functions.
-type Theme = heartstui.Theme
+// [theme.Theme] so the menu shares the same palette type as the rest of
+// the TUI without importing any game-specific package.
+type Theme = theme.Theme
 
 // Config holds the resolved menu selections. The caller translates this into
 // the authoritative tuiConfig in cmd/cardcore-tui/main.go.
@@ -118,9 +118,9 @@ func initialThemeIdx(theme string) int {
 // index.
 func themeAtIndex(idx int) Theme {
 	if idx >= 0 && idx < len(themeOptions) && themeOptions[idx] == "light" {
-		return heartstui.NewLightTheme()
+		return theme.NewLightTheme()
 	}
-	return heartstui.NewDarkTheme()
+	return theme.NewDarkTheme()
 }
 
 // gameDisplayName returns a pretty label for a supported game name.

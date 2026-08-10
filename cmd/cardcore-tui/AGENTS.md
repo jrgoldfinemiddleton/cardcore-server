@@ -12,7 +12,8 @@ cardcore-tui/
 ├── layout.go            # Header/main/footer layout assembly
 ├── status.go            # Status bar and close/error messages
 ├── timeout.go           # Shared timer helpers for UI flashes
-├── theme.go             # Boundary alias for the hearts theme type
+├── theme.go             # Alias re-exporting the shell theme palette type
+├── theme/               # Game-agnostic color palette (Theme struct, dark/light constructors)
 ├── menu/                # Pre-game menu wizard (server, AI difficulty, observer, theme)
 │   ├── menu.go          # Menu Config and option definitions
 │   └── model.go         # Menu tea.Model
@@ -23,7 +24,7 @@ cardcore-tui/
         ├── commands.go         # BuildPassCommand, BuildPlayCommand
         ├── card.go             # Card symbol and lipgloss styling
         ├── observer.go         # Observer view rendering
-        ├── theme.go            # Theme struct and constructors
+        ├── theme.go            # Hearts Theme: embeds shell palette, adds WinnerBg
         ├── session.go          # Auto-create Hearts session via HTTP
         └── integration_test.go # TUI full-game integration
 ```
@@ -36,6 +37,7 @@ cardcore-tui/
 | Change WS-to-UI bridge | `wsbridge.go` | `startWSReader` sends typed messages to `m.program.Send()` |
 | Change layout | `layout.go` | Assembles header, main content, footer |
 | Change status bar | `status.go` | Error/close messages and status line |
+| Change color palette | `theme/theme.go` | Shell Theme struct and constructors; Hearts adds `WinnerBg` in `games/hearts/theme.go` |
 | Change pre-game menu | `menu/menu.go`, `menu/model.go` | Menu wizard produces a `Config`; no I/O |
 | Change Hearts rendering | `games/hearts/views.go`, `games/hearts/card.go` | Pure functions; no I/O |
 | Change Hearts key handling | `games/hearts/client.go` | Cursor, selection, submitted flag |
@@ -43,7 +45,7 @@ cardcore-tui/
 ## CONVENTIONS
 - Render functions are pure: take data + UI state, return a string.
 - `hearts.Client` is the only stateful game-specific type; it holds `cursor`, `selected`, and `submitted`.
-- Use lipgloss for styling; colors are hardcoded hex values (e.g., hearts/diamonds red).
+- Use lipgloss for styling; colors are hardcoded hex values in the theme constructors (`theme/` for shared colors, `games/hearts/theme.go` for Hearts-only colors).
 - Action IDs must include seat number to avoid collisions: `tui-<seat>-<counter>`.
 
 ## ANTI-PATTERNS

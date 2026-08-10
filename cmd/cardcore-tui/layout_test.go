@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/theme"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
 )
 
@@ -21,7 +22,7 @@ func TestRenderFooterErrorPriority(t *testing.T) {
 		errMsg:       "validation error",
 		statusMsg:    "Game ended",
 		disconnected: true,
-		theme:        NewDarkTheme(),
+		theme:        theme.NewDarkTheme(),
 	}
 
 	got := m.renderFooter(80)
@@ -39,7 +40,7 @@ func TestRenderFooterStatusPriority(t *testing.T) {
 	m := &model{
 		statusMsg:    "Game ended",
 		disconnected: true,
-		theme:        NewDarkTheme(),
+		theme:        theme.NewDarkTheme(),
 	}
 
 	got := m.renderFooter(80)
@@ -54,7 +55,7 @@ func TestRenderFooterStatusPriority(t *testing.T) {
 // TestRenderFooterDisconnected verifies a disconnected model with no status
 // message shows the generic "Disconnected" label.
 func TestRenderFooterDisconnected(t *testing.T) {
-	m := &model{disconnected: true, theme: NewDarkTheme()}
+	m := &model{disconnected: true, theme: theme.NewDarkTheme()}
 
 	got := m.renderFooter(80)
 	if !strings.Contains(got, "Disconnected") {
@@ -64,7 +65,7 @@ func TestRenderFooterDisconnected(t *testing.T) {
 
 // TestRenderFooterPaused verifies the paused footer shows the paused label.
 func TestRenderFooterPaused(t *testing.T) {
-	m := &model{paused: true, theme: NewDarkTheme()}
+	m := &model{paused: true, theme: theme.NewDarkTheme()}
 
 	got := m.renderFooter(80)
 	if !strings.Contains(got, "Paused") {
@@ -74,7 +75,7 @@ func TestRenderFooterPaused(t *testing.T) {
 
 // TestRenderFooterConnected verifies the default footer shows "Connected".
 func TestRenderFooterConnected(t *testing.T) {
-	m := &model{theme: NewDarkTheme()}
+	m := &model{theme: theme.NewDarkTheme()}
 
 	got := m.renderFooter(80)
 	if !strings.Contains(got, "Connected") {
@@ -85,7 +86,7 @@ func TestRenderFooterConnected(t *testing.T) {
 // TestRenderLayoutPanels verifies the full layout includes three bordered
 // panels (header, main, footer) and two blank separator lines.
 func TestRenderLayoutPanels(t *testing.T) {
-	m := &model{theme: NewDarkTheme(), height: 24}
+	m := &model{theme: theme.NewDarkTheme(), height: 24}
 
 	got := m.renderLayout()
 	stripped := stripANSILayout(got)
@@ -113,7 +114,7 @@ func TestRenderLayoutPanels(t *testing.T) {
 // TestRenderLayoutHeight verifies the full layout fills the configured
 // terminal height with the fixed panels and separators.
 func TestRenderLayoutHeight(t *testing.T) {
-	m := &model{theme: NewDarkTheme(), height: 24}
+	m := &model{theme: theme.NewDarkTheme(), height: 24}
 
 	got := m.renderLayout()
 	lines := strings.Split(got, "\n")
@@ -129,7 +130,7 @@ func TestRenderHeaderScorePresentation(t *testing.T) {
 		roundNumber: 2,
 		phase:       "playing",
 		scores:      []int{5, 12, 8, 3},
-		theme:       NewDarkTheme(),
+		theme:       theme.NewDarkTheme(),
 	}
 
 	got := m.renderHeader(80)
@@ -150,7 +151,7 @@ func TestRenderHeaderRoundZeroDisplaysAsOne(t *testing.T) {
 	m := &model{
 		roundNumber: 0,
 		phase:       "waiting",
-		theme:       NewDarkTheme(),
+		theme:       theme.NewDarkTheme(),
 	}
 
 	got := m.renderHeader(80)
@@ -170,7 +171,7 @@ func TestRenderHeaderScoreDangerHighlight(t *testing.T) {
 		roundNumber: 4,
 		phase:       "playing",
 		scores:      []int{12, 80, 45, 73},
-		theme:       NewDarkTheme(),
+		theme:       theme.NewDarkTheme(),
 	}
 
 	got := m.renderHeader(80)
@@ -190,7 +191,7 @@ func TestRenderHeaderScoreDangerHighlight(t *testing.T) {
 // at the configured terminal height so the footer is not pushed off-screen.
 func TestRenderLayoutClipsTallGameContent(t *testing.T) {
 	m := &model{
-		theme:  NewDarkTheme(),
+		theme:  theme.NewDarkTheme(),
 		width:  80,
 		height: 24,
 		game:   tallGameClient{},

@@ -10,7 +10,8 @@
 //   - observer.go: observer view showing all hands and scores
 //   - commands.go: command builders that produce [client.Command] values
 //   - client.go: stateful Client adapter that ties the pure functions to the TUI
-//   - theme.go: Theme struct with dark and light color palettes
+//   - theme.go: Theme struct embedding the shell palette and adding the
+//     Hearts-specific WinnerBg field, with dark and light constructors
 //   - session.go: CreateSession helper that auto-creates a Hearts session
 //     over HTTP via the shared client engine
 //

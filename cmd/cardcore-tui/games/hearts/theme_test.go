@@ -4,42 +4,39 @@ import (
 	"testing"
 )
 
-// TestNewDarkThemeNonNil verifies the dark theme returns a non-nil palette.
-func TestNewDarkThemeNonNil(t *testing.T) {
+// TestNewDarkThemeWinnerBg verifies the dark Hearts palette embeds a
+// populated shell palette and adds a non-nil WinnerBg color.
+func TestNewDarkThemeWinnerBg(t *testing.T) {
 	got := NewDarkTheme()
 	if got.Background == nil {
-		t.Errorf("NewDarkTheme().Background = nil, want non-nil")
+		t.Errorf("NewDarkTheme().Background = nil, want non-nil (promoted from the shell theme)")
 	}
-	if got.Text == nil {
-		t.Errorf("NewDarkTheme().Text = nil, want non-nil")
-	}
-	if got.Accent == nil {
-		t.Errorf("NewDarkTheme().Accent = nil, want non-nil")
+	if got.WinnerBg == nil {
+		t.Errorf("NewDarkTheme().WinnerBg = nil, want non-nil")
 	}
 }
 
-// TestNewLightThemeNonNil verifies the light theme returns a non-nil palette.
-func TestNewLightThemeNonNil(t *testing.T) {
+// TestNewLightThemeWinnerBg verifies the light Hearts palette embeds a
+// populated shell palette and adds a non-nil WinnerBg color.
+func TestNewLightThemeWinnerBg(t *testing.T) {
 	got := NewLightTheme()
 	if got.Background == nil {
-		t.Errorf("NewLightTheme().Background = nil, want non-nil")
+		t.Errorf("NewLightTheme().Background = nil, want non-nil (promoted from the shell theme)")
 	}
-	if got.Text == nil {
-		t.Errorf("NewLightTheme().Text = nil, want non-nil")
-	}
-	if got.Accent == nil {
-		t.Errorf("NewLightTheme().Accent = nil, want non-nil")
+	if got.WinnerBg == nil {
+		t.Errorf("NewLightTheme().WinnerBg = nil, want non-nil")
 	}
 }
 
-// TestThemesDistinct verifies dark and light themes use different colors.
-func TestThemesDistinct(t *testing.T) {
+// TestThemesWinnerBgDistinct verifies dark and light themes use different
+// WinnerBg colors.
+func TestThemesWinnerBgDistinct(t *testing.T) {
 	dark := NewDarkTheme()
 	light := NewLightTheme()
 
-	dr, dg, db, da := dark.Background.RGBA()
-	lr, lg, lb, la := light.Background.RGBA()
+	dr, dg, db, da := dark.WinnerBg.RGBA()
+	lr, lg, lb, la := light.WinnerBg.RGBA()
 	if dr == lr && dg == lg && db == lb && da == la {
-		t.Errorf("dark and light Background colors are equal, want distinct")
+		t.Errorf("dark and light WinnerBg colors are equal, want distinct")
 	}
 }
