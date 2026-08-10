@@ -53,6 +53,12 @@ type aiPlayPauseGame struct {
 	turnSeat  int
 }
 
+// handleActionSpyGame is a mock Game that counts HandleAction calls so
+// tests can verify whether a command reached the game adapter.
+type handleActionSpyGame struct {
+	handleActionCalls int
+}
+
 // delayGame is a mock Game that returns a fixed non-zero DisplayDelay for
 // verifying the goroutine sleep paths.
 type delayGame struct {
@@ -588,3 +594,44 @@ func (d *deadlineBroadcastGame) SetTurnDeadline(deadline time.Time) {
 
 // SetPaused is a no-op; deadlineBroadcastGame does not track pause state.
 func (d *deadlineBroadcastGame) SetPaused(bool) {}
+
+// HandleAction records the call and returns StepContinue; spy tests assert
+// on the call count rather than the outcome.
+func (g *handleActionSpyGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
+	g.handleActionCalls++
+	return StepResult{}, nil
+}
+
+// AIPlay returns StepContinue; spy tests configure a single human seat, so
+// no AI turn is driven.
+func (g *handleActionSpyGame) AIPlay(int) (StepResult, error) {
+	return StepResult{}, nil
+}
+
+// Resume returns StepContinue; handleActionSpyGame never enters a pausable
+// state.
+func (g *handleActionSpyGame) Resume() (StepResult, error) {
+	return StepResult{}, nil
+}
+
+// Turn always returns seat 0; spy tests configure seat 0 as the only seat.
+func (g *handleActionSpyGame) Turn() int { return 0 }
+
+// PlayerSnapshot returns nil, which marshals to null; spy tests assert on
+// HandleAction call counts, not snapshot content.
+func (g *handleActionSpyGame) PlayerSnapshot(int, int) any { return nil }
+
+// ObserverSnapshot returns nil, which marshals to null; spy tests have no
+// observer subscribers.
+func (g *handleActionSpyGame) ObserverSnapshot(int) any { return nil }
+
+// DisplayDelay returns zero so spy tests are not slowed by UX pacing.
+func (g *handleActionSpyGame) DisplayDelay() int { return 0 }
+
+// SetTurnDeadline is a no-op; handleActionSpyGame does not track turn
+// deadlines.
+func (g *handleActionSpyGame) SetTurnDeadline(time.Time) {}
+
+// SetPaused is a no-op; the paused flag the guard reads lives on the
+// session, not the game.
+func (g *handleActionSpyGame) SetPaused(bool) {}

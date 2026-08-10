@@ -53,6 +53,19 @@ func (s *session) handlePlay(c playCmd) {
 		return
 	}
 
+	// Reject gameplay commands while paused. This runs after seq validation
+	// and action_id dedup so stale commands still resync via stale_seq and
+	// replays still return their cached snapshot (ADR-013); only commands
+	// that would otherwise reach the engine are rejected.
+	if s.paused {
+		c.resp <- SubmitResult{Err: &api.ErrorMessage{
+			Type: errType, ErrorCode: api.ErrGamePaused,
+			Message:  "game is paused",
+			ActionID: c.msg.ActionID, CurrentSeq: s.seq,
+		}}
+		return
+	}
+
 	res, cmdErr := s.game.HandleAction(c.seat, c.msg)
 	if cmdErr != nil {
 		s.handleRejectedAction(c, cmdErr)

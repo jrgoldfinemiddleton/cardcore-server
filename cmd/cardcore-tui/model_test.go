@@ -84,7 +84,8 @@ func TestModelUpdateFlashTimeout(t *testing.T) {
 }
 
 // TestModelUpdateKeyPressPause sends a pause command when the model is not paused
-// and the user presses 'p'.
+// and the user presses 'p', and locks move input until the paused snapshot
+// arrives so a quick Enter/Space cannot race the pause.
 func TestModelUpdateKeyPressPause(t *testing.T) {
 	f := &fakeGame{humanTurn: true}
 	m := &model{game: f, paused: false}
@@ -102,6 +103,9 @@ func TestModelUpdateKeyPressPause(t *testing.T) {
 	}
 	if f.humanTurnCalls != 1 {
 		t.Errorf("got humanTurnCalls %d, want 1", f.humanTurnCalls)
+	}
+	if !f.inputDisabled {
+		t.Errorf("inputDisabled = false, want true (move input locked until paused snapshot)")
 	}
 }
 
@@ -123,7 +127,9 @@ func TestModelUpdateKeyPressPauseNotHumanTurn(t *testing.T) {
 }
 
 // TestModelUpdateKeyPressResumeWhenPaused sends a resume command when the user
-// presses 'p' while the game is paused, even if IsHumanTurn is false.
+// presses 'p' while the game is paused, even if IsHumanTurn is false. Resume
+// does not lock move input: the paused phase already swallows move keys until
+// the resume snapshot arrives.
 func TestModelUpdateKeyPressResumeWhenPaused(t *testing.T) {
 	f := &fakeGame{humanTurn: false}
 	m := &model{game: f, paused: true}
@@ -138,6 +144,9 @@ func TestModelUpdateKeyPressResumeWhenPaused(t *testing.T) {
 	}
 	if cmd == nil {
 		t.Fatalf("got nil cmd, want a send command")
+	}
+	if f.inputDisabled {
+		t.Errorf("inputDisabled = true, want false (resume does not lock input)")
 	}
 }
 

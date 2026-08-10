@@ -28,6 +28,10 @@ const (
 	// ErrPauseNotAllowed indicates that a pause/resume operation is not allowed
 	// in the current game state.
 	ErrPauseNotAllowed = "pause_not_allowed"
+	// ErrGamePaused indicates that a gameplay command was sent while the game
+	// is paused. The command is not applied; the client should wait for the
+	// resume snapshot instead of retrying.
+	ErrGamePaused = "game_paused"
 )
 
 // Recovery action constants returned by ClassifyError.
@@ -61,7 +65,7 @@ func ClassifyError(code string) string {
 	switch code {
 	case ErrStaleSeq:
 		return RecoveryResync
-	case ErrOutOfTurn, ErrWrongPhase:
+	case ErrOutOfTurn, ErrWrongPhase, ErrGamePaused:
 		return RecoveryWait
 	case ErrIllegalMove:
 		return RecoveryRetryDifferent

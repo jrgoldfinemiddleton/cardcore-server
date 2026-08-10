@@ -1280,6 +1280,112 @@ func TestAutoUnpauseSkippedForObserverDisconnect(t *testing.T) {
 	}
 }
 
+// TestHandlePlayRejectsGameplayWhilePaused verifies that a gameplay command
+// received while the game is paused is rejected with game_paused, never
+// reaches the game adapter, and does not advance seq.
+func TestHandlePlayRejectsGameplayWhilePaused(t *testing.T) {
+	g := &handleActionSpyGame{}
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
+	stopSessionGoroutine(s)
+
+	s.paused = true
+
+	resp := make(chan SubmitResult, 1)
+	s.handlePlay(playCmd{
+		seat: 0,
+		msg: &api.InboundMessage{
+			Type:     "play_card",
+			ActionID: "play-1",
+			Seq:      1,
+		},
+		resp: resp,
+	})
+
+	res := <-resp
+	if res.Err == nil {
+		t.Fatal("handlePlay: got nil error, want game_paused")
+	}
+	if res.Err.ErrorCode != api.ErrGamePaused {
+		t.Fatalf("error code = %q, want %q", res.Err.ErrorCode, api.ErrGamePaused)
+	}
+	if g.handleActionCalls != 0 {
+		t.Fatalf("HandleAction calls = %d, want 0", g.handleActionCalls)
+	}
+	if s.seq != 1 {
+		t.Fatalf("seq = %d, want 1 (rejection must not advance seq)", s.seq)
+	}
+}
+
+// TestHandlePlayStaleSeqWhilePaused verifies that seq validation precedes
+// the paused guard: a stale gameplay command during a pause gets stale_seq
+// and a fresh resync snapshot, not game_paused.
+func TestHandlePlayStaleSeqWhilePaused(t *testing.T) {
+	g := &mockGame{}
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
+	stopSessionGoroutine(s)
+
+	s.paused = true
+	s.seq = 3
+
+	resp := make(chan SubmitResult, 1)
+	s.handlePlay(playCmd{
+		seat: 0,
+		msg: &api.InboundMessage{
+			Type:     "play_card",
+			ActionID: "play-1",
+			Seq:      1,
+		},
+		resp: resp,
+	})
+
+	res := <-resp
+	if res.Err == nil {
+		t.Fatal("handlePlay: got nil error, want stale_seq")
+	}
+	if res.Err.ErrorCode != api.ErrStaleSeq {
+		t.Fatalf("error code = %q, want %q", res.Err.ErrorCode, api.ErrStaleSeq)
+	}
+	if res.Snapshot == nil {
+		t.Fatal("handlePlay: got nil snapshot, want fresh resync snapshot")
+	}
+}
+
+// TestHandlePlayDuplicateActionWhilePaused verifies that action_id dedup
+// precedes the paused guard: replaying an accepted action_id during a
+// pause returns the cached snapshot silently (ADR-013: a duplicate
+// action_id is not an error condition).
+func TestHandlePlayDuplicateActionWhilePaused(t *testing.T) {
+	g := &handleActionSpyGame{}
+	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
+	stopSessionGoroutine(s)
+
+	s.paused = true
+	cached := []byte(`{"cached":true}`)
+	s.actionIDs["play-1"] = cached
+
+	resp := make(chan SubmitResult, 1)
+	s.handlePlay(playCmd{
+		seat: 0,
+		msg: &api.InboundMessage{
+			Type:     "play_card",
+			ActionID: "play-1",
+			Seq:      1,
+		},
+		resp: resp,
+	})
+
+	res := <-resp
+	if res.Err != nil {
+		t.Fatalf("handlePlay: got error %v, want nil (duplicate is not an error)", res.Err)
+	}
+	if string(res.Snapshot) != string(cached) {
+		t.Fatalf("snapshot = %q, want cached %q", res.Snapshot, cached)
+	}
+	if g.handleActionCalls != 0 {
+		t.Fatalf("HandleAction calls = %d, want 0", g.handleActionCalls)
+	}
+}
+
 // SetPaused records the pause flag so tests can assert via Paused that the
 // session forwarded the pause state change to the game.
 func (p *pauseSpyGame) SetPaused(paused bool) {

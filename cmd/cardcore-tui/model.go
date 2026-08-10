@@ -110,7 +110,8 @@ type model struct {
 	// waiting for Enter to confirm quit.
 	escConfirm bool
 	// modalContinue is true when a recoverable server error (out_of_turn,
-	// wrong_phase) requires explicit Enter dismissal before game input resumes.
+	// wrong_phase, game_paused) requires explicit Enter dismissal before
+	// game input resumes.
 	modalContinue bool
 	// modalFatal is true when a fatal error (illegal_move, malformed_message,
 	// WS close 1011) requires Enter to exit.
@@ -347,8 +348,18 @@ func (m *model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if !m.paused && !m.game.IsHumanTurn() {
 			return m, m.setErrorFlash("Not your turn")
 		}
+		sendingPause := !m.paused
 		cmd, send := m.game.TogglePause(m.paused)
 		if send {
+			// A pause in flight locks out move keys until the paused
+			// snapshot re-enables input (handleSnapshot), so a quick
+			// Enter/Space cannot slip a gameplay command in behind the
+			// pause and draw a game_paused rejection. 'p' itself is
+			// handled here at the model level, unaffected by the game
+			// client's input gate, so resume stays available.
+			if sendingPause {
+				m.game.SetInputDisabled(true)
+			}
 			return m, m.sendCommandCmd(cmd)
 		}
 		return m, nil
