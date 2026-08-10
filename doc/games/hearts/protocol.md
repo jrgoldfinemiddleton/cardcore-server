@@ -175,7 +175,7 @@ Each trick entry (ordered by play sequence, not by seat index):
 | `deal` | Cards have been dealt; brief UX pause before passing/playing begins. |
 | `passing` | Players are selecting cards to pass. |
 | `playing` | Trick-taking in progress. The `trick` array contains the cards played so far, up to three cards before the trick is complete. |
-| `paused` | The active human player has paused the game. No commands are processed except `resume` from the pausing seat. |
+| `paused` | The active human player has paused the game. No commands are processed except `resume` from the pausing seat; gameplay commands are rejected with `game_paused`. |
 | `trick_complete` | A trick has been won. Server-synthesized pause for UX. |
 | `round_complete` | A round has ended. Scores updated. |
 | `game_over` | Game has ended. Final scores in `scores`. |
@@ -230,6 +230,7 @@ field contains the engine's explanation of the specific rule violation
 | Code | Condition |
 |------|-----------|
 | `pause_not_allowed` | A `pause` or `resume` command was rejected because it is not the requesting human seat's turn, the game is not in an actionable phase, or another seat already paused the game (theoretically only possible if a human player disconnected and later re-joined in a different seat position). |
+| `game_paused` | A gameplay command (`play_card` or `pass_cards`) was sent while the game was paused. The command is not applied and `seq` does not advance; wait for the resume snapshot and resend. A stale command sent during a pause still gets `stale_seq` with a fresh snapshot, and a replayed `action_id` still returns its cached snapshot — only commands that would otherwise reach the engine are rejected. |
 
 ---
 

@@ -9,6 +9,7 @@ import (
 const (
 	msgOutOfTurn    = "AI played for you — your turn has passed. Press Enter to continue."
 	msgWrongPhase   = "AI played for you — phase has changed. Press Enter to continue."
+	msgGamePaused   = "Game is paused. Press Enter to continue."
 	msgIllegalMove  = "Bug: server rejected a valid card. Press Enter to exit."
 	msgMalformedMsg = "Internal error: invalid command format. Press Enter to exit."
 )
@@ -24,6 +25,7 @@ func TestErrorMessageForCode(t *testing.T) {
 		{"illegal_move", "Cannot play spades", msgIllegalMove},
 		{"illegal_move", "", msgIllegalMove},
 		{"wrong_phase", "", msgWrongPhase},
+		{"game_paused", "", msgGamePaused},
 		{"stale_seq", "", ""},
 		{phaseGameOver, "", "Game over. Press Enter to exit."},
 		{"malformed_message", "", msgMalformedMsg},
@@ -74,6 +76,7 @@ func TestHandleWSError(t *testing.T) {
 	}{
 		{"out_of_turn", "Not your turn", msgOutOfTurn, true, false},
 		{"wrong_phase", "Bad phase", msgWrongPhase, true, false},
+		{"game_paused", "game is paused", msgGamePaused, true, false},
 		{"illegal_move", "Cannot play spades", msgIllegalMove, false, true},
 		{"stale_seq", "", "", false, false},
 		{phaseGameOver, "", "", false, false},

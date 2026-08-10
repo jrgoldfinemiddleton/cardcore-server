@@ -35,8 +35,9 @@ type wsSnapshotMsg struct {
 // wsErrorMsg carries a server error message.
 //
 // The code is a server error code: stale_seq, out_of_turn, illegal_move,
-// wrong_phase, game_over, malformed_message, internal_error, or
-// pause_not_allowed. The message is the human-readable text from the server.
+// wrong_phase, game_over, malformed_message, internal_error,
+// pause_not_allowed, or game_paused. The message is the human-readable
+// text from the server.
 type wsErrorMsg struct {
 	// code is the server error code (e.g., "out_of_turn", "illegal_move").
 	code string

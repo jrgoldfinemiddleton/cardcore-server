@@ -452,6 +452,7 @@ When the server rejects a client command, it sends an `error` message
 | Game is finished | `game_over` | Session is in `finished` state. |
 | Malformed message | `malformed_message` | Missing required field, negative `seq`, empty or over-length `action_id`, unknown message type, or an unparsable or otherwise invalid payload. Envelope JSON that does not parse at all produces no error message; the server closes the connection instead. `action_id` is included when the rejected message carried one. |
 | Pause/resume not allowed | `pause_not_allowed` | Game-specific: pause or resume was rejected because it is not the requester's turn, the game is not in an actionable phase, or the game is not paused. See the game's protocol file for exact rules. |
+| Game is paused | `game_paused` | Game-specific: a gameplay command was sent while the game was paused. The command is not applied; the client should wait for the resume snapshot and resend. See the game's protocol file for exact rules. |
 
 Authentication failures (`401`) occur at HTTP upgrade time, not as
 WebSocket error messages.

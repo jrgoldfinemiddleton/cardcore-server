@@ -98,7 +98,8 @@ type session struct {
 	turnDeadline time.Time
 	// paused is true when the game is paused. When true, the turn
 	// timeout does not fire and the select loop only accepts commands
-	// and cancel.
+	// and cancel. handlePlay rejects gameplay commands with
+	// game_paused while this is set; only resume is processed.
 	paused bool
 	// pauseRemaining stores the remaining time on the turn deadline
 	// when the game was paused. Used to recalculate the deadline on
@@ -175,9 +176,13 @@ func (s *session) run() {
 		select {
 		case cmd := <-s.cmds:
 			s.logger.Debug("command received", "type", cmdType(cmd))
+			// Commands arriving while paused are rejected by the paused
+			// guard in handlePlay; do not let them clear waitingForHuman,
+			// or resume would skip restoring the turn deadline from
+			// pauseRemaining.
 			if pc, ok := cmd.(playCmd); ok && s.waitingForHuman &&
 				pc.seat == s.game.Turn() && s.isHumanSeat(pc.seat) &&
-				pc.msg.Type != "pause" && pc.msg.Type != "resume" {
+				pc.msg.Type != "pause" && pc.msg.Type != "resume" && !s.paused {
 				s.waitingForHuman = false
 			}
 			s.handleCommand(cmd)

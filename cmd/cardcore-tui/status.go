@@ -70,8 +70,8 @@ func (m *model) handleWSError(msg wsErrorMsg) {
 		m.game.ResetSubmitted()
 
 	case client.RecoveryWait:
-		// out_of_turn or wrong_phase — recoverable but unexpected.
-		// Show persistent continue modal (no auto-clear timer).
+		// out_of_turn, wrong_phase, or game_paused — recoverable but
+		// unexpected. Show persistent continue modal (no auto-clear timer).
 		m.modalContinue = true
 		m.errMsg = errorMessageForCode(msg.code, msg.message)
 		m.game.ResetSubmitted()
@@ -136,6 +136,11 @@ func errorMessageForCode(code, serverMsg string) string {
 		return "Bug: server rejected a valid card. Press Enter to exit."
 	case "wrong_phase":
 		return "AI played for you — phase has changed. Press Enter to continue."
+	// game_paused is unreachable from this TUI: a pause press disables move
+	// input until the paused snapshot arrives, and the paused phase swallows
+	// move keys. The modal remains as a fallback for other clients and bugs.
+	case "game_paused":
+		return "Game is paused. Press Enter to continue."
 	case "stale_seq":
 		// Auto-resync — no flash message needed.
 		return ""

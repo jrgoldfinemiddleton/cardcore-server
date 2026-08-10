@@ -19,6 +19,7 @@ func TestClassifyError(t *testing.T) {
 		{ErrMalformedMessage, RecoveryFixAndRetry},
 		{ErrInternal, RecoveryTerminal},
 		{ErrPauseNotAllowed, RecoveryTerminal},
+		{ErrGamePaused, RecoveryWait},
 		{"unknown_code", RecoveryTerminal},
 		{"", RecoveryTerminal},
 	}
