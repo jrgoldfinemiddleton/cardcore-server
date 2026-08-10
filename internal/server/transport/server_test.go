@@ -33,13 +33,15 @@ type unmarshalableTestGameConfig struct{}
 type stubGame struct{}
 
 // unmarshalableStubGame returns snapshots that json.Marshal cannot
-// serialize, forcing the session goroutine to drop them rather than
-// sending nil/empty frames to WebSocket subscribers.
+// serialize, forcing the session goroutine onto its marshal-failure
+// path, which terminates the session (1011 close code to subscribers)
+// rather than sending nil/empty frames to WebSocket subscribers.
 type unmarshalableStubGame struct{}
 
-// TestNewServerRegistersAllRoutes verifies that all 8 routes are registered
-// in the mux and return a non-404-not-found response (even if the handler
-// itself returns 404 for missing resources).
+// TestNewServerRegistersAllRoutes verifies that the 6 REST routes are
+// registered in the mux and return a non-404-not-found response (even if
+// the handler itself returns 404 for missing resources). The 2 WebSocket
+// upgrade routes are covered by the dial-based integration tests.
 func TestNewServerRegistersAllRoutes(t *testing.T) {
 	srv, _ := setupTestServer(t)
 

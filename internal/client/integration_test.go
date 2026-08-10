@@ -621,8 +621,9 @@ func TestIntegrationErrorResponse(t *testing.T) {
 
 	// Send a play_card command during passing phase. This must fail with
 	// ErrWrongPhase because the command type does not match the current phase.
-	// seq=0 is deliberate: the server rejects wrong-phase commands before
-	// checking seq staleness, so the client seq doesn't matter.
+	// seq=0 is a placeholder: Conn.SendCommand overwrites Seq with the
+	// current maxSeenSeq (from the initial snapshot just read), so the
+	// command arrives non-stale and reaches the server's phase check.
 	badCard := heartsclient.Card{Rank: "two", Suit: "clubs"}
 	badCmd, err := heartsclient.NewPlayCardMessage("bad-play-1", 0, badCard)
 	if err != nil {

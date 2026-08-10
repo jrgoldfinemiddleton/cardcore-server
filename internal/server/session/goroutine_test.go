@@ -508,9 +508,8 @@ func TestSessionStaleSeqMarshalFailure(t *testing.T) {
 }
 
 // TestSessionMarshalFailureTerminates verifies that the session
-// terminates when a snapshot fails to marshal after a successful
-// action. The client receives an internal error and the session
-// goroutine exits.
+// terminates when the initial snapshot broadcast fails to marshal: the
+// session is marked finished and the goroutine exits.
 func TestSessionMarshalFailureTerminates(t *testing.T) {
 	g := &unmarshalableGame{}
 	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
@@ -597,7 +596,7 @@ func TestSessionTurnTimeoutFires(t *testing.T) {
 		TurnTimeoutMS: &timeout,
 	}, DefaultDelays{}, nil)
 
-	// driveTurns() is called at goroutine startup, so the first turn
+	// run() calls scheduleTurnDeadline at startup, so the first turn
 	// timeout is already set for seat 0 (human). No command needed.
 
 	// Wait for the timeout to fire and AI to play.
@@ -650,8 +649,8 @@ func TestSessionInitialTurnTimeoutFires(t *testing.T) {
 		TurnTimeoutMS: &timeout,
 	}, DefaultDelays{}, nil)
 
-	// No command sent — the timeout should fire from the initial
-	// driveTurns() call in run().
+	// No command sent — the timeout fires from the deadline that run()
+	// stamps via scheduleTurnDeadline at startup.
 	time.Sleep(200 * time.Millisecond)
 
 	// Stop the goroutine and wait for it to exit before reading seq
@@ -1007,8 +1006,9 @@ func TestSessionInitialDisplayDelay(t *testing.T) {
 	}
 	elapsed := time.Since(start)
 
-	// The goroutine should have slept at least 50ms for the display delay
-	// before AIPlay returned StepFinished and the session exited.
+	// The goroutine sleeps out the 50ms display delay, then parks waiting
+	// on the human seat (turn timeout disabled), so the select above
+	// times out at 500ms and elapsed necessarily exceeds the delay.
 	if elapsed < 50*time.Millisecond {
 		t.Errorf("goroutine did not wait for display delay: elapsed %v, want >= 50ms", elapsed)
 	}
@@ -1153,7 +1153,7 @@ func TestHandlePauseCmdRejectsAlreadyPaused(t *testing.T) {
 	}
 }
 
-// TestHandleResumeCmdSuccess verifies that resume restores the paused state
+// TestHandleResumeCmdSuccess verifies that resume clears the paused state
 // and recalculates the turn deadline.
 func TestHandleResumeCmdSuccess(t *testing.T) {
 	g := &pauseSpyGame{}

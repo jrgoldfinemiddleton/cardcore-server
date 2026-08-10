@@ -22,7 +22,7 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/testutil"
 )
 
-// stressHeartsConfig implements session.GameConfig for one stress-test
+// stressHeartsConfig implements [session.GameConfig] for one stress-test
 // iteration. Each instance is registered under a per-iteration name and
 // used for exactly one game, so its RNG is never shared across concurrent
 // sessions (a rand.Rand is not safe for concurrent use), while every game

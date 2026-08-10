@@ -6,7 +6,7 @@ Shared protocol-agnostic client engine: HTTP session lifecycle, WebSocket connec
 ## STRUCTURE
 ```
 client/
-├── http.go              # SessionClient: Create/Start/Delete/List/Get sessions
+├── http.go              # SessionClient: Create/Start/Delete/Get sessions
 ├── ws.go                # Conn: WebSocket connect, read, send, close
 ├── url.go               # WebSocket URL construction from HTTP base URL
 ├── messages.go          # Command and ErrorMessage envelopes
@@ -35,7 +35,7 @@ client/games/hearts/
 ## CONVENTIONS
 - Client DTOs mirror server types but are separate structs with JSON tags; do not import server internals.
 - `Conn.ReadSnapshot` blocks until a snapshot with a higher `seq` arrives.
-- `Conn.SendCommand` auto-increments `seq` from `maxSeenSeq`.
+- `Conn.SendCommand` sets `seq` to the current `maxSeenSeq`, overwriting any caller-provided value.
 - Tests use `setupTestServer()` that starts a real server on `:0`.
 
 ## ANTI-PATTERNS

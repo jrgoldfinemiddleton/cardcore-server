@@ -27,7 +27,9 @@ type tuiConfig struct {
 	server string
 	// game selects which game client to render (e.g., "hearts").
 	game string
-	// session is the session ID to join. Required for observer mode and when joining as a player.
+	// session is the session ID to join as a player. When empty, a session is
+	// auto-created; observer mode always auto-creates because -observe and
+	// -session are mutually exclusive.
 	session string
 	// token is the bearer token for the seat being joined. Required when joining a session.
 	token string
@@ -108,8 +110,8 @@ func main() {
 // which validates it against the supported types for the selected game. This
 // keeps the top-level TUI binary game-agnostic.
 //
-// When neither -session nor -observe is provided, the TUI auto-creates a
-// session: 1 human + 3 AI for player mode, or 4 AI for observer mode.
+// When -session is not provided, the TUI auto-creates a session: 1 human +
+// 3 AI for player mode, or 4 AI when -observe is set.
 func parseFlags(args []string) (*tuiConfig, error) {
 	cfg := &tuiConfig{}
 
@@ -184,8 +186,9 @@ func parseFlags(args []string) (*tuiConfig, error) {
 
 // runMenu starts the interactive menu when no explicit game-related flag was
 // set. If the user pressed Esc, it returns nil, nil so the program exits
-// silently. Otherwise it returns the resolved configuration (a copy of cfg
-// updated with menu selections).
+// silently. Otherwise it returns a fresh configuration built from the menu
+// selections; fields the menu does not cover (session, token, seat) are
+// zeroed.
 func runMenu(cfg *tuiConfig) (*tuiConfig, error) {
 	if cfg.menuSkipped {
 		return cfg, nil
@@ -231,9 +234,9 @@ func runMenu(cfg *tuiConfig) (*tuiConfig, error) {
 //
 // Step 1: Create HTTP session client and connect context.
 //
-//	SessionClient is used for both auto-creating a session when none
-//	was provided and for fetching the turn timeout config. The connect
-//	context has a 10-second timeout so a hanging dial fails fast.
+//	SessionClient is used to auto-create a session when none was
+//	provided. The connect context has a 10-second timeout so a hanging
+//	dial fails fast.
 //
 // Step 2: Auto-create session if needed.
 //
@@ -242,8 +245,9 @@ func runMenu(cfg *tuiConfig) (*tuiConfig, error) {
 //
 // Step 3: Create WebSocket connection.
 //
-//	Conn is created but not connected yet. The Connect method establishes
-//	the WebSocket handshake and returns the initial snapshot.
+//	Conn is created but not connected yet. The Connect method performs
+//	the WebSocket handshake; snapshots are read afterwards via
+//	ReadSnapshot.
 //
 // Step 4: Connect.
 //
@@ -279,6 +283,8 @@ func runMenu(cfg *tuiConfig) (*tuiConfig, error) {
 func runGame(cfg *tuiConfig) error {
 	configureLogging(cfg.debug)
 
+	// Step 1: Create HTTP session client and connect context.
+	//
 	// The connect context has a 10-second timeout so a hanging dial fails
 	// fast. The read loop uses a separate long-lived context (readCtx) so
 	// the WebSocket reader does not cancel after 10 seconds.
@@ -290,6 +296,8 @@ func runGame(cfg *tuiConfig) error {
 	// dial fails fast.
 	sc := &client.SessionClient{BaseURL: cfg.server}
 
+	// Step 2: Auto-create session if needed.
+	//
 	// Auto-create a Hearts session when no session ID was provided.
 	// Player mode gets 1 human + 3 AI; observer mode gets 4 AI. The helper
 	// uses server delay defaults (nil overrides).
@@ -307,14 +315,15 @@ func runGame(cfg *tuiConfig) error {
 
 	// Step 3: Create WebSocket connection.
 	//
-	// Conn is created but not connected yet. The Connect method establishes
-	// the WebSocket handshake and returns the initial snapshot.
+	// Conn is created but not connected yet. The Connect method performs the
+	// WebSocket handshake; snapshots are read afterwards via ReadSnapshot.
 	conn := &client.Conn{}
 
 	// Step 4: Connect.
 	//
 	// Construct the WebSocket URL from the base URL, session ID, and path.
-	// The wsURL helper converts http:// to ws:// and appends the session path.
+	// client.WebSocketURL converts http:// to ws:// (and https:// to wss://)
+	// and appends the session path.
 	var wsPath string
 	if cfg.observer {
 		wsPath = "/ws/observe"
@@ -394,7 +403,7 @@ func runGame(cfg *tuiConfig) error {
 	return nil
 }
 
-// configureLogging sets up the default slog logger so server and wsbridge
+// configureLogging sets up the default slog logger so client and wsbridge
 // log output never corrupts the terminal.
 //
 // When debug is true, logs are written to tui.log in the working directory.

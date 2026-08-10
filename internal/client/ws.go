@@ -72,7 +72,8 @@ func (c *Conn) Connect(ctx context.Context, url, token string) error {
 // Returns the raw JSON snapshot message or an error. If the WebSocket
 // is closed by the server, it returns a ConnectionClosedError with the
 // close code and reason.  If the server sends an error message, the second
-// return value is an *ErrorMessage with the error details.
+// return value is an *ErrorMessage with the error details and maxSeenSeq
+// is raised to the error's current_seq.
 func (c *Conn) ReadSnapshot(ctx context.Context) (json.RawMessage, error) {
 	for {
 		typ, data, err := c.ws.Read(ctx)
@@ -142,7 +143,8 @@ func (c *Conn) ReadSnapshot(ctx context.Context) (json.RawMessage, error) {
 }
 
 // SendCommand marshals the message and writes it as a text frame on the
-// WebSocket.
+// WebSocket. The message's Seq field is overwritten with the current
+// maxSeenSeq, so callers may leave it unset.
 func (c *Conn) SendCommand(ctx context.Context, msg Command) error {
 	c.mu.Lock()
 	msg.Seq = c.maxSeenSeq

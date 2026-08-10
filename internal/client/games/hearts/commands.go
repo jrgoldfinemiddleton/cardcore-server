@@ -38,7 +38,8 @@ func NewPassCardsMessage(actionID string, seq int, cards []Card) (client.Command
 	}, nil
 }
 
-// NewPauseMessage builds a pause command envelope with an empty payload.
+// NewPauseMessage builds a pause command envelope with an empty JSON
+// object payload; the server rejects a missing payload as malformed.
 func NewPauseMessage(actionID string, seq int) (client.Command, error) {
 	return client.Command{
 		Type:     "pause",
@@ -48,7 +49,8 @@ func NewPauseMessage(actionID string, seq int) (client.Command, error) {
 	}, nil
 }
 
-// NewResumeMessage builds a resume command envelope with an empty payload.
+// NewResumeMessage builds a resume command envelope with an empty JSON
+// object payload; the server rejects a missing payload as malformed.
 func NewResumeMessage(actionID string, seq int) (client.Command, error) {
 	return client.Command{
 		Type:     "resume",

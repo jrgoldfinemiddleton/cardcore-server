@@ -227,8 +227,8 @@ func TestTrickNumberCapped(t *testing.T) {
 	}
 }
 
-// TestPlayerViewPhasePriority verifies the override hierarchy:
-// TrickComplete > RoundComplete > engine phase.
+// TestPlayerViewPhasePriority verifies the override hierarchy below the
+// paused state: TrickComplete > RoundComplete > engine phase.
 func TestPlayerViewPhasePriority(t *testing.T) {
 	phases := []hearts.Phase{hearts.PhaseDeal, hearts.PhaseScore}
 	for _, phase := range phases {

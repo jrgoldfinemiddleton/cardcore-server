@@ -420,7 +420,7 @@ remains open.
 | `type` | string | yes | `"error"`. |
 | `error_code` | string | yes | Machine-readable error code. |
 | `message` | string | yes | Human-readable explanation. Suitable for display to the user. |
-| `action_id` | string | no | The `action_id` from the rejected command. Omitted only when JSON parsing failed and the field could not be extracted. |
+| `action_id` | string | no | The `action_id` from the rejected command. Omitted when the server has none to echo: the rejected message itself lacked an `action_id`, or the error was synthesized without one (`game_over` for a command queued as the session ended). |
 | `current_seq` | integer | yes | The server's current seq value. |
 
 **Example:**
@@ -445,12 +445,12 @@ When the server rejects a client command, it sends an `error` message
 | Condition | Error code | Notes |
 |-----------|-----------|-------|
 | Duplicate `action_id` | *(none)* | Idempotent success: server returns the cached snapshot from the original action. Payload differences on retry are ignored. Client processes the response normally and stops retrying. |
-| `seq` behind server | `stale_seq` | Client should resync from the snapshot that immediately follows this error. The server always sends a fresh snapshot after a `stale_seq` error. |
+| `seq` behind server | `stale_seq` | The server sends a fresh snapshot immediately before this error, and the client should resync from it. |
 | Not this seat's turn | `out_of_turn` | Returned when a well-formed command is sent and it is not the sender's turn — whether it is another human's turn or an AI seat's turn. Classified by the game engine via `errors.Is` against the `ErrOutOfTurn` sentinel. |
 | Illegal move | `illegal_move` | The `message` field contains the game engine's explanation of the rule violation. Classified by the game engine via `errors.Is` against the `ErrIllegalMove` sentinel. |
 | Wrong phase | `wrong_phase` | Returned when a well-formed command is sent during a game phase that does not allow it. Classified by the game engine via `errors.Is` against the `ErrWrongPhase` sentinel. |
 | Game is finished | `game_over` | Session is in `finished` state. |
-| Malformed message | `malformed_message` | Bad JSON, missing required fields, unknown type, empty or over-length `action_id`. Includes `action_id` in response when the field was parseable; omits it only when JSON parsing itself failed. |
+| Malformed message | `malformed_message` | Missing required field, negative `seq`, empty or over-length `action_id`, unknown message type, or an unparsable or otherwise invalid payload. Envelope JSON that does not parse at all produces no error message; the server closes the connection instead. `action_id` is included when the rejected message carried one. |
 | Pause/resume not allowed | `pause_not_allowed` | Game-specific: pause or resume was rejected because it is not the requester's turn, the game is not in an actionable phase, or the game is not paused. See the game's protocol file for exact rules. |
 
 Authentication failures (`401`) occur at HTTP upgrade time, not as

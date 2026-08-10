@@ -35,7 +35,7 @@ type GameFormatter interface {
 type cliConfig struct {
 	// script is the path to the JSON script file.
 	script string
-	// addr is the server address (e.g., "127.0.0.1:8080").
+	// addr is the server base URL, scheme included (e.g., "http://127.0.0.1:8080").
 	addr string
 	// game selects which game to play.
 	game string
@@ -47,13 +47,17 @@ type cliConfig struct {
 	token string
 	// seat is the seat index to join.
 	seat int
-	// deleteOnExit deletes the session after the game ends.
+	// deleteOnExit deletes the session after the game ends (player mode only;
+	// observer mode never deletes).
 	deleteOnExit bool
-	// pacing is the pacing delay in milliseconds.
+	// pacing is the delay between AI turns in milliseconds. It is applied
+	// only when this command creates the session (auto-create and observe
+	// modes); it is ignored when joining an existing session.
 	pacing int
 	// aiType is the AI player type.
 	aiType string
-	// exitDelay is the duration to wait after game_over before closing.
+	// exitDelay is the time to wait after game_over before exiting, in
+	// milliseconds.
 	exitDelay int
 }
 
@@ -212,7 +216,8 @@ func run(cfg *cliConfig) error {
 	}
 	defer func() { _ = conn.Close() }()
 
-	// Resolve game-specific formatter and builder.
+	// Resolve the game-specific formatter (the builder is resolved below,
+	// in player mode only).
 	formatter, err := newGameFormatter(cfg.game)
 	if err != nil {
 		return err
@@ -246,7 +251,8 @@ func run(cfg *cliConfig) error {
 }
 
 // runObserver reads snapshots until game_over and prints each snapshot
-// in compact notation, followed by final scores.
+// in compact notation. Unlike runPlayer it prints no separate scores line:
+// the game_over snapshot's own formatted line already carries the scores.
 func runObserver(
 	ctx context.Context,
 	conn *client.Conn,
@@ -259,6 +265,8 @@ func runObserver(
 			var serverErr *client.ErrorMessage
 			if errors.As(err, &serverErr) {
 				if serverErr.ErrorCode == client.ErrStaleSeq {
+					// ReadSnapshot already advanced maxSeenSeq to the error's
+					// current_seq, so the stream is resynced; keep reading.
 					continue
 				}
 				if serverErr.ErrorCode == client.ErrGameOver {
@@ -318,6 +326,9 @@ func runPlayer(
 			var serverErr *client.ErrorMessage
 			if errors.As(err, &serverErr) {
 				if serverErr.ErrorCode == client.ErrStaleSeq {
+					// The server sent the latest snapshot immediately before
+					// this error and ReadSnapshot advanced maxSeenSeq to the
+					// error's current_seq, so the stream is already resynced.
 					continue
 				}
 				if serverErr.ErrorCode == client.ErrGameOver {
@@ -371,6 +382,9 @@ func createSession(
 	observer bool,
 	pacing int,
 ) (string, string, error) {
+	// pacing maps to the session's AI action delay. The deal display delay
+	// is forced to 0: the CLI is scripted and has no interactive display
+	// to pace.
 	zero := 0
 	switch game {
 	case heartsclient.GameName:

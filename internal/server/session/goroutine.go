@@ -426,8 +426,11 @@ func (s *session) finishWithGrace() driveResult {
 }
 
 // drainCmds processes commands left in the buffer after the event loop
-// exits. It closes subscriber channels and sends errors on playCmd.resp
-// so that blocked command submitters do not wait forever.
+// exits. It closes the channels carried by buffered subscribe commands
+// and sends an ErrGameOver result on each buffered playCmd.resp, so that
+// callers waiting on those channels — a blocked SubmitAction or a
+// transport writer reading a never-registered subscriber channel — do
+// not wait forever.
 func (s *session) drainCmds() {
 	for {
 		select {

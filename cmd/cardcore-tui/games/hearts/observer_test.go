@@ -29,8 +29,8 @@ func TestRenderObserverViewFourHands(t *testing.T) {
 			{{Rank: "four", Suit: "hearts"}},
 		},
 		// Renderer contract: Trick is expected to be non-nil. A nil
-		// trick renders the same as an empty trick (placeholder text), but nil
-		// should be avoided by the caller.
+		// trick renders the same as an empty trick (empty placeholder boxes),
+		// but nil should be avoided by the caller.
 		Trick:       []heartsclient.TrickEntry{},
 		Scores:      []int{13, 0, 13, 0},
 		RoundPoints: []int{11, 0, 0, 0},

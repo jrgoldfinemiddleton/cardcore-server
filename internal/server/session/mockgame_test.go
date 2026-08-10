@@ -45,8 +45,9 @@ type deadlineBroadcastGame struct {
 }
 
 // aiPlayPauseGame is a mock Game where the first turn is seat 0 (human),
-// AIPlay returns StepPause on the first call then StepFinished, and
-// Resume advances the turn to seat 1 so resumePauses chains through.
+// HandleAction moves the turn to seat 1 (AI), AIPlay returns StepPause on
+// the first call then StepFinished, and Resume returns StepContinue so
+// resumePauses chains through.
 type aiPlayPauseGame struct {
 	callCount int
 	turnSeat  int
@@ -166,8 +167,8 @@ func (d *delayGame) HandleAction(int, *api.InboundMessage) (StepResult, *Command
 	return StepResult{}, nil
 }
 
-// AIPlay returns StepFinished so the session exits immediately after the
-// initial display delay elapses.
+// AIPlay returns StepFinished. The display-delay test configures a human
+// seat, so it is never called; it exists to satisfy the Game interface.
 func (d *delayGame) AIPlay(int) (StepResult, error) {
 	return StepResult{Outcome: StepFinished}, nil
 }

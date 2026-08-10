@@ -156,7 +156,7 @@ game-specific fields for Hearts:
 | `scores` | array of integers | Cumulative scores per seat across all completed rounds. During an active round, this reflects the total as of the last completed round. |
 | `round_points` | array of integers | Penalty points accumulated this round per seat. Resets to zero at the start of each round. |
 | `paused` | boolean | `true` when the game is paused. `false` during normal play. Independent of `phase` — the game may pause during `passing` or `playing`. |
-| `legal_actions` | array of card objects | Cards the player may legally play or pass. Empty if it is not the player's turn or the game is paused. |
+| `legal_actions` | array of card objects | Cards the player may legally play or pass. During `passing` it holds the player's full hand regardless of turn; during `playing` it is empty when it is not the player's turn. A paused snapshot keeps the legal actions of the underlying phase. |
 | `turn_deadline_ms` | integer | Server-side deadline for the current human turn, as Unix milliseconds since epoch. `0` when no deadline is active (e.g., AI turn, paused state, or timeout disabled). Clients should use this to render an accurate countdown instead of computing a deadline from the session's `turn_timeout_ms`. |
 
 Each trick entry (ordered by play sequence, not by seat index):
@@ -197,7 +197,9 @@ player may legally play, filtered by Hearts rules:
 - Cannot play penalty cards (hearts or Q♠) on the first trick.
 - The player holding 2♣ must lead it on the first trick.
 
-`legal_actions` is empty when it is not the player's turn.
+During the `playing` phase, `legal_actions` is empty when it is not the
+player's turn. A paused snapshot keeps the legal actions of the underlying
+phase.
 
 ---
 
@@ -244,6 +246,7 @@ Player view, seat 0, round 1, trick 3:
   "trick_number": 3,
   "pass_direction": "left",
   "turn": 0,
+  "trick_winner": -1,
   "hearts_broken": true,
   "hand": [
     { "rank": "four", "suit": "clubs" },
@@ -252,11 +255,11 @@ Player view, seat 0, round 1, trick 3:
     { "rank": "queen", "suit": "diamonds" },
     { "rank": "two", "suit": "hearts" },
     { "rank": "nine", "suit": "hearts" },
+    { "rank": "three", "suit": "spades" },
     { "rank": "five", "suit": "spades" },
     { "rank": "ten", "suit": "spades" },
     { "rank": "king", "suit": "spades" },
-    { "rank": "ace", "suit": "spades" },
-    { "rank": "three", "suit": "spades" }
+    { "rank": "ace", "suit": "spades" }
   ],
   "hand_counts": [11, 11, 10, 10],
   "trick": [
@@ -265,14 +268,20 @@ Player view, seat 0, round 1, trick 3:
   ],
   "scores": [0, 0, 0, 0],
   "round_points": [0, 1, 0, 0],
-  "paused": false,
   "legal_actions": [
     { "rank": "seven", "suit": "diamonds" },
     { "rank": "queen", "suit": "diamonds" }
   ],
-  "turn_deadline_ms": 1728451200000
+  "turn_deadline_ms": 1728451200000,
+  "paused": false
 }
 ```
+
+Every field is always present — the player snapshot has no optional
+fields — so inert fields carry sentinel values: `trick_winner` is `-1`
+outside `trick_complete`, and `turn_deadline_ms` is `0` when no deadline
+is active. The `hand` is sorted by suit (clubs, diamonds, hearts,
+spades), then by rank within each suit.
 
 **Breakdown:** round 1 (no prior rounds, so `scores` is all zeros),
 trick 3 in progress. After dealing (13 cards each) and passing (net
@@ -281,4 +290,4 @@ each). Seat 2 led this trick (now 10 cards), seat 3 followed (now 10
 cards). Seats 0 and 1 haven't played yet (still 11 cards each).
 Diamonds was led, so `legal_actions` shows only the diamonds in seat
 0's hand. `round_points` reflects 1 total penalty points taken across
-tricks 1-2 (1 for seat 1).
+tricks 1-2 (1 for seat 1), which is also why `hearts_broken` is true.

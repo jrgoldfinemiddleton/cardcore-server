@@ -3,10 +3,12 @@ package session
 import "github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
 
 // SubmitResult is the synchronous response from a session goroutine to
-// Manager.SubmitAction. Snapshot carries the latest game state, and Err
-// carries a wire-format error when the command is rejected. Both may be
-// non-nil when the command is rejected due to a stale seq, allowing the
-// client to resync from the snapshot.
+// Manager.SubmitAction. Snapshot is nil on acceptance (the fresh state
+// arrives via the client's subscription channel) and is set only for
+// stale_seq rejections and duplicate action_id replays; Err carries a
+// wire-format error when the command is rejected. Both may be non-nil
+// when the command is rejected due to a stale seq, allowing the client
+// to resync from the snapshot.
 type SubmitResult struct {
 	// Snapshot is a marshaled JSON snapshot. Set when the command is
 	// rejected with stale_seq (the latest snapshot is returned) or

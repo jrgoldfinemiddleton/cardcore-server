@@ -20,11 +20,12 @@ var validAITypes = map[string]bool{
 // CreateSession creates and starts a Hearts session suitable for the CLI.
 //
 // When observer is false the session has one human seat at index 0 and three
-// AI seats. The human seat uses aiType as its fallback AI on turn timeout
-// or auto-play, and the AI seats use aiType for normal play; the returned
-// token is the human seat's bearer credential. When observer is true the
-// session has four AI seats and the returned token is empty (observers
-// connect without a seat token). The returned seat is always 0.
+// AI seats. The human seat uses aiType as the fallback AI the server
+// auto-plays when the human's turn times out, and the AI seats use aiType
+// for normal play; the returned token is the human seat's bearer credential.
+// When observer is true the session has four AI seats and the returned token
+// is empty (observers connect without a seat token). The returned seat is
+// always 0.
 //
 // aiType must be one of "random", "heuristic", or "pimc"; any other value
 // returns an error before any HTTP request is made. aiActionDelayMS and

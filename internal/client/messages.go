@@ -28,8 +28,10 @@ type ErrorMessage struct {
 	// Message is the human-readable explanation, suitable for display to the
 	// user.
 	Message string `json:"message"`
-	// ActionID is the action_id from the rejected command; it is omitted only
-	// when JSON parsing failed and the field could not be extracted.
+	// ActionID is the action_id from the rejected command; it is omitted
+	// when the server has none to echo — the rejected message itself lacked
+	// an action_id, or the error was synthesized without one (game_over for
+	// a command queued as the session ended).
 	ActionID string `json:"action_id,omitempty"`
 	// CurrentSeq is the server's current seq value.
 	CurrentSeq int `json:"current_seq"`

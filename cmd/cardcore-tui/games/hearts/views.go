@@ -55,9 +55,9 @@ func RenderTrick(
 // pressed to pass.
 //
 // Contract: selected must contain at most 3 cards. The caller
-// (Client.toggleSelected) enforces this. If >3 cards are passed, the status
-// line will show a negative count, which is a debugging signal that the
-// caller violated the contract.
+// (Client.toggleSelected) enforces this. The remaining-count display clamps
+// at zero, so a caller that violates the contract sees "Select 0 more
+// card(s) to pass" rather than a negative count.
 func RenderPassingView(
 	snap heartsclient.PlayerSnapshot,
 	seat, cursor int,
@@ -101,8 +101,8 @@ func RenderPassingView(
 // top, and the remaining seats are on the left and right. Non-human seats show
 // card-back visuals instead of real cards. Played cards are arranged in a
 // diamond formation in the center with minimal info text (turn or winner).
-// The view is anchored at the bottom so the player's hand and status line stay
-// fixed as the trick grows.
+// Spacers pin the opposite seat to the top edge and the player's hand and
+// status line to the bottom edge, keeping them fixed as the trick grows.
 func RenderPlayingView(
 	snap heartsclient.PlayerSnapshot,
 	seat, cursor int,
@@ -373,7 +373,8 @@ func renderCardBackColumn(count int, theme Theme, width, maxHeight int) string {
 // renderPlayerDiamond renders the trick cards in a diamond/plus-sign formation
 // for the player view. The top seat's card is at top, the viewer's card at
 // bottom, and the left/right seats' cards on the sides. The center contains
-// minimal info text (whose turn it is).
+// minimal info text (whose turn it is, or the trick winner during
+// trick_complete).
 func renderPlayerDiamond(
 	snap heartsclient.PlayerSnapshot,
 	seat int,
@@ -578,7 +579,7 @@ func renderTopSeat(
 	return lipgloss.JoinVertical(lipgloss.Left, labelLine, backsBlock)
 }
 
-// gapString returns a horizontal gap string of the given width using the theme
+// gapString returns a one-column horizontal gap string using the theme
 // background color.
 func gapString(theme Theme) string {
 	return lipgloss.NewStyle().Background(theme.Background).Width(1).Render("")

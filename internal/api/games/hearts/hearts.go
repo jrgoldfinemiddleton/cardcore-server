@@ -58,10 +58,15 @@ type PlayerSnapshot struct {
 	// rounds.
 	Scores []int `json:"scores"`
 	// RoundPoints holds the penalty points accumulated this round per
-	// seat; it resets to zero at the start of each round.
+	// seat; it resets to zero at the start of each round. During the
+	// round_complete phase it instead carries the score delta applied for
+	// the round, which differs from the raw penalty points on a successful
+	// moon shot (0 for the shooter, 26 for each other seat).
 	RoundPoints []int `json:"round_points"`
-	// LegalActions lists the cards the player may legally play or pass; it
-	// is empty when it is not the player's turn or the game is paused.
+	// LegalActions lists the cards the player may legally play or pass.
+	// During the passing phase it holds the player's full hand; during the
+	// playing phase it is empty when it is not the player's turn. A paused
+	// snapshot keeps the legal actions of the underlying phase.
 	LegalActions []Card `json:"legal_actions"`
 	// TurnDeadlineMS is the server-side deadline for the current human
 	// turn as Unix milliseconds since the epoch, or 0 when no deadline is
@@ -115,7 +120,10 @@ type ObserverSnapshot struct {
 	// rounds.
 	Scores []int `json:"scores"`
 	// RoundPoints holds the penalty points accumulated this round per
-	// seat; it resets to zero at the start of each round.
+	// seat; it resets to zero at the start of each round. During the
+	// round_complete phase it instead carries the score delta applied for
+	// the round, which differs from the raw penalty points on a successful
+	// moon shot (0 for the shooter, 26 for each other seat).
 	RoundPoints []int `json:"round_points"`
 	// LegalActions lists the cards the seat indicated by Turn may legally
 	// play or pass.

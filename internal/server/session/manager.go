@@ -47,7 +47,8 @@ type entry struct {
 	// seats holds seat info with tokens. Replaced by Update when the seat
 	// configuration changes.
 	seats []Seat
-	// sess is the running session goroutine, nil until Start.
+	// sess is the running session (which owns the goroutine), nil until
+	// Start.
 	sess *session
 	// defaults holds the server-wide defaults at creation time.
 	defaults DefaultDelays
@@ -309,7 +310,9 @@ func (m *Manager) Start(id string) error {
 		}()
 	}
 
-	// aiActionDelay and turnTimeout using server-wide defaults.
+	// The session keeps the unresolved config; its goroutine resolves
+	// aiActionDelay and turnTimeout against e.defaults when the config
+	// fields are nil.
 	e.sess = newSession(id, game, e.config, e.defaults, onDone)
 	e.state = Active
 
@@ -383,10 +386,10 @@ func (m *Manager) SubscribePlayer(id string, seat int) (chan SubscriberMessage, 
 
 	ch := make(chan SubscriberMessage, subChanSize)
 
-	// Delete may have closed the goroutine's cancel channel and still
-	// hold the write lock, so e.state still reads Active even though
-	// the goroutine has already exited and closed done. <-done is the
-	// definitive signal that the goroutine is dead.
+	// The goroutine may have exited and closed done while e.state
+	// still reads Active: the onDone state transition runs
+	// asynchronously. <-done is the definitive signal that the
+	// goroutine is dead.
 	select {
 	case <-e.sess.done:
 		return nil, ErrNotActive
@@ -416,10 +419,10 @@ func (m *Manager) SubscribeObserver(id string) (chan SubscriberMessage, error) {
 
 	ch := make(chan SubscriberMessage, subChanSize)
 
-	// Delete may have closed the goroutine's cancel channel and still
-	// hold the write lock, so e.state still reads Active even though
-	// the goroutine has already exited and closed done. <-done is the
-	// definitive signal that the goroutine is dead.
+	// The goroutine may have exited and closed done while e.state
+	// still reads Active: the onDone state transition runs
+	// asynchronously. <-done is the definitive signal that the
+	// goroutine is dead.
 	select {
 	case <-e.sess.done:
 		return nil, ErrNotActive
@@ -446,10 +449,10 @@ func (m *Manager) UnsubscribePlayer(id string, seat int) error {
 		return ErrNotActive
 	}
 
-	// Delete may have closed the goroutine's cancel channel and still
-	// hold the write lock, so e.state still reads Active even though
-	// the goroutine has already exited and closed done. <-done is the
-	// definitive signal that the goroutine is dead.
+	// The goroutine may have exited and closed done while e.state
+	// still reads Active: the onDone state transition runs
+	// asynchronously. <-done is the definitive signal that the
+	// goroutine is dead.
 	select {
 	case <-e.sess.done:
 		return ErrNotActive
@@ -476,10 +479,10 @@ func (m *Manager) UnsubscribeObserver(id string, ch chan SubscriberMessage) erro
 		return ErrNotActive
 	}
 
-	// Delete may have closed the goroutine's cancel channel and still
-	// hold the write lock, so e.state still reads Active even though
-	// the goroutine has already exited and closed done. <-done is the
-	// definitive signal that the goroutine is dead.
+	// The goroutine may have exited and closed done while e.state
+	// still reads Active: the onDone state transition runs
+	// asynchronously. <-done is the definitive signal that the
+	// goroutine is dead.
 	select {
 	case <-e.sess.done:
 		return ErrNotActive
@@ -491,10 +494,15 @@ func (m *Manager) UnsubscribeObserver(id string, ch chan SubscriberMessage) erro
 }
 
 // SubmitAction submits a player command from seat to the session goroutine
-// and blocks until the goroutine processes it. The returned
-// SubmitResult contains the resulting snapshot (on success) or a
-// CommandError (on rejection), and the error value is non-nil only for
-// transport-level failures (ErrNotFound, ErrNotActive).
+// and blocks until the goroutine processes it. On acceptance the goroutine
+// replies with an empty SubmitResult{} and the fresh snapshot reaches the
+// client via its subscription channel, not via this result.
+// SubmitResult.Snapshot is set only for a stale_seq rejection (carrying
+// the latest snapshot so the client can resync) or a duplicate action_id
+// replay (carrying the cached snapshot). SubmitResult.Err is an
+// *api.ErrorMessage that is non-nil when the command is rejected. The
+// error value is non-nil only for transport-level failures (ErrNotFound,
+// ErrNotActive, or a full command queue).
 func (m *Manager) SubmitAction(
 	id string, seat int, msg *api.InboundMessage,
 ) (SubmitResult, error) {

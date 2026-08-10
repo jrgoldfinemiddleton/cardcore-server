@@ -47,7 +47,8 @@ func (m *model) renderLayout() string {
 // score within 26 points of 100 (the typical Hearts game-ending threshold) is
 // highlighted in bold red to indicate danger.
 func (m *model) renderHeader(width int) string {
-	// Never display "Round 0"; the server can send 0 before the first deal.
+	// Never display "Round 0"; the model's round number is 0 until the first
+	// snapshot arrives.
 	displayRound := max(m.roundNumber, 1)
 
 	innerWidth := width - 2
@@ -177,8 +178,12 @@ func (m *model) renderMain(width int) string {
 //
 //  1. Error message (red, bold) — may be a transient 3-second flash or a
 //     persistent modal message that stays until Enter is pressed.
-//  2. Persistent status message (e.g., the mapped WebSocket close reason).
-//  3. Connection status ("Connected" / "Disconnected")
+//  2. Timeout notice ("Timeout - AI playing") while input is locked during
+//     the final second of the human's turn.
+//  3. "Paused" while the server reports the game paused.
+//  4. Persistent status message (e.g., the mapped WebSocket close reason).
+//  5. Turn countdown ("Your turn (Ns)") while a human turn deadline is active.
+//  6. Connection status ("Connected" / "Disconnected")
 //
 // The status message takes priority over the generic "Disconnected" label
 // so that the user sees the reason the connection closed ("Game ended",

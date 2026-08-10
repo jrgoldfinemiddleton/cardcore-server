@@ -46,9 +46,14 @@ type PlayerSnapshot struct {
 	// Scores is the cumulative scores per seat across all completed rounds.
 	Scores []int `json:"scores"`
 	// RoundPoints is the penalty points accumulated this round per seat.
+	// During the round_complete phase it instead carries the score delta
+	// applied for the round (0 for a successful moon shooter, 26 for each
+	// other seat).
 	RoundPoints []int `json:"round_points"`
-	// LegalActions is the cards the player may legally play or pass. Empty when
-	// it is not the player's turn.
+	// LegalActions is the cards the player may legally play or pass. During
+	// the passing phase it holds the player's full hand; during the playing
+	// phase it is empty when it is not the player's turn. A paused snapshot
+	// keeps the legal actions of the underlying phase.
 	LegalActions []Card `json:"legal_actions"`
 	// TurnDeadlineMS is the server-side deadline for the current human turn as
 	// Unix milliseconds. It is zero when no deadline is active.
@@ -90,6 +95,9 @@ type ObserverSnapshot struct {
 	// Scores is the cumulative scores per seat across all completed rounds.
 	Scores []int `json:"scores"`
 	// RoundPoints is the penalty points accumulated this round per seat.
+	// During the round_complete phase it instead carries the score delta
+	// applied for the round (0 for a successful moon shooter, 26 for each
+	// other seat).
 	RoundPoints []int `json:"round_points"`
 	// LegalActions shows legal actions for the seat indicated by Turn.
 	LegalActions []Card `json:"legal_actions"`

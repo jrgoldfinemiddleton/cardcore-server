@@ -6,7 +6,10 @@ import (
 	"testing"
 )
 
-// playerSnapshotJSON is the example snapshot from doc/games/hearts/protocol.md.
+// playerSnapshotJSON is adapted from the example snapshot in
+// doc/games/hearts/protocol.md: hearts_broken and round_points carry
+// different values, and paused and turn_deadline_ms are omitted to
+// exercise decoding of absent fields.
 const playerSnapshotJSON = `{
   "type": "snapshot",
   "seq": 12,

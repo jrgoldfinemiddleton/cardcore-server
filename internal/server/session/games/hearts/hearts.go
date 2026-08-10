@@ -57,10 +57,10 @@ type GameAdapter struct {
 // pauseState captures the adapter state during a UX pause.
 type pauseState struct {
 	// trickComplete is true when the adapter is paused after a trick
-	// completes and is waiting for the client to acknowledge.
+	// completes and is waiting for the session to call Resume.
 	trickComplete bool
 	// roundComplete is true when the adapter is paused after a round
-	// completes and is waiting for the client to acknowledge.
+	// completes and is waiting for the session to call Resume.
 	roundComplete bool
 }
 
@@ -69,9 +69,9 @@ type pauseState struct {
 const defaultHumanAIType = "random"
 
 // NewGameAdapter creates a Hearts game adapter. It validates the seat
-// configuration, creates AI players for all seats (using the configured
-// ai_type for AI seats and a "random" fallback for human seats), and deals
-// the first hand.
+// configuration, creates AI players for all seats (AI seats use their
+// configured ai_type; human seats use their configured ai_type when set,
+// falling back to "random" otherwise), and deals the first hand.
 func NewGameAdapter(
 	seats []session.SeatConfig, rng *rand.Rand,
 	dealDelay, trickDelay, roundDelay int,

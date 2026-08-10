@@ -37,9 +37,11 @@ type observerConn struct {
 
 // run is the goroutine that manages the observer's WebSocket connection.
 // It spawns a writer goroutine for snapshot delivery and a CloseRead
-// goroutine for ping/pong/close frame handling. When either exits, it
-// cancels the context, both goroutines return, then it unsubscribes
-// and closes the WebSocket cleanly.
+// goroutine for ping/pong/close frame handling, waits for both to exit,
+// then unsubscribes and closes the WebSocket cleanly. The writer cancels
+// the context on exit, which ends the CloseRead goroutine; when the
+// client disconnects, the CloseRead goroutine exits first and the writer
+// follows on its next failed write or when subCh closes.
 func (oc *observerConn) run(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

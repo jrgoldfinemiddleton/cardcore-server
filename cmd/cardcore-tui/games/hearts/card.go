@@ -33,7 +33,8 @@ const (
 // handGapWidth is the number of visible spaces between adjacent cards in the
 // hand when the terminal is 80 columns or narrower. With bordered cards, a
 // one-space gap is enough to keep a 13-card hand within 80 columns (worst
-// case: 4 tens * 5 chars + 9 non-tens * 4 chars + margins + borders).
+// case: 4 tens at 5 columns + 9 other ranks at 4 columns + 12 one-column
+// gaps + 1 leading margin = 69 columns).
 const handGapWidth = 1
 
 // firstCardMargin is the single space before the first card in the hand.
@@ -122,7 +123,7 @@ func RenderCard(c heartsclient.Card, state CardState, theme Theme) string {
 // the provided theme for colors. A zero width defaults to 80 columns.
 //
 // The cursor index highlights the card under the cursor by coloring its border
-// with the accent color and making the label bold. If cursor is negative or out
+// with the text color and making the label bold. If cursor is negative or out
 // of range, no cursor highlight is drawn. A card whose value is in selected gets
 // the selected decoration (accent background fill). If legal is non-empty, any
 // card NOT in legal gets CardDimmed; if legal is nil/empty, nothing is dimmed.
