@@ -12,8 +12,8 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/testutil"
 )
 
-// TestIntegrationCreateSessionSmoke verifies that the CLI can create a
-// Hearts session via the HTTP API without playing a full game.
+// TestIntegrationCreateSessionSmoke verifies that the shared client can
+// create a Hearts session via the HTTP API without playing a full game.
 func TestIntegrationCreateSessionSmoke(t *testing.T) {
 	t.Parallel()
 
@@ -226,7 +226,7 @@ func TestIntegrationObserverFullGame(t *testing.T) {
 	baseURL := "http://" + srv.Addr()
 
 	// 5ms pacing prevents the observer channel from overflowing with
-	// heuristic AI players. All-AI sessions with AIActionDelayMS: 0 generate
+	// random AI players. All-AI sessions with AIActionDelayMS: 0 generate
 	// snapshots faster than the WebSocket writer can drain the 64-slot
 	// subscriber buffer, causing sendNonBlocking to drop snapshots
 	// (including game_over) and making the test flaky.

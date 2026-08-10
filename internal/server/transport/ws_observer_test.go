@@ -57,10 +57,10 @@ func TestObserverWSReceivesBroadcastSnapshotsIntegration(t *testing.T) {
 		t.Fatalf("write command: %v", err)
 	}
 
-	// Player must read its response so the session goroutine's broadcast
-	// (a sequential send to all subscribers) does not stall waiting on this
-	// player's subCh, which would prevent the observer from receiving the
-	// updated snapshot.
+	// Read the player's own broadcast of the updated state. Broadcasts
+	// are non-blocking and drop on a full buffer, so this read keeps the
+	// player stream drained rather than unblocking the session
+	// goroutine.
 	_ = mustReadWSMessage(t, playerConn, ctx)
 
 	// Observer should receive the updated snapshot.

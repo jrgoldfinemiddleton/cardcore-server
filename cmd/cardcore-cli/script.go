@@ -22,7 +22,8 @@ type ScriptEntry struct {
 	// (e.g., "first_n", "first_legal", "by_index").
 	Selector string `json:"selector"`
 	// SelectorArgs holds selector-specific parameters. For "first_n" this
-	// contains {"count": N}; for "by_index" this contains {"index": N}.
+	// contains {"count": N}; for "by_index" this contains {"indices": [...]}
+	// for pass_cards or {"index": N} for play_card.
 	SelectorArgs json.RawMessage `json:"selector_args,omitempty"`
 }
 
@@ -74,8 +75,9 @@ func NewScriptExecutor(script Script, mySeat int, builder GameBuilder) *ScriptEx
 // Step evaluates a snapshot. It returns a command if the snapshot
 // indicates it is this seat's turn in a scripted phase. The second
 // return value is true when the snapshot's phase is "game_over".
-// If it is not this seat's turn, or the phase has no script entry,
-// it returns the zero value, false, nil.
+// If it is not this seat's turn, or the phase is transitional and has
+// no script entry, it returns the zero value, false, nil. An actionable
+// phase with no script entry returns an error: the script is incomplete.
 func (e *ScriptExecutor) Step(snapshot []byte) (client.Command, bool, error) {
 	var env struct {
 		Phase string `json:"phase"`
@@ -156,6 +158,8 @@ func parseScript(data []byte) (Script, error) {
 }
 
 // printFinalScores extracts and prints the scores from a game_over snapshot.
+// A nil or undecodable snapshot (game over arrived as a server error message
+// rather than a snapshot) logs a warning and returns nil without printing.
 func printFinalScores(snapshot []byte) error {
 	var snap struct {
 		Scores []int `json:"scores"`

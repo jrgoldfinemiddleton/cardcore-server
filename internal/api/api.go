@@ -11,7 +11,8 @@ const MaxActionIDLength = 256
 // Error code constants for client command rejection.
 const (
 	// ErrStaleSeq indicates that the command's seq is behind the server's; the
-	// client should resync from the snapshot that immediately follows the error.
+	// server sends a fresh snapshot immediately before the error, and the
+	// client should resync from it.
 	ErrStaleSeq = "stale_seq"
 	// ErrOutOfTurn indicates that a well-formed command was sent when it was not
 	// the sender's turn.
@@ -24,9 +25,11 @@ const (
 	ErrWrongPhase = "wrong_phase"
 	// ErrGameOver indicates that the session is in the finished state.
 	ErrGameOver = "game_over"
-	// ErrMalformedMessage indicates that the message was malformed: bad JSON,
-	// missing required fields, an unknown type, or an empty or over-length
-	// action_id.
+	// ErrMalformedMessage indicates that the message was malformed: a missing
+	// required field, a negative seq, an empty or over-length action_id, an
+	// unknown message type, or an unparsable or otherwise invalid payload.
+	// Envelope JSON that does not parse at all produces no error message;
+	// the server closes the connection instead.
 	ErrMalformedMessage = "malformed_message"
 	// ErrInternal indicates that an unexpected internal server error occurred.
 	ErrInternal = "internal_error"
@@ -60,15 +63,17 @@ type ErrorMessage struct {
 	// for display to the user.
 	Message string `json:"message"`
 	// ActionID is the action_id from the rejected command; it is omitted
-	// only when JSON parsing failed and the field could not be extracted.
+	// when the server has none to echo — the rejected message itself lacked
+	// an action_id, or the error was synthesized without one (game_over for
+	// a command queued as the session ended).
 	ActionID string `json:"action_id,omitempty"`
 	// CurrentSeq is the server's current seq value.
 	CurrentSeq int `json:"current_seq"`
 }
 
 // ValidateInboundMessage checks that the required envelope fields are
-// present. It returns a descriptive error for the first validation failure
-// encountered.
+// present and well-formed. It returns a descriptive error for the first
+// validation failure encountered.
 func ValidateInboundMessage(msg *InboundMessage) error {
 	if msg == nil {
 		return errors.New("nil message")

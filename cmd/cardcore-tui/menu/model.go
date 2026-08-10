@@ -12,7 +12,7 @@ import (
 // remain in the order the items are rendered.
 const (
 	itemGame         = iota // 0: display-only
-	itemServer              // 1: display-only
+	itemServer              // 1: Enter edits the value inline
 	itemAIDifficulty        // 2: cycles on Enter
 	itemObserver            // 3: cycles on Enter
 	itemTheme               // 4: cycles on Enter
@@ -167,8 +167,9 @@ func (m *menuModel) moveCursor(delta int) {
 }
 
 // render produces the menu view as a styled string. The title and Start Game
-// action use the accent color; item values use the dimmed color. The cursor
-// is a ">" prefix on the highlighted line. Output is kept within 80 columns.
+// action use the accent color; item values use the default text color. The
+// cursor is a ">" prefix on the highlighted line. Output is designed to fit
+// within 80 columns; values (e.g., a long server URL) are not truncated.
 func (m *menuModel) render() string {
 	baseStyle := lipgloss.NewStyle().Background(m.theme.Background)
 
@@ -233,8 +234,9 @@ func (m *menuModel) itemLabel(idx int) string {
 }
 
 // itemValue returns the current value string for the item at the given index.
-// Display-only items (Game, Server) return the config value; cycling items
-// return their current selection; Start Game returns an empty string.
+// Game is display-only and returns the config value; Server returns the
+// in-progress edit buffer while being edited; cycling items return their
+// current selection; Start Game returns an empty string.
 func (m *menuModel) itemValue(idx int) string {
 	switch idx {
 	case itemGame:

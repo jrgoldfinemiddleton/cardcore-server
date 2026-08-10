@@ -40,9 +40,9 @@
 //
 // Exit codes
 //
-//	0  game completed normally (game_over phase reached)
+//	0  game completed normally (game_over phase reached), or -h usage printed
 //	1  runtime error: missing script entry for current phase, connection closed,
-//	   server error, selector resolution failure, or command build failure
-//	2  configuration error: invalid flags, script parse failure, or
-//	   malformed selector_args
+//	   server error, selector resolution failure, malformed selector_args,
+//	   script read or parse failure, or command build failure
+//	2  configuration error: invalid flags or flag combinations
 package main

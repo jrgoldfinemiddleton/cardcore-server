@@ -29,8 +29,9 @@ type playerConn struct {
 	seat int
 	// subCh receives game snapshots from the session goroutine.
 	subCh chan session.SubscriberMessage
-	// outCh is an internal queue the reader uses to send error
-	// responses to the writer goroutine.
+	// outCh is an internal queue the reader uses to forward synchronous
+	// command results — resync snapshots and error messages — to the
+	// writer goroutine.
 	outCh chan []byte
 	// logger is the structured logger.
 	logger *slog.Logger
@@ -90,8 +91,10 @@ func (pc *playerConn) run(ctx context.Context) {
 }
 
 // reader reads JSON messages from the WebSocket, validates them, and
-// submits actions to the session manager. All responses are sent to the
-// writer goroutine via outCh.
+// submits actions to the session manager. Non-empty results — resync
+// snapshots for stale_seq/duplicate action_id and error messages — are
+// sent to the writer goroutine via outCh. An accepted action produces no
+// direct reply; the fresh snapshot arrives via the subCh broadcast.
 func (pc *playerConn) reader(ctx context.Context, cancel context.CancelFunc) {
 	defer cancel() // signal writer to exit on any return path
 
@@ -140,7 +143,7 @@ func (pc *playerConn) reader(ctx context.Context, cancel context.CancelFunc) {
 		}
 
 		if result.Err != nil {
-			// Game-level error (wrong turn, illegal move, wrong phase).
+			// Command rejected (stale_seq, game-rule, or internal error).
 			errBytes, err := json.Marshal(result.Err)
 			if err != nil {
 				pc.logger.Error("marshal error response", "error", err)
@@ -156,8 +159,9 @@ func (pc *playerConn) reader(ctx context.Context, cancel context.CancelFunc) {
 }
 
 // writer is the exclusive owner of all outbound WebSocket traffic.
-// It multiplexes snapshots from the session goroutine (subCh) and
-// error responses from the reader (outCh).
+// It multiplexes broadcast snapshots and close codes from the session
+// goroutine (subCh) with the reader's synchronous command results
+// (outCh: resync snapshots and error messages).
 func (pc *playerConn) writer(ctx context.Context, cancel context.CancelFunc) {
 	skipCancel := false
 	defer func() {

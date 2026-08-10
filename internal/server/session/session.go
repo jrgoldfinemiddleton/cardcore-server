@@ -11,8 +11,9 @@ const (
 	// Active is the state of a session whose game is running; commands
 	// are accepted and snapshots are emitted to subscribers.
 	Active State = "active"
-	// Finished is the state of a session whose game ended naturally.
-	// It is read-only and never auto-expires.
+	// Finished is the state of a session whose game has ended, whether
+	// by normal completion or an unrecoverable error. It is read-only
+	// and never auto-expires.
 	Finished State = "finished"
 	// Expired is the state of a session that has been deleted; its ID is
 	// no longer valid and it is omitted from Get and List results.

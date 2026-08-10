@@ -92,8 +92,9 @@ type model struct {
 	// scores is the cumulative scores per seat, decoded from the snapshot
 	// envelope. It is used to render the header score summary.
 	scores []int
-	// errMsg is the current error flash message. It is displayed in the
-	// status bar for 3 seconds, then cleared.
+	// errMsg is the current error message. Transient flashes set via
+	// setErrorFlash clear after 3 seconds; server error modals set it
+	// directly and persist until Enter is pressed.
 	errMsg string
 	// statusMsg is a persistent status message (e.g., a close reason).
 	statusMsg string
@@ -148,7 +149,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case wsErrorMsg:
 		m.handleWSError(msg)
-		// Return nil to avoid flashing the same error twice (once here, once in handleWSError).
+		// handleWSError owns the error display; there is no follow-up command.
 		return m, nil
 
 	case wsCloseMsg:
@@ -272,7 +273,8 @@ func (m *model) handleSnapshot(raw []byte) tea.Cmd {
 		}
 		return startTurnTick()
 	}
-	// No turn active countdown; make sure input is re-enabled for rendering.
+	// No active turn countdown: enable input on the human's turn and disable
+	// it (dimming the hand) otherwise.
 	m.turnDeadline = time.Time{}
 	m.timeoutDisabled = false
 	m.game.SetInputDisabled(!m.humanTurn)
@@ -280,8 +282,11 @@ func (m *model) handleSnapshot(raw []byte) tea.Cmd {
 }
 
 // handleKeyPress handles keyboard input. ctrl+c always quits; Esc then Enter
-// quits from any state; Enter quits in game_over phase. All other keys are
-// delegated to the gameClient.
+// quits; Enter quits in game_over phase. Modal error states intercept keys
+// first: a fatal modal exits on Enter, a continue modal dismisses on Enter,
+// and both swallow all other keys. The 'p' key toggles pause/resume at this
+// level because it needs the server-reported paused state. All remaining
+// keys are delegated to the gameClient.
 func (m *model) handleKeyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if msg.String() == "ctrl+c" {
 		if m.conn != nil {

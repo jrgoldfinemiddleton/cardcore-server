@@ -61,7 +61,9 @@ func (c *Client) SetInputDisabled(disabled bool) {
 
 // HandleSnapshot decodes the snapshot into the player or observer view and
 // updates selection state. A phase change resets the cursor and selection; a
-// fresh snapshot re-enables input.
+// fresh snapshot clears the submitted flag so the player can act again. (The
+// inputDisabled flag is driven by the TUI model via SetInputDisabled and is
+// not touched here.)
 func (c *Client) HandleSnapshot(raw json.RawMessage) {
 	c.lastErr = ""
 	var envelope struct {

@@ -132,8 +132,9 @@ func TestScriptExecutorNotMyTurn(t *testing.T) {
 }
 
 // TestScriptExecutorTransitionalPhase verifies that no command is produced
-// and no error occurs when the current phase has no script entry.
-// Transitional phases like trick_complete do not require scripted actions.
+// and no error occurs when the current transitional phase has no script
+// entry. Transitional phases like trick_complete do not require scripted
+// actions.
 func TestScriptExecutorTransitionalPhase(t *testing.T) {
 	script := Script{"playing": {Phase: "playing", Action: "play_card", Selector: "first_legal"}}
 	exec := NewScriptExecutor(script, 0, heartscli.NewBuilder())

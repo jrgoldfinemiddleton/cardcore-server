@@ -14,7 +14,7 @@ import (
 // and bottom hands are shown as centered horizontal boxes with seat labels
 // above them, the left and right hands as vertical boxes sorted by suit, and
 // the current trick is arranged in a diamond formation in the center with
-// minimal status info (turn or winner only).
+// minimal status info (turn, trick winner, or pass direction while passing).
 //
 // Seat 0 is at top, seat 1 at right, seat 2 at bottom, seat 3 at left.
 //
@@ -169,10 +169,10 @@ func renderVerticalHandBox(
 		lipgloss.WithWhitespaceStyle(bgStyle))
 }
 
-// renderVerticalHand renders a hand vertically inside a box of the given width
-// and height. Cards are sorted by suit (clubs, diamonds, hearts, spades) and
-// rank, then laid out in rows of four cards each; any remaining cards go in the
-// bottom row. The result is clipped to the available height.
+// renderVerticalHand renders a hand as a vertical stack of rows, clipped to
+// the given height. Cards are sorted by suit (clubs, diamonds, hearts,
+// spades) and rank, then laid out in rows of five cards each; any remaining
+// cards go in the bottom row. The result is clipped to the available height.
 func renderVerticalHand(hand []heartsclient.Card, theme Theme, height int) string {
 	if len(hand) == 0 {
 		return ""
@@ -247,8 +247,8 @@ func renderCardRows(cards []heartsclient.Card, theme Theme) []string {
 //	<S3 card>  <info>  <S1 card>
 //	       <S2 card>
 //
-// The info text is minimal: whose turn it is, or "Seat N won the trick"
-// during trick_complete.
+// The info text is minimal: whose turn it is, the pass direction during the
+// passing phase, or "Seat N won" during trick_complete.
 func renderObserverCenter(
 	snap heartsclient.ObserverSnapshot,
 	theme Theme,

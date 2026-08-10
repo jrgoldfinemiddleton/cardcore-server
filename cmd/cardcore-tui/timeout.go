@@ -63,8 +63,8 @@ func (m *model) countdownStatus() string {
 	return fmt.Sprintf("Your turn (%ds)", secs)
 }
 
-// startTurnTick arms a periodic timer that emits turnTickMsg to drive the
-// countdown UI.
+// startTurnTick arms a one-shot timer that emits turnTickMsg to drive the
+// countdown UI; handleTurnTick re-arms it while a countdown is active.
 func startTurnTick() tea.Cmd {
 	return tea.Tick(turnTickInterval, func(_ time.Time) tea.Msg {
 		return turnTickMsg{}

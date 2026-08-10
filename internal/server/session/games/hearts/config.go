@@ -9,8 +9,8 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/session"
 )
 
-// GameName is the canonical Hearts game name used by the server-side
-// adapter.
+// GameName is the canonical name of the cardcore Hearts engine game; the
+// server-side adapter registers it under this name.
 const GameName = "hearts"
 
 // GameConfig implements [session.GameConfig] for Hearts. It owns the
@@ -35,8 +35,8 @@ func NewGameConfig() *GameConfig {
 	}
 }
 
-// Name returns "hearts", the canonical game name used for registry
-// lookup and session config matching.
+// Name returns GameName ("hearts"), the engine game's canonical name,
+// which this config also uses as its registry key.
 func (c *GameConfig) Name() string { return GameName }
 
 // RegisterFlags adds Hearts-specific display delay flags to the server
@@ -53,7 +53,7 @@ func (c *GameConfig) RegisterFlags(fs *flag.FlagSet) {
 // Validate checks that the parsed Hearts flag values are non-negative.
 func (c *GameConfig) Validate() error {
 	if c.trickDisplayDelayMS < 0 || c.roundDisplayDelayMS < 0 {
-		return fmt.Errorf(" Hearts delay values must be >= 0")
+		return fmt.Errorf("hearts delay values must be >= 0")
 	}
 	return nil
 }

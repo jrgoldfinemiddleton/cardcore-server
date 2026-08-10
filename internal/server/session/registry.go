@@ -11,7 +11,11 @@ import (
 // runtime validation of those flags, creation of a Game instance, and
 // validation of an incoming session configuration.
 type GameConfig interface {
-	// Name returns the canonical game name (e.g., "hearts").
+	// Name returns the name this GameConfig registers under (e.g.,
+	// "hearts"). It is the registry lookup key: a session's Config.Game
+	// must match it. The key is config-specific — a registry may hold
+	// several entries that build the same engine game — so it is not
+	// necessarily the engine game's canonical name.
 	Name() string
 
 	// RegisterFlags adds game-specific flags to the provided flag set.
@@ -87,7 +91,7 @@ func (r *Registry) Validate() error {
 	return nil
 }
 
-// Names returns the sorted list of registered game names.
+// Names returns the registered game names in no particular order.
 func (r *Registry) Names() []string {
 	names := make([]string, 0, len(r.factories))
 	for name := range r.factories {

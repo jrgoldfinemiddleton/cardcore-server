@@ -43,9 +43,11 @@
 //
 // Flags:
 //
-//	-server   Server base URL (default: http://localhost:8080)
-//	-session  Session ID to join (required for observer or join mode)
-//	-token    Seat bearer token (required when joining)
+//	-server   Server base URL (default: http://127.0.0.1:8080)
+//	-game     Game to play (default: hearts)
+//	-session  Session ID to join (required to join an existing session as a
+//	          player; mutually exclusive with -observe)
+//	-token    Seat bearer token (required when -session is set)
 //	-seat     Seat index (game-dependent, default: 0)
 //	-observe  Observer mode: receive-only, all hands visible
 //	-ai-type  AI player type for auto-created sessions: random, heuristic, or

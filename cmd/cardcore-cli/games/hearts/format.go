@@ -19,9 +19,9 @@ type snapshotEnvelope struct {
 	Phase string `json:"phase"`
 	// Turn is the seat index whose turn it is.
 	Turn int `json:"turn"`
-	// RoundNumber is the current round (omitted when zero).
+	// RoundNumber is the current round, 1-indexed.
 	RoundNumber int `json:"round_number,omitempty"`
-	// TrickNumber is the current trick (omitted when zero).
+	// TrickNumber is the current trick within the round, 1-indexed.
 	TrickNumber int `json:"trick_number,omitempty"`
 	// Scores are the cumulative scores for each seat.
 	Scores []int `json:"scores,omitempty"`
@@ -36,7 +36,7 @@ type snapshotEnvelope struct {
 	// TrickWinner is the seat index of the winner of the completed trick.
 	// Only meaningful during the trick_complete phase; -1 in other phases.
 	TrickWinner int `json:"trick_winner,omitempty"`
-	// RoundPoints are points taken this round (omitted when empty).
+	// RoundPoints are the points taken this round, per seat.
 	RoundPoints []int `json:"round_points,omitempty"`
 }
 

@@ -7,8 +7,9 @@ import (
 )
 
 // BoolEnvOrDefault returns true if the environment variable is set to
-// "true", "1", "yes", or "on" (case-insensitive); otherwise it returns
-// defaultValue.
+// "true", "1", "yes", or "on" (case-insensitive) and false if it is set
+// to any other value; defaultValue is returned only when the variable is
+// unset or empty.
 func BoolEnvOrDefault(envVar string, defaultValue bool) bool {
 	if v := os.Getenv(envVar); v != "" {
 		switch strings.ToLower(v) {

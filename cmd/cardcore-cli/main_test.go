@@ -2,7 +2,10 @@ package main
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
+
+	transporttestutil "github.com/jrgoldfinemiddleton/cardcore-server/internal/server/transport/testutil"
 )
 
 // TestParseFlagsDefaults verifies default flag values when using observer mode
@@ -177,16 +180,24 @@ func TestParseFlagsValidation(t *testing.T) {
 }
 
 // TestRunMissingScriptFile verifies that run() returns an error when the
-// configured script file does not exist.
+// configured script file does not exist. A real server backs the test so
+// session creation and the WebSocket connect succeed, isolating the script
+// read as the failure point.
 func TestRunMissingScriptFile(t *testing.T) {
+	srv := transporttestutil.SetupTestServer(t)
 	cfg := &cliConfig{
 		script: filepath.Join(t.TempDir(), "missing.json"),
-		addr:   "http://127.0.0.1:8080",
+		addr:   "http://" + srv.Addr(),
 		game:   "hearts",
 		pacing: 10,
+		aiType: aiTypeRandom,
 	}
-	if err := run(cfg); err == nil {
+	err := run(cfg)
+	if err == nil {
 		t.Fatal("run() got nil error, want error for missing script file")
+	}
+	if !strings.Contains(err.Error(), "read script") {
+		t.Errorf("run() error %q, want it to mention the script read", err)
 	}
 }
 
@@ -219,18 +230,27 @@ func TestRunUnsupportedGame(t *testing.T) {
 }
 
 // TestRunJoinModeInvalidSession verifies that run() returns an error when
-// joining a session that does not exist.
+// joining a session that does not exist. A real server backs the test so
+// the failure comes from the server rejecting the WebSocket upgrade. The
+// rejection is a 401: token lookup precedes the session check, and a
+// nonexistent session has no registered token to match.
 func TestRunJoinModeInvalidSession(t *testing.T) {
+	srv := transporttestutil.SetupTestServer(t)
 	cfg := &cliConfig{
 		sessionID: "nonexistent-session",
 		token:     "invalid-token",
-		addr:      "http://127.0.0.1:1",
+		addr:      "http://" + srv.Addr(),
 		game:      "hearts",
 		pacing:    10,
 		seat:      0,
 	}
-	if err := run(cfg); err == nil {
+	err := run(cfg)
+	if err == nil {
 		t.Fatal("run() got nil error, want error for invalid session join")
+	}
+	if !strings.Contains(err.Error(), "connect websocket") ||
+		!strings.Contains(err.Error(), "401") {
+		t.Errorf("run() error %q, want a WebSocket connect failure with 401", err)
 	}
 }
 

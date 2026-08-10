@@ -1,7 +1,7 @@
 # AI Agent Guidance: View Layer
 
 ## OVERVIEW
-Defines the interface between the session layer and game-specific snapshot generators. Each game implements a concrete view that produces player-filtered and observer snapshots from the current game state. The session layer calls these methods from the game adapter when broadcasting state to players and observers.
+Defines the interface between the session layer and game-specific snapshot generators. Each game implements a concrete view that produces player-filtered and observer snapshots from the current game state. Game adapters call their view package's concrete functions directly when broadcasting state; conformance to the `View` interface is enforced structurally (compile-time checks), not through interface-typed calls.
 
 ## STRUCTURE
 ```

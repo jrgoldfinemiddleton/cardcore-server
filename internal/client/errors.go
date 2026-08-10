@@ -3,7 +3,8 @@ package client
 // Error code constants matching the server's wire-format error codes.
 const (
 	// ErrStaleSeq indicates that the command's seq is behind the server's; the
-	// client should resync from the snapshot that immediately follows the error.
+	// server sends a fresh snapshot immediately before the error, and the
+	// client should resync from it.
 	ErrStaleSeq = "stale_seq"
 	// ErrOutOfTurn indicates that a well-formed command was sent when it was not
 	// the sender's turn.
@@ -16,9 +17,11 @@ const (
 	ErrWrongPhase = "wrong_phase"
 	// ErrGameOver indicates that the session is in the finished state.
 	ErrGameOver = "game_over"
-	// ErrMalformedMessage indicates that the message was malformed: bad JSON,
-	// missing required fields, an unknown type, or an empty or over-length
-	// action_id.
+	// ErrMalformedMessage indicates that the message was malformed: a missing
+	// required field, a negative seq, an empty or over-length action_id, an
+	// unknown message type, or an unparsable or otherwise invalid payload.
+	// Envelope JSON that does not parse at all produces no error message;
+	// the server closes the connection instead.
 	ErrMalformedMessage = "malformed_message"
 	// ErrInternal indicates that an unexpected internal server error occurred.
 	ErrInternal = "internal_error"
@@ -29,22 +32,26 @@ const (
 
 // Recovery action constants returned by ClassifyError.
 const (
-	// RecoveryResync indicates that the client should resync from the snapshot
-	// that the server sends immediately after the error.
+	// RecoveryResync indicates that the client should resync from the fresh
+	// snapshot the server sends immediately before the error.
 	RecoveryResync = "resync"
 	// RecoveryWait indicates that the client should wait for the next snapshot
 	// instead of retrying; the command was well-formed but is not currently
 	// allowed.
 	RecoveryWait = "wait"
-	// RecoveryRetryDifferent indicates that the client should retry with a
-	// different action; the attempted move violated the game rules.
+	// RecoveryRetryDifferent is returned for illegal_move: the attempted move
+	// violated the game rules. ADR-013 classifies illegal_move as fatal — a
+	// structured client prevents it via client-side validation rather than
+	// retrying with a different action.
 	RecoveryRetryDifferent = "retry_different"
 	// RecoveryTerminal indicates that the client should not retry; the session
-	// is finished or an internal or unknown error occurred.
+	// is finished, a pause/resume operation was rejected, or an internal or
+	// unknown error occurred.
 	RecoveryTerminal = "terminal"
-	// RecoveryFixAndRetry indicates that the client should fix the malformed
-	// message, for example its JSON, required fields, type, or action_id, and
-	// retry it.
+	// RecoveryFixAndRetry is returned for malformed_message: the envelope or
+	// payload was invalid. ADR-013 classifies malformed_message as fatal — a
+	// structured client validates before sending rather than fixing and
+	// retrying a rejected message.
 	RecoveryFixAndRetry = "fix_and_retry"
 )
 
