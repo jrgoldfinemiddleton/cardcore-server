@@ -6,10 +6,8 @@ import (
 	"testing"
 )
 
-// playerSnapshotJSON is adapted from the example snapshot in
-// doc/games/hearts/protocol.md: hearts_broken and round_points carry
-// different values, and paused and turn_deadline_ms are omitted to
-// exercise decoding of absent fields.
+// playerSnapshotJSON is the example snapshot from doc/games/hearts/protocol.md,
+// copied verbatim.
 const playerSnapshotJSON = `{
   "type": "snapshot",
   "seq": 12,
@@ -19,31 +17,33 @@ const playerSnapshotJSON = `{
   "pass_direction": "left",
   "turn": 0,
   "trick_winner": -1,
-  "hearts_broken": false,
+  "hearts_broken": true,
   "hand": [
-    {"rank": "four", "suit": "clubs"},
-    {"rank": "jack", "suit": "clubs"},
-    {"rank": "seven", "suit": "diamonds"},
-    {"rank": "queen", "suit": "diamonds"},
-    {"rank": "two", "suit": "hearts"},
-    {"rank": "nine", "suit": "hearts"},
-    {"rank": "three", "suit": "spades"},
-    {"rank": "five", "suit": "spades"},
-    {"rank": "ten", "suit": "spades"},
-    {"rank": "king", "suit": "spades"},
-    {"rank": "ace", "suit": "spades"}
+    { "rank": "four", "suit": "clubs" },
+    { "rank": "jack", "suit": "clubs" },
+    { "rank": "seven", "suit": "diamonds" },
+    { "rank": "queen", "suit": "diamonds" },
+    { "rank": "two", "suit": "hearts" },
+    { "rank": "nine", "suit": "hearts" },
+    { "rank": "three", "suit": "spades" },
+    { "rank": "five", "suit": "spades" },
+    { "rank": "ten", "suit": "spades" },
+    { "rank": "king", "suit": "spades" },
+    { "rank": "ace", "suit": "spades" }
   ],
   "hand_counts": [11, 11, 10, 10],
   "trick": [
-    {"seat": 2, "card": {"rank": "king", "suit": "diamonds"}},
-    {"seat": 3, "card": {"rank": "five", "suit": "diamonds"}}
+    { "seat": 2, "card": { "rank": "king", "suit": "diamonds" } },
+    { "seat": 3, "card": { "rank": "five", "suit": "diamonds" } }
   ],
   "scores": [0, 0, 0, 0],
-  "round_points": [0, 1, 0, 3],
+  "round_points": [0, 1, 0, 0],
   "legal_actions": [
-    {"rank": "seven", "suit": "diamonds"},
-    {"rank": "queen", "suit": "diamonds"}
-  ]
+    { "rank": "seven", "suit": "diamonds" },
+    { "rank": "queen", "suit": "diamonds" }
+  ],
+  "turn_deadline_ms": 1728451200000,
+  "paused": false
 }`
 
 // realisticTrickHistory is tricks 1–11 from the cardcore shoot-the-moon
@@ -162,8 +162,8 @@ func TestPlayerSnapshotParsesProtocolExample(t *testing.T) {
 	if got.TrickWinner != -1 {
 		t.Errorf("got TrickWinner %d, want %d", got.TrickWinner, -1)
 	}
-	if got.HeartsBroken != false {
-		t.Errorf("got HeartsBroken %v, want %v", got.HeartsBroken, false)
+	if got.HeartsBroken != true {
+		t.Errorf("got HeartsBroken %v, want %v", got.HeartsBroken, true)
 	}
 	if wantHand := 11; len(got.Hand) != wantHand {
 		t.Errorf("got Hand length %d, want %d", len(got.Hand), wantHand)
@@ -177,11 +177,17 @@ func TestPlayerSnapshotParsesProtocolExample(t *testing.T) {
 	if wantScores := []int{0, 0, 0, 0}; !slices.Equal(got.Scores, wantScores) {
 		t.Errorf("got Scores %v, want %v", got.Scores, wantScores)
 	}
-	if wantRoundPoints := []int{0, 1, 0, 3}; !slices.Equal(got.RoundPoints, wantRoundPoints) {
+	if wantRoundPoints := []int{0, 1, 0, 0}; !slices.Equal(got.RoundPoints, wantRoundPoints) {
 		t.Errorf("got RoundPoints %v, want %v", got.RoundPoints, wantRoundPoints)
 	}
 	if wantLegal := 2; len(got.LegalActions) != wantLegal {
 		t.Errorf("got LegalActions length %d, want %d", len(got.LegalActions), wantLegal)
+	}
+	if got.TurnDeadlineMS != 1728451200000 {
+		t.Errorf("got TurnDeadlineMS %d, want %d", got.TurnDeadlineMS, 1728451200000)
+	}
+	if got.Paused != false {
+		t.Errorf("got Paused %v, want %v", got.Paused, false)
 	}
 }
 
@@ -276,5 +282,22 @@ func TestPlayerSnapshotPausedRoundTrip(t *testing.T) {
 	}
 	if got.Paused != true {
 		t.Errorf("got Paused %v, want %v", got.Paused, true)
+	}
+}
+
+// TestPlayerSnapshotAbsentFieldsDecodeToZero verifies that a player snapshot
+// missing the paused and turn_deadline_ms fields decodes them to their zero
+// values. The protocol guarantees every field is always present, so this is
+// a defensive check on client JSON decoding only.
+func TestPlayerSnapshotAbsentFieldsDecodeToZero(t *testing.T) {
+	var got PlayerSnapshot
+	if err := json.Unmarshal([]byte(`{}`), &got); err != nil {
+		t.Fatalf("unmarshal empty snapshot: %v", err)
+	}
+	if got.Paused != false {
+		t.Errorf("got Paused %v, want %v", got.Paused, false)
+	}
+	if got.TurnDeadlineMS != 0 {
+		t.Errorf("got TurnDeadlineMS %d, want %d", got.TurnDeadlineMS, 0)
 	}
 }

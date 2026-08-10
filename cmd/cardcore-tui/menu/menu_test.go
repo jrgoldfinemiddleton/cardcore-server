@@ -8,7 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	heartstui "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/games/hearts"
+	"github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/theme"
 )
 
 // TestDefaultConfigReturnedOnStart verifies that selecting Start Game
@@ -16,7 +16,7 @@ import (
 // unchanged.
 func TestDefaultConfigReturnedOnStart(t *testing.T) {
 	initial := defaultTestConfig()
-	m := newModel(initial, heartstui.NewDarkTheme())
+	m := newModel(initial, theme.NewDarkTheme())
 
 	// Navigate down to Start Game (item index 5).
 	for range itemStart {
@@ -65,7 +65,7 @@ func TestDefaultConfigReturnedOnStart(t *testing.T) {
 // TestAIDifficultyCycling verifies that Enter on the AI Difficulty item
 // cycles through Easy, Medium, Hard, and back to Easy.
 func TestAIDifficultyCycling(t *testing.T) {
-	m := newModel(defaultTestConfig(), heartstui.NewDarkTheme())
+	m := newModel(defaultTestConfig(), theme.NewDarkTheme())
 
 	// Navigate to AI Difficulty (item index 2).
 	for range itemAIDifficulty {
@@ -102,7 +102,7 @@ func TestAIDifficultyCycling(t *testing.T) {
 // TestObserverAndThemeToggle verifies that Enter toggles the Observer and
 // Theme items.
 func TestObserverAndThemeToggle(t *testing.T) {
-	m := newModel(defaultTestConfig(), heartstui.NewDarkTheme())
+	m := newModel(defaultTestConfig(), theme.NewDarkTheme())
 
 	// Navigate to Observer (item index 3).
 	for range itemObserver {
@@ -144,7 +144,7 @@ func TestObserverAndThemeToggle(t *testing.T) {
 // TestEscReturnsCancelled verifies that pressing Esc sets err to ErrCancelled
 // and returns a quit command.
 func TestEscReturnsCancelled(t *testing.T) {
-	m := newModel(defaultTestConfig(), heartstui.NewDarkTheme())
+	m := newModel(defaultTestConfig(), theme.NewDarkTheme())
 
 	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	result, ok := model.(*menuModel)
@@ -165,7 +165,7 @@ func TestEscReturnsCancelled(t *testing.T) {
 // contains all item labels and their current values.
 func TestRenderContainsLabelsAndValues(t *testing.T) {
 	cfg := defaultTestConfig()
-	m := newModel(cfg, heartstui.NewDarkTheme())
+	m := newModel(cfg, theme.NewDarkTheme())
 
 	out := m.render()
 
@@ -191,7 +191,7 @@ func TestRenderContainsLabelsAndValues(t *testing.T) {
 // TestThemeUpdatesInRealTime verifies that toggling the Theme item updates
 // the model's palette immediately so the rendered view honors the new theme.
 func TestThemeUpdatesInRealTime(t *testing.T) {
-	m := newModel(defaultTestConfig(), heartstui.NewDarkTheme())
+	m := newModel(defaultTestConfig(), theme.NewDarkTheme())
 
 	// Navigate to Theme (item index 4).
 	for range itemTheme {
@@ -202,19 +202,19 @@ func TestThemeUpdatesInRealTime(t *testing.T) {
 	}
 
 	// Initial state: dark theme.
-	if !reflect.DeepEqual(m.theme, heartstui.NewDarkTheme()) {
+	if !reflect.DeepEqual(m.theme, theme.NewDarkTheme()) {
 		t.Fatalf("got theme %v, want dark theme", m.theme)
 	}
 
 	// Press Enter: dark -> light.
 	m = sendKey(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
-	if !reflect.DeepEqual(m.theme, heartstui.NewLightTheme()) {
+	if !reflect.DeepEqual(m.theme, theme.NewLightTheme()) {
 		t.Errorf("got theme %v, want light theme", m.theme)
 	}
 
 	// Press Enter: light -> dark.
 	m = sendKey(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
-	if !reflect.DeepEqual(m.theme, heartstui.NewDarkTheme()) {
+	if !reflect.DeepEqual(m.theme, theme.NewDarkTheme()) {
 		t.Errorf("got theme %v, want dark theme", m.theme)
 	}
 }
@@ -223,7 +223,7 @@ func TestThemeUpdatesInRealTime(t *testing.T) {
 // inline editing, printable keys update the buffer, Backspace removes the last
 // rune, Enter confirms, and Esc cancels.
 func TestServerEditMode(t *testing.T) {
-	m := newModel(defaultTestConfig(), heartstui.NewDarkTheme())
+	m := newModel(defaultTestConfig(), theme.NewDarkTheme())
 
 	// Navigate to Server (item index 1).
 	m = sendKey(t, m, tea.KeyPressMsg{Code: tea.KeyDown})

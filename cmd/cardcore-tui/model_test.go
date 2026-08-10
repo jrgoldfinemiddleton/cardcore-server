@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui/theme"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
 )
 
@@ -304,7 +305,7 @@ func TestModelHandleSnapshotGameClientError(t *testing.T) {
 // client once a snapshot has arrived.
 func TestModelRenderMainDelegates(t *testing.T) {
 	f := &fakeGame{renderOut: "GAMEAREA"}
-	m := &model{game: f, snapshot: json.RawMessage(`{}`), theme: NewDarkTheme()}
+	m := &model{game: f, snapshot: json.RawMessage(`{}`), theme: theme.NewDarkTheme()}
 
 	got := m.renderMain(80)
 	if !strings.Contains(got, "GAMEAREA") {
@@ -690,7 +691,7 @@ func TestModelCountdownStatusExpired(t *testing.T) {
 // TestModelRenderFooterTimeoutDisabled verifies the footer shows the timeout
 // message when input is disabled.
 func TestModelRenderFooterTimeoutDisabled(t *testing.T) {
-	m := &model{timeoutDisabled: true, theme: NewDarkTheme()}
+	m := &model{timeoutDisabled: true, theme: theme.NewDarkTheme()}
 	got := m.renderFooter(80)
 	if !strings.Contains(got, "Timeout - AI playing") {
 		t.Errorf("renderFooter() = %q, want to contain 'Timeout - AI playing'", got)

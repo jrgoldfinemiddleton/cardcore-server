@@ -56,7 +56,9 @@ type model struct {
 	conn *client.Conn
 	// game handles all game-specific decoding, input, and rendering.
 	game gameClient
-	// theme is the color palette used by all layout and game render functions.
+	// theme is the shell color palette used by the layout functions and the
+	// root view background. The game client holds its own palette (with
+	// game-specific fields) for rendering the main game area.
 	theme Theme
 	// width is the current terminal width in columns, updated on resize.
 	// A zero value means no [tea.WindowSizeMsg] has been received yet; render
