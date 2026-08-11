@@ -79,6 +79,22 @@ func TestFormatSnapshot(t *testing.T) {
 				" seat3=[Q♦] scores=[0 0 0 0]",
 		},
 		{
+			name: "player deal snapshot",
+			snapshot: `{"seq":2,"phase":"deal","turn":0,"round_number":1,` +
+				`"hand":[{"rank":"two","suit":"clubs"},` +
+				`{"rank":"ace","suit":"spades"}],"scores":[0,0,0,0]}`,
+			want: "seq=2 phase=deal turn=0 round=1 hand=[2♣ A♠] scores=[0 0 0 0]",
+		},
+		{
+			name: "observer deal snapshot",
+			snapshot: `{"seq":2,"phase":"deal","turn":1,"round_number":2,"hands":` +
+				`[[{"rank":"two","suit":"clubs"}],[{"rank":"ace","suit":"hearts"}],` +
+				`[{"rank":"king","suit":"spades"}],` +
+				`[{"rank":"queen","suit":"diamonds"}]],"scores":[0,13,0,0]}`,
+			want: "seq=2 phase=deal turn=1 round=2 seat0=[2♣] seat1=[A♥] seat2=[K♠]" +
+				" seat3=[Q♦] scores=[0 13 0 0]",
+		},
+		{
 			name:     "game over snapshot",
 			snapshot: `{"seq":123,"phase":"game_over","turn":0,"scores":[0,26,13,13]}`,
 			want:     "seq=123 phase=game_over turn=0 scores=[0 26 13 13]",

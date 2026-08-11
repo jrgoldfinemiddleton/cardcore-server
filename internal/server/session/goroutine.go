@@ -74,6 +74,12 @@ type session struct {
 	players map[int]chan SubscriberMessage
 	// observers holds all observer subscriber channels.
 	observers []chan SubscriberMessage
+	// dealPlayerSnapshots holds seq-stable deal snapshots for players who
+	// subscribe after DisplayDelay consumes the adapter flag but before the
+	// transition broadcast.
+	dealPlayerSnapshots map[int][]byte
+	// dealObserverSnapshot is the matching observer snapshot during that window.
+	dealObserverSnapshot []byte
 
 	// cmds receives commands from the Manager.
 	cmds chan command
@@ -120,29 +126,44 @@ func (s *session) run() {
 
 	s.logger.Debug("session goroutine started")
 
-	// Stamp the turn deadline onto the initial snapshot so clients see
-	// the timer for the first human turn before any commands are
-	// submitted, then wait for the game's display delay.
-	s.scheduleTurnDeadline()
-	s.broadcastSnapshot()
-	if s.finished {
-		s.drainCmds()
-		return
-	}
-	// Allow the game adapter to specify a display delay before the first
-	// turn is processed.
-	delay := s.game.DisplayDelay()
-	if delay > 0 {
-		s.logger.Debug("initial display delay", "delay_ms", delay)
-		select {
-		case <-time.After(time.Duration(delay) * time.Millisecond):
-		case <-s.cancel:
-			s.closeSubscribers()
+	// A game holding a fresh deal opens with the deal display phase:
+	// deal snapshot, display window, then the actionable transition.
+	// A game with no deal to display keeps the single initial broadcast.
+	if s.game.DealPending() {
+		if !s.runDealPhase() {
 			s.drainCmds()
 			return
 		}
+	} else {
+		// Stamp the turn deadline onto the initial snapshot so clients
+		// see the timer for the first human turn before any commands
+		// are submitted, then honor the game's initial-state pacing
+		// hook (zero for a game whose opening needs no pacing).
+		s.scheduleTurnDeadline()
+		s.broadcastSnapshot()
+		if s.finished {
+			s.drainCmds()
+			return
+		}
+		delay := s.game.DisplayDelay()
+		if delay > 0 {
+			s.logger.Debug("initial display delay", "delay_ms", delay)
+			select {
+			case <-time.After(time.Duration(delay) * time.Millisecond):
+			case <-s.cancel:
+				s.closeSubscribers()
+				s.drainCmds()
+				return
+			}
+		}
 	}
 
+	// Drive AI turns and pause chains until the game parks on a human
+	// turn or finishes. The select loop below is purely reactive — it
+	// blocks on commands, cancellation, or a turn timeout — so entering
+	// it without driving first would deadlock any game whose first turn
+	// is not a human's: no command would ever arrive and no timeout
+	// would be armed.
 	driveTurnsResult := s.driveTurns(false)
 	if driveTurnsResult == driveFinished || s.finished {
 		s.drainCmds()
@@ -207,6 +228,108 @@ func (s *session) run() {
 	}
 }
 
+// runDealPhase presents a freshly dealt round before play becomes
+// actionable: it broadcasts the deal snapshot, holds the configured
+// display window, then broadcasts the transition to the actionable phase
+// with the first turn's deadline stamped. It returns false when the
+// session finished or was cancelled along the way.
+//
+// The deal snapshot carries no turn deadline: nobody can act during the
+// deal, so there is nothing to count down to. The window answers
+// subscription commands immediately — clients connect right after the
+// session starts and would otherwise wait out the window on a blank
+// screen and never see the deal — while gameplay commands are deferred
+// until the transition broadcast, because the deal phase is not
+// actionable (doc/games/hearts/protocol.md). Deferral is deliberate:
+// the dealt hand is already final, so an early command is valid content
+// sent during a cosmetic pause, and rejecting it with wrong_phase would
+// punish the fastest clients for a server-side delay. The trick/round
+// display windows apply the same policy by leaving commands queued in
+// the channel during their sleeps.
+func (s *session) runDealPhase() bool {
+	s.broadcastSnapshot()
+	if s.finished {
+		return false
+	}
+	// DisplayDelay consumes the adapter's pending-deal flag, so the deal
+	// snapshots are cached first: subscribers joining during the window
+	// must still receive the deal view at the current seq.
+	if !s.cacheDealSnapshots() {
+		return false
+	}
+
+	delay := s.game.DisplayDelay()
+	var deferred []command
+	if delay > 0 {
+		var ok bool
+		deferred, ok = s.awaitDealWindow(delay)
+		if !ok {
+			return false
+		}
+	}
+
+	// The window has elapsed. End it before the transition so later
+	// subscribers get the live actionable snapshot, not the cached deal.
+	s.clearDealSnapshots()
+	s.scheduleTurnDeadline()
+	s.seq++
+	s.broadcastSnapshot()
+	if s.finished {
+		return false
+	}
+
+	// Replay deferred commands. Every one of them predates the transition
+	// broadcast, so seq-validated commands (play_card, pass_cards) resync
+	// through the normal stale_seq path, while pause/resume bypass seq
+	// validation (see handlePlay) and apply to the post-transition state.
+	for _, cmd := range deferred {
+		s.handleCommand(cmd)
+		if s.finished {
+			return false
+		}
+	}
+	return true
+}
+
+// awaitDealWindow holds the deal display window for delay milliseconds.
+// Subscription commands are answered immediately from the cached deal
+// snapshots; all other commands are deferred for replay after the
+// transition broadcast. It returns ok=false when the session finished
+// or was cancelled during the window.
+func (s *session) awaitDealWindow(delay int) (deferred []command, ok bool) {
+	s.logger.Debug("deal display delay", "delay_ms", delay)
+	timer := time.NewTimer(time.Duration(delay) * time.Millisecond)
+	stopTimer := func() {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+	}
+	for {
+		select {
+		case <-timer.C:
+			return deferred, true
+		case cmd := <-s.cmds:
+			switch cmd.(type) {
+			case subscribePlayerCmd, subscribeObserverCmd, unsubscribeCmd:
+				s.handleCommand(cmd)
+				if s.finished {
+					stopTimer()
+					return nil, false
+				}
+			default:
+				deferred = append(deferred, cmd)
+			}
+		case <-s.cancel:
+			stopTimer()
+			s.closeSubscribers()
+			return nil, false
+		}
+	}
+}
+
 // driveTurns is the central orchestrator for the game event loop.
 // If fromPause is false it first calls processTurns to check the
 // current seat; if true it enters the resume cycle immediately because
@@ -239,9 +362,9 @@ func (s *session) driveTurns(fromPause bool) driveResult {
 	return status
 }
 
-// resumePauses waits for the game's display delay then calls Resume. It
-// returns a driveResult so driveTurns can loop again if the game is
-// still in a paused state.
+// resumePauses waits for a pause display delay and calls Resume. A resumed
+// fresh deal is broadcast before its own delay, followed by the actionable
+// transition snapshot. It returns a driveResult so driveTurns can continue.
 func (s *session) resumePauses() driveResult {
 	delay := s.game.DisplayDelay()
 	if delay > 0 {
@@ -262,7 +385,12 @@ func (s *session) resumePauses() driveResult {
 		return driveFatal
 	}
 	s.game.SetTurnDeadline(time.Time{})
-	if res.Outcome != StepFinished {
+	// Remember whether Resume just dealt a fresh round: the DisplayDelay
+	// call in the StepContinue branch below consumes the adapter's
+	// pending-deal flag, so after that call this local is the only
+	// remaining record that the broadcast above carried the deal phase.
+	dealtFreshRound := s.game.DealPending()
+	if res.Outcome != StepFinished && !dealtFreshRound {
 		s.scheduleTurnDeadline()
 	}
 	s.seq++
@@ -281,6 +409,17 @@ func (s *session) resumePauses() driveResult {
 			case <-time.After(time.Duration(delay) * time.Millisecond):
 			case <-s.cancel:
 				return driveShutdown
+			}
+		}
+		if dealtFreshRound {
+			// DisplayDelay above must have consumed the adapter's
+			// pending-deal flag by now, so this transition snapshot renders
+			// passing/playing rather than a second deal.
+			s.scheduleTurnDeadline()
+			s.seq++
+			s.broadcastSnapshot()
+			if s.finished {
+				return driveFinished
 			}
 		}
 		return s.processTurns()

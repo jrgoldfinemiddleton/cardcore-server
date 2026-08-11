@@ -88,7 +88,7 @@ type DefaultDelays struct {
 	AIActionDelayMS int
 	// DealDisplayDelayMS is the default delay in milliseconds for showing
 	// a fresh deal before play advances, applied when a session's
-	// Config.DealDisplayDelayMS is nil.
+	// Config.DealDisplayDelayMS is nil. Every deal is broadcast even when 0.
 	DealDisplayDelayMS int
 	// TurnTimeoutMS is the default maximum time in milliseconds to wait
 	// for a human player to act before auto-playing an AI move on their

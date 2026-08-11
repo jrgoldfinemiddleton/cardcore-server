@@ -60,6 +60,38 @@ func (s *session) broadcastSnapshot() {
 	}
 }
 
+// cacheDealSnapshots preserves the deal view for subscribers joining during
+// the display window after DisplayDelay consumes the adapter's pending flag.
+// It returns false when a snapshot fails to marshal; the session is then
+// finished and the caller must abandon the deal phase.
+func (s *session) cacheDealSnapshots() bool {
+	s.dealObserverSnapshot = s.observerSnapshot()
+	if s.dealObserverSnapshot == nil {
+		s.terminateOnMarshalFailure("observer deal snapshot marshal failed")
+		return false
+	}
+	s.dealPlayerSnapshots = make(map[int][]byte)
+	for seat, cfg := range s.config.Seats {
+		if cfg.Type != SeatHuman {
+			continue
+		}
+		snap := s.playerSnapshot(seat)
+		if snap == nil {
+			s.terminateOnMarshalFailure("player deal snapshot marshal failed", "seat", seat)
+			return false
+		}
+		s.dealPlayerSnapshots[seat] = snap
+	}
+	return true
+}
+
+// clearDealSnapshots ends the late-subscription deal window before the
+// actionable transition is broadcast.
+func (s *session) clearDealSnapshots() {
+	s.dealPlayerSnapshots = nil
+	s.dealObserverSnapshot = nil
+}
+
 // cacheActionID stores a snapshot for the given action ID, promoting it
 // to the front of the LRU list. If the cache exceeds the size limit, the
 // least-recently-used entry is evicted.

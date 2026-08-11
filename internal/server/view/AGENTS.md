@@ -22,7 +22,7 @@ view/
 | Verify interface conformance | `view_test.go` | Compile-time `var _ view.View = ...` plus runtime guard |
 
 ## CONVENTIONS
-- `ViewState` (or equivalent) wraps the engine game with server-synthesized flags (e.g., `TrickComplete`, `RoundComplete`, `TurnDeadline`, `Paused`).
+- `ViewState` (or equivalent) wraps the engine game with server-synthesized flags (e.g., `TrickComplete`, `RoundComplete`, `DealPending`, `TurnDeadline`, `Paused`).
 - Always `Clone()` the engine game before reading fields for a snapshot; the original must never be mutated.
 - Player snapshots hide other seats' hands; observer snapshots show all hands.
 - The view package has no I/O and no goroutines; it is pure data transformation.

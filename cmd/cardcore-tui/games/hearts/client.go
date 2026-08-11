@@ -154,10 +154,15 @@ func (c *Client) TogglePause(paused bool) (client.Command, bool) {
 // border on each side, so the width here is the inner content width.
 func (c *Client) Render(width, height int) string {
 	if c.observer {
-		if c.phase == heartsclient.PhaseRoundComplete {
+		switch c.phase {
+		case heartsclient.PhaseDeal:
+			// Observers see the same dealing overlay as seated players.
+			return RenderDealView(c.theme, width, height)
+		case heartsclient.PhaseRoundComplete:
 			return RenderObserverRoundCompleteView(c.observerSnap, c.theme, width, height)
+		default:
+			return RenderObserverView(c.observerSnap, c.theme, width, height)
 		}
-		return RenderObserverView(c.observerSnap, c.theme, width, height)
 	}
 	switch c.phase {
 	case heartsclient.PhaseDeal:

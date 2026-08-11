@@ -255,6 +255,8 @@ func RenderPausedView(theme Theme, width, height int) string {
 }
 
 // RenderDealView renders a brief overlay shown while the deck is being dealt.
+// It renders for both seated players and observers when the server broadcasts
+// phase "deal" at game start and at round boundaries.
 func RenderDealView(theme Theme, width, height int) string {
 	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
 	return placeContent(textStyle.Render("Dealing..."), width, height, lipgloss.Center, theme)

@@ -110,9 +110,10 @@ func TestAllAIFullGameIntegration(t *testing.T) {
 		t.Fatal("received no snapshots")
 	}
 
-	// Verify the initial snapshot has seq == 1.
-	if snaps[0].Seq != 1 {
-		t.Fatalf("initial snapshot seq: got %d, want 1", snaps[0].Seq)
+	// Verify the first delivered snapshot has a valid initial sequence. A
+	// subscriber joining after a zero-length deal window may begin at seq 2.
+	if snaps[0].Seq < 1 || snaps[0].Seq > 2 {
+		t.Fatalf("initial snapshot seq: got %d, want 1 or 2", snaps[0].Seq)
 	}
 
 	// Verify seq is strictly monotonically increasing.
@@ -330,8 +331,10 @@ func TestPassPhaseTimeoutIntegration(t *testing.T) {
 	httpSrv := mustStartTestServer(t, srv)
 
 	timeout := 100
+	dealDelay := 0
 	cfg := testutil.HeartsSessionConfigWithPacing(0)
 	cfg.TurnTimeoutMS = &timeout
+	cfg.DealDisplayDelayMS = &dealDelay
 
 	info, seats, err := mgr.Create(cfg)
 	if err != nil {
@@ -351,10 +354,13 @@ func TestPassPhaseTimeoutIntegration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	snap := mustReadSnapshot(t, playerConn, ctx)
-	phase, _ := snap["phase"].(string)
-	if phase != "passing" {
-		t.Fatalf("expected passing phase, got %q", phase)
+	var snap map[string]any
+	for {
+		snap = mustReadSnapshot(t, playerConn, ctx)
+		phase, _ := snap["phase"].(string)
+		if phase == "passing" {
+			break
+		}
 	}
 	initialSeq, ok := snap["seq"].(float64)
 	if !ok {
@@ -379,6 +385,115 @@ func TestPassPhaseTimeoutIntegration(t *testing.T) {
 	_ = playerConn.Close(websocket.StatusNormalClosure, "")
 	_ = obsConn.Close(websocket.StatusNormalClosure, "")
 	_ = mgr.Delete(id)
+}
+
+// TestDealPhaseEmittedAtGameStartIntegration verifies that a real player sees
+// the fresh deal before the initial passing snapshot and deadline.
+func TestDealPhaseEmittedAtGameStartIntegration(t *testing.T) {
+	t.Parallel()
+	srv, mgr := setupHeartsServer(t)
+	httpSrv := mustStartTestServer(t, srv)
+	dealDelay := 200
+	timeout := 10000
+	cfg := testutil.HeartsSessionConfigWithPacing(1000)
+	cfg.DealDisplayDelayMS = &dealDelay
+	cfg.TurnTimeoutMS = &timeout
+
+	info, seats, err := mgr.Create(cfg)
+	if err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+	token := testutil.HumanSessionToken(t, seats)
+	if err := mgr.Start(info.SessionID); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+
+	playerConn := mustDialPlayerWS(t, httpSrv.URL, info.SessionID, token)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	first := mustReadSnapshot(t, playerConn, ctx)
+	second := mustReadSnapshot(t, playerConn, ctx)
+
+	if got, want := first["phase"], any("deal"); got != want {
+		t.Fatalf("first snapshot: got %v, want phase %v", first, want)
+	}
+	if got, want := snapSeq(t, first), 1; got != want {
+		t.Errorf("deal seq: got %d, want %d", got, want)
+	}
+	if got, want := len(extractCards(t, first["hand"])), hearts.HandSize; got != want {
+		t.Errorf("deal hand length: got %d, want %d", got, want)
+	}
+	if got := len(extractCards(t, first["legal_actions"])); got != 0 {
+		t.Errorf("deal legal_actions length: got %d, want 0", got)
+	}
+	if got, want := first["turn_deadline_ms"], float64(0); got != want {
+		t.Errorf("deal turn_deadline_ms: got %v, want %v", got, want)
+	}
+	if got, want := second["phase"], any("passing"); got != want {
+		t.Fatalf("second phase: got %v, want %v", got, want)
+	}
+	if got, want := snapSeq(t, second), 2; got != want {
+		t.Errorf("passing seq: got %d, want %d", got, want)
+	}
+	deadline, ok := second["turn_deadline_ms"].(float64)
+	if !ok || deadline <= 0 {
+		t.Errorf("passing turn_deadline_ms: got %v, want > 0", second["turn_deadline_ms"])
+	}
+}
+
+// TestDealPhaseEmittedAtRoundBoundaryIntegration verifies that a real observer
+// sees round_complete, then the next round's deal, then its actionable phase.
+func TestDealPhaseEmittedAtRoundBoundaryIntegration(t *testing.T) {
+	t.Parallel()
+	srv, mgr := setupHeartsServer(t)
+	httpSrv := mustStartTestServer(t, srv)
+	dealDelay := 5
+	cfg := testutil.HeartsAllAISessionConfigWithPacing(1)
+	cfg.DealDisplayDelayMS = &dealDelay
+
+	info, _, err := mgr.Create(cfg)
+	if err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+	if err := mgr.Start(info.SessionID); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	obsConn := mustDialObserverWS(t, httpSrv.URL, info.SessionID)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var roundComplete map[string]any
+	for range 5000 {
+		snap := mustReadSnapshot(t, obsConn, ctx)
+		phase, _ := snap["phase"].(string)
+		if phase == "round_complete" {
+			roundComplete = snap
+			continue
+		}
+		if roundComplete == nil || phase != "deal" {
+			continue
+		}
+		transition := mustReadSnapshot(t, obsConn, ctx)
+		transitionPhase, _ := transition["phase"].(string)
+		if transitionPhase != "passing" && transitionPhase != "playing" {
+			t.Fatalf("transition phase: got %q, want passing or playing", transitionPhase)
+		}
+		roundCompleteSeq := snapSeq(t, roundComplete)
+		dealSeq := snapSeq(t, snap)
+		transitionSeq := snapSeq(t, transition)
+		if got, want := roundCompleteSeq < dealSeq && dealSeq < transitionSeq, true; got != want {
+			t.Errorf(
+				"seq order: round_complete=%d deal=%d transition=%d",
+				roundCompleteSeq, dealSeq, transitionSeq,
+			)
+		}
+		wantRound := int(roundComplete["round_number"].(float64)) + 1
+		if got, want := int(snap["round_number"].(float64)), wantRound; got != want {
+			t.Errorf("deal round_number: got %d, want %d", got, want)
+		}
+		return
+	}
+	t.Fatal("did not observe round_complete -> deal -> passing/playing")
 }
 
 // TestFourHumansFullGameIntegration verifies that a session with 4 human

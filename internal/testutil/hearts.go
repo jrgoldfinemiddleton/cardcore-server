@@ -38,11 +38,14 @@ func (c *TestHeartsConfig) RegisterFlags(*flag.FlagSet) {}
 // they are created programmatically.
 func (c *TestHeartsConfig) Validate() error { return nil }
 
-// NewGame creates a real Hearts adapter using the test config's
-// deterministic RNG and zero display delays, so tests get reproducible
-// games without pacing overhead.
+// NewGame creates a real Hearts adapter using the test config's deterministic
+// RNG and requested deal delay. Trick and round delays remain zero.
 func (c *TestHeartsConfig) NewGame(cfg session.Config, _ *rand.Rand) (session.Game, error) {
-	return heartssession.NewGameAdapter(cfg.Seats, c.Rng, 0, 0, 0)
+	dealDelay := 0
+	if cfg.DealDisplayDelayMS != nil {
+		dealDelay = *cfg.DealDisplayDelayMS
+	}
+	return heartssession.NewGameAdapter(cfg.Seats, c.Rng, dealDelay, 0, 0)
 }
 
 // ValidateConfig delegates to the production Hearts config validator so
@@ -100,6 +103,7 @@ func HumanSessionToken(t *testing.T, seats []session.Seat) string {
 // HeartsConfigWithPacing returns a 1-human+3-AI Hearts [client.Config] with
 // the given AI pacing delay.
 func HeartsConfigWithPacing(pacingMS int) client.Config {
+	dealDelay := 0
 	return client.Config{
 		Game: testGameName,
 		Seats: []client.SeatConfig{
@@ -108,7 +112,8 @@ func HeartsConfigWithPacing(pacingMS int) client.Config {
 			{Type: "ai", AIType: testAIType},
 			{Type: "ai", AIType: testAIType},
 		},
-		AIActionDelayMS: &pacingMS,
+		AIActionDelayMS:    &pacingMS,
+		DealDisplayDelayMS: &dealDelay,
 	}
 }
 

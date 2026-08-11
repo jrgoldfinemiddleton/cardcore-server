@@ -20,9 +20,9 @@ games/hearts/
 | Task | File | Notes |
 |------|------|-------|
 | Change key handling or cursor | `client.go` | `handlePassingKey` / `handlePlayingKey`; cursor snaps to and skips illegal cards |
-| Change a phase view | `views.go` | `RenderPassingView`, `RenderPlayingView`, `RenderRoundCompleteView`, `RenderGameOverView` |
+| Change a phase view | `views.go` | `RenderPassingView`, `RenderPlayingView`, `RenderRoundCompleteView`, `RenderGameOverView`, `RenderPausedView`, `RenderDealView` |
 | Change card rendering | `card.go` | `RenderCard` styles by `CardState` (cursor, selected, dimmed, winner) |
-| Change observer rendering | `observer.go` | `RenderObserverView`, `RenderObserverRoundCompleteView` |
+| Change observer rendering | `observer.go` | `RenderObserverView`, `RenderObserverRoundCompleteView`; observer phase dispatch (deal, round_complete) lives in `client.go` `Render` |
 | Add or change a command | `commands.go` | Envelope from `internal/client`; payloads from `internal/client/games/hearts` |
 | Change Hearts colors | `theme.go` | Only `WinnerBg` is Hearts-specific; shared colors live in `cmd/cardcore-tui/theme` |
 | Change session auto-create | `session.go` | `validAITypes`: `random`, `heuristic`, `pimc` |

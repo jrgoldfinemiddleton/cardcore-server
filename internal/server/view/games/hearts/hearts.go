@@ -10,8 +10,8 @@ import (
 )
 
 // ViewState wraps a Hearts game with server-synthesized phase transition flags.
-// TrickComplete and RoundComplete let the session layer signal transitions before
-// the engine phase advances.
+// TrickComplete, RoundComplete, and DealPending let the session layer signal
+// transitions that are not represented by the current engine phase.
 type ViewState struct {
 	// Game is the current Hearts game state.
 	Game *hearts.Game
@@ -19,6 +19,8 @@ type ViewState struct {
 	TrickComplete bool
 	// RoundComplete signals a completed round before EndRound is called.
 	RoundComplete bool
+	// DealPending signals a freshly dealt hand before play becomes actionable.
+	DealPending bool
 	// PreviousScores is the cumulative score per seat at the start of the
 	// current round. It is used to derive the actual score delta shown in the
 	// round_complete snapshot.
@@ -63,7 +65,10 @@ func PlayerView(vs ViewState, seat hearts.Seat, seq int) *heartsapi.PlayerSnapsh
 		Scores:        g.Scores[:],
 		RoundPoints:   buildRoundPoints(vs, g),
 		Trick:         buildTrick(g.Trick),
-		LegalActions:  buildLegalActions(g, seat),
+		LegalActions:  []heartsapi.Card{},
+	}
+	if !vs.DealPending {
+		snap.LegalActions = buildLegalActions(g, seat)
 	}
 	if vs.TrickComplete {
 		winner := trickWinner(g)
@@ -114,7 +119,10 @@ func ObserverView(vs ViewState, seq int) *heartsapi.ObserverSnapshot {
 		RoundPoints:   buildRoundPoints(vs, g),
 		Trick:         buildTrick(g.Trick),
 		TrickHistory:  buildTrickHistory(g.TrickHistory),
-		LegalActions:  buildLegalActions(g, g.Turn),
+		LegalActions:  []heartsapi.Card{},
+	}
+	if !vs.DealPending {
+		snap.LegalActions = buildLegalActions(g, g.Turn)
 	}
 	if vs.TrickComplete {
 		winner := trickWinner(g)
@@ -160,6 +168,10 @@ func buildPhase(vs ViewState, g *hearts.Game) string {
 	}
 	if vs.RoundComplete {
 		return "round_complete"
+	}
+	// DealPending is only set while the adapter has no trick or round pause.
+	if vs.DealPending {
+		return "deal"
 	}
 	return heartsapi.PhaseToWire(g.Phase)
 }

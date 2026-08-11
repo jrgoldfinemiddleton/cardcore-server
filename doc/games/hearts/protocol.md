@@ -156,8 +156,8 @@ game-specific fields for Hearts:
 | `scores` | array of integers | Cumulative scores per seat across all completed rounds. During an active round, this reflects the total as of the last completed round. |
 | `round_points` | array of integers | Penalty points accumulated this round per seat. Resets to zero at the start of each round. |
 | `paused` | boolean | `true` when the game is paused. `false` during normal play. Independent of `phase` — the game may pause during `passing` or `playing`. |
-| `legal_actions` | array of card objects | Cards the player may legally play or pass. During `passing` it holds the player's full hand regardless of turn; during `playing` it is empty when it is not the player's turn. A paused snapshot keeps the legal actions of the underlying phase. |
-| `turn_deadline_ms` | integer | Server-side deadline for the current human turn, as Unix milliseconds since epoch. `0` when no deadline is active (e.g., AI turn, paused state, or timeout disabled). Clients should use this to render an accurate countdown instead of computing a deadline from the session's `turn_timeout_ms`. |
+| `legal_actions` | array of card objects | Cards the player may legally play or pass. Empty during `deal`. During `passing` it holds the player's full hand regardless of turn; during `playing` it is empty when it is not the player's turn. A paused snapshot keeps the legal actions of the underlying phase. |
+| `turn_deadline_ms` | integer | Server-side deadline for the current human turn, as Unix milliseconds since epoch. `0` during `deal` and whenever no deadline is active (e.g., AI turn, paused state, or timeout disabled). Clients should use this to render an accurate countdown instead of computing a deadline from the session's `turn_timeout_ms`. |
 
 Each trick entry (ordered by play sequence, not by seat index):
 
@@ -172,7 +172,7 @@ Each trick entry (ordered by play sequence, not by seat index):
 
 | Phase | Description |
 |-------|-------------|
-| `deal` | Cards have been dealt; brief UX pause before passing/playing begins. |
+| `deal` | Server-synthesized once per deal with freshly dealt hands, empty `legal_actions`, and `turn_deadline_ms` 0. No commands are actionable until the following `passing` or `playing` snapshot. |
 | `passing` | Players are selecting cards to pass. |
 | `playing` | Trick-taking in progress. The `trick` array contains the cards played so far, up to three cards before the trick is complete. |
 | `paused` | The active human player has paused the game. No commands are processed except `resume` from the pausing seat; gameplay commands are rejected with `game_paused`. |
@@ -189,6 +189,8 @@ in the future.
 
 During the `passing` phase, `legal_actions` contains all cards in the
 player's hand (any 3 may be selected).
+
+During the `deal` phase, `legal_actions` is empty for players and observers.
 
 During the `playing` phase, `legal_actions` contains the cards the
 player may legally play, filtered by Hearts rules:
@@ -212,8 +214,8 @@ differences:
 |-------|-----------|
 | `hand` | Replaced by `hands`: array of arrays, indexed by seat. All cards visible. |
 | `trick_history` | Added: array of completed tricks this round. Each trick is an array of trick entries in play order. |
-| `legal_actions` | Shows legal actions for the seat indicated by `turn`. |
-| `turn_deadline_ms` | Same semantics as the player snapshot field: active human turn deadline, or `0` when none. |
+| `legal_actions` | Shows legal actions for the seat indicated by `turn`; empty during `deal`. |
+| `turn_deadline_ms` | Same semantics as the player snapshot field: active human turn deadline, or `0` during `deal` and when none. |
 
 ---
 

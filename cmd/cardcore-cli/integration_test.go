@@ -103,6 +103,7 @@ func TestIntegrationScriptFullGame(t *testing.T) {
 	formatter := heartscli.NewFormatter()
 
 	var (
+		gotDeal          bool
 		gotPass          bool
 		gotPlay          bool
 		gotTrickComplete bool
@@ -162,6 +163,8 @@ outer:
 		}
 
 		switch env.Phase {
+		case "deal":
+			gotDeal = true
 		case "passing":
 			gotPass = true
 		case "playing":
@@ -193,6 +196,9 @@ outer:
 		}
 	}
 
+	if !gotDeal {
+		t.Error("never saw deal phase")
+	}
 	if !gotPass {
 		t.Error("never saw passing phase")
 	}
@@ -325,7 +331,8 @@ func TestIntegrationObserverFullGame(t *testing.T) {
 		t.Logf("last seq=%d", lastSeq)
 		t.Error("never saw game_over phase")
 	}
-	for _, required := range []string{"playing", "trick_complete", "round_complete", "game_over"} {
+	requiredPhases := []string{"deal", "playing", "trick_complete", "round_complete", "game_over"}
+	for _, required := range requiredPhases {
 		if !phases[required] {
 			t.Errorf("did not observe required phase %q, got phases: %v", required, phases)
 		}

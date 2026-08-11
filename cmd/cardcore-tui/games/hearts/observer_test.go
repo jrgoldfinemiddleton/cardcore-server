@@ -261,3 +261,33 @@ func TestClientRenderObserverRoundComplete(t *testing.T) {
 		t.Errorf("observer render = %q, want 'Round 1 Completed'", got)
 	}
 }
+
+// TestClientRenderObserverDeal verifies that an observer client routes deal
+// snapshots to the same dealing overlay shown to seated players, rather than
+// the square-table observer view with its stale turn line.
+func TestClientRenderObserverDeal(t *testing.T) {
+	c := NewClient(0, true, NewDarkTheme())
+	snap := heartsclient.ObserverSnapshot{
+		Phase:       heartsclient.PhaseDeal,
+		RoundNumber: 1,
+		Turn:        2,
+		Hands: [][]heartsclient.Card{
+			{{Rank: "two", Suit: "clubs"}},
+			{{Rank: "three", Suit: "clubs"}},
+			{{Rank: "four", Suit: "clubs"}},
+			{{Rank: "five", Suit: "clubs"}},
+		},
+		Trick:       []heartsclient.TrickEntry{},
+		Scores:      []int{0, 0, 0, 0},
+		RoundPoints: []int{0, 0, 0, 0},
+	}
+	c.HandleSnapshot(mustMarshal(t, snap))
+
+	got := c.Render(80, 24)
+	if !strings.Contains(got, "Dealing") {
+		t.Errorf("observer deal render = %q, want to contain %q", got, "Dealing")
+	}
+	if strings.Contains(got, "'s turn") {
+		t.Errorf("observer deal render = %q, want no turn line during deal", got)
+	}
+}

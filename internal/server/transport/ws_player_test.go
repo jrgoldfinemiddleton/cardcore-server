@@ -261,6 +261,9 @@ func (errorGame) ObserverSnapshot(seq int) any {
 // keeps the test fast.
 func (errorGame) DisplayDelay() int { return 0 }
 
+// DealPending reports false; errorGame starts directly in an actionable state.
+func (errorGame) DealPending() bool { return false }
+
 // SetPaused is a no-op; errorGame does not track pause state.
 func (errorGame) SetPaused(bool) {}
 

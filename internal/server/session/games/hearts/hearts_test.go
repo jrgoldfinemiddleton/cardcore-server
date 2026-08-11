@@ -43,6 +43,65 @@ func TestNewGameAdapterCapturesPreviousScores(t *testing.T) {
 	}
 }
 
+// TestDealPendingLifecycle verifies that construction marks the fresh deal for
+// display and DisplayDelay consumes that marker.
+func TestDealPendingLifecycle(t *testing.T) {
+	a, err := NewGameAdapter(validSeats(), testRNG(), 25, 0, 0)
+	if err != nil {
+		t.Fatalf("NewGameAdapter: %v", err)
+	}
+
+	if got, want := a.DealPending(), true; got != want {
+		t.Errorf("DealPending before DisplayDelay: got %t, want %t", got, want)
+	}
+	if got, want := a.DisplayDelay(), 25; got != want {
+		t.Errorf("DisplayDelay: got %d, want %d", got, want)
+	}
+	if got, want := a.DealPending(), false; got != want {
+		t.Errorf("DealPending after DisplayDelay: got %t, want %t", got, want)
+	}
+}
+
+// TestResumeDealPendingOnNewRound verifies that resuming a completed round
+// exposes the fresh deal until its display delay is consumed.
+func TestResumeDealPendingOnNewRound(t *testing.T) {
+	a, err := NewGameAdapter(validSeats(), testRNG(), 25, 0, 0)
+	if err != nil {
+		t.Fatalf("NewGameAdapter: %v", err)
+	}
+	_ = a.DisplayDelay()
+	a.game.Phase = hearts.PhaseScore
+	a.paused = &pauseState{roundComplete: true}
+	wantRound := a.game.Round + 2
+
+	res, err := a.Resume()
+	if err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	if got, want := res.Outcome, session.StepContinue; got != want {
+		t.Fatalf("Resume outcome: got %d, want %d", got, want)
+	}
+	if got, want := a.DealPending(), true; got != want {
+		t.Errorf("DealPending after Resume: got %t, want %t", got, want)
+	}
+	dealSnap := a.PlayerSnapshot(0, 1).(*heartsapi.PlayerSnapshot)
+	if got, want := dealSnap.Phase, "deal"; got != want {
+		t.Errorf("deal snapshot phase: got %q, want %q", got, want)
+	}
+	if got, want := len(dealSnap.Hand), hearts.HandSize; got != want {
+		t.Errorf("deal snapshot hand length: got %d, want %d", got, want)
+	}
+	if got := dealSnap.RoundNumber; got != wantRound {
+		t.Errorf("deal snapshot RoundNumber: got %d, want %d", got, wantRound)
+	}
+
+	_ = a.DisplayDelay()
+	transitionSnap := a.PlayerSnapshot(0, 2).(*heartsapi.PlayerSnapshot)
+	if transitionSnap.Phase != "passing" && transitionSnap.Phase != "playing" {
+		t.Errorf("transition phase: got %q, want passing or playing", transitionSnap.Phase)
+	}
+}
+
 // TestResumeUpdatesPreviousScores verifies that previousScores is refreshed to
 // the cumulative scores when Resume deals a new round.
 func TestResumeUpdatesPreviousScores(t *testing.T) {
