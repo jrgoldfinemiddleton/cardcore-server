@@ -49,7 +49,10 @@ func (s *session) handleSubscribePlayer(c subscribePlayerCmd) {
 	}
 	s.logger.Info("player subscribed", "seat", c.seat, "replaced", replaced)
 	s.players[c.seat] = c.ch
-	snap := s.playerSnapshot(c.seat)
+	snap := s.dealPlayerSnapshots[c.seat]
+	if snap == nil {
+		snap = s.playerSnapshot(c.seat)
+	}
 	if snap == nil {
 		s.terminateOnMarshalFailure(
 			"player snapshot marshal failed",
@@ -64,7 +67,10 @@ func (s *session) handleSubscribePlayer(c subscribePlayerCmd) {
 func (s *session) handleSubscribeObserver(c subscribeObserverCmd) {
 	s.logger.Info("observer subscribed", "observer_count", len(s.observers)+1)
 	s.observers = append(s.observers, c.ch)
-	snap := s.observerSnapshot()
+	snap := s.dealObserverSnapshot
+	if snap == nil {
+		snap = s.observerSnapshot()
+	}
 	if snap == nil {
 		s.terminateOnMarshalFailure("observer snapshot marshal failed")
 		return

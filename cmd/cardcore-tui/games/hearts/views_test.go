@@ -477,3 +477,16 @@ func TestRenderPausedViewLightTheme(t *testing.T) {
 		t.Errorf("dark and light raw output should differ due to colors")
 	}
 }
+
+// TestRenderDealView verifies the deal view shows the dealing message and
+// renders exactly the requested height.
+func TestRenderDealView(t *testing.T) {
+	got := RenderDealView(NewDarkTheme(), 80, 14)
+	if !strings.Contains(got, "Dealing") {
+		t.Errorf("RenderDealView = %q, want to contain 'Dealing'", got)
+	}
+	lines := strings.Split(got, "\n")
+	if len(lines) != 14 {
+		t.Errorf("RenderDealView has %d lines, want 14", len(lines))
+	}
+}

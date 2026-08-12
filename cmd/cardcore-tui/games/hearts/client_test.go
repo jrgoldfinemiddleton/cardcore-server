@@ -241,6 +241,44 @@ func TestClientObserverIgnoresKeys(t *testing.T) {
 	}
 }
 
+// TestClientDealPhaseIgnoresKeys verifies that key presses during the deal
+// phase produce no command, no status, and no selection state change: input
+// is inert while the deck is being dealt.
+func TestClientDealPhaseIgnoresKeys(t *testing.T) {
+	c := NewClient(0, false, NewDarkTheme())
+	snap := heartsclient.PlayerSnapshot{
+		Phase: heartsclient.PhaseDeal,
+		Hand: []heartsclient.Card{
+			{Rank: "two", Suit: "clubs"},
+			{Rank: "three", Suit: "clubs"},
+			{Rank: "four", Suit: "clubs"},
+			{Rank: "five", Suit: "clubs"},
+		},
+	}
+	c.HandleSnapshot(mustMarshal(t, snap))
+
+	for _, key := range []tea.KeyPressMsg{
+		{Code: tea.KeyLeft},
+		{Code: tea.KeyRight},
+		{Code: tea.KeySpace},
+		{Code: tea.KeyEnter},
+	} {
+		_, send, status := c.HandleKey(key)
+		if send {
+			t.Errorf("got send true for key %v, want false", key.Code)
+		}
+		if status != "" {
+			t.Errorf("got status %q for key %v, want empty", status, key.Code)
+		}
+	}
+	if c.cursor != 0 {
+		t.Errorf("got cursor %d, want 0", c.cursor)
+	}
+	if len(c.selected) != 0 {
+		t.Errorf("got %d selected, want 0", len(c.selected))
+	}
+}
+
 // TestClientRenderObserver verifies the observer render includes seat labels.
 func TestClientRenderObserver(t *testing.T) {
 	c := NewClient(0, true, NewDarkTheme())
@@ -280,6 +318,44 @@ func TestClientPhaseResetSelection(t *testing.T) {
 
 	if len(c.selected) != 0 {
 		t.Errorf("got %d selected after phase change, want 0", len(c.selected))
+	}
+}
+
+// TestClientDealTransitionResetsSelection verifies that a passing-to-deal
+// phase change clears the pass selection, resets the cursor, and re-enables
+// submission. This locks the generic phase-change reset for the deal
+// transition at round boundaries.
+func TestClientDealTransitionResetsSelection(t *testing.T) {
+	c := newPassingClient(t)
+	c.HandleKey(tea.KeyPressMsg{Code: tea.KeySpace})
+	c.HandleKey(tea.KeyPressMsg{Code: tea.KeyRight})
+	c.submitted = true
+	if len(c.selected) != 1 {
+		t.Fatalf("got %d selected before transition, want 1", len(c.selected))
+	}
+	if c.cursor != 1 {
+		t.Fatalf("got cursor %d before transition, want 1", c.cursor)
+	}
+
+	deal := heartsclient.PlayerSnapshot{
+		Phase: heartsclient.PhaseDeal,
+		Hand: []heartsclient.Card{
+			{Rank: "two", Suit: "clubs"},
+			{Rank: "three", Suit: "clubs"},
+			{Rank: "four", Suit: "clubs"},
+			{Rank: "five", Suit: "clubs"},
+		},
+	}
+	c.HandleSnapshot(mustMarshal(t, deal))
+
+	if c.selected != nil {
+		t.Errorf("got selected %v after deal transition, want nil", c.selected)
+	}
+	if c.cursor != 0 {
+		t.Errorf("got cursor %d after deal transition, want 0", c.cursor)
+	}
+	if c.submitted {
+		t.Errorf("got submitted true after deal transition, want false")
 	}
 }
 

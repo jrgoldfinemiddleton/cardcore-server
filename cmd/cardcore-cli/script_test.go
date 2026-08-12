@@ -153,6 +153,29 @@ func TestScriptExecutorTransitionalPhase(t *testing.T) {
 	}
 }
 
+// TestScriptExecutorDealPhase verifies that a deal snapshot produces no
+// command and no error even when the snapshot's turn matches the
+// executor's seat: deal is transitional, so the skip comes from the
+// isTransitional branch rather than the early not-my-turn return.
+func TestScriptExecutorDealPhase(t *testing.T) {
+	script := Script{"playing": {Phase: "playing", Action: "play_card", Selector: "first_legal"}}
+	exec := NewScriptExecutor(script, 0, heartscli.NewBuilder())
+
+	// turn equals the executor's seat, so the not-my-turn return does
+	// not apply; deal must be skipped as a transitional phase.
+	snapshot := []byte(`{"phase": "deal", "seq": 1, "turn": 0}`)
+	cmd, done, err := exec.Step(snapshot)
+	if err != nil {
+		t.Fatalf("unexpected error for deal phase: %v", err)
+	}
+	if done {
+		t.Fatal("expected done=false")
+	}
+	if cmd.Type != "" {
+		t.Errorf("expected zero command for deal phase, got %+v", cmd)
+	}
+}
+
 // TestScriptExecutorMissingActionablePhase verifies that an actionable
 // phase missing from the script returns an error so the caller knows the
 // script is incomplete.

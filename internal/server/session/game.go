@@ -94,6 +94,11 @@ type Game interface {
 	// json.Marshal on the returned value.
 	ObserverSnapshot(seq int) any
 
+	// DealPending reports whether a fresh deal is awaiting its display
+	// window. The session broadcasts a deal-phase snapshot before the
+	// display delay and a transition snapshot after it.
+	DealPending() bool
+
 	// DisplayDelay returns the number of milliseconds to wait before
 	// advancing past the current game state. Zero means advance
 	// immediately. The session goroutine calls this after broadcasting

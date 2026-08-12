@@ -60,9 +60,9 @@ type Config struct {
 	// move-computation time. Nil means use the default (1000ms).
 	// *0 means no delay.
 	AIActionDelayMS *int `json:"ai_action_delay_ms,omitempty"`
-	// DealDisplayDelayMS is how long to show the deal before
-	// advancing. Applied after every Deal() — initial game start and
-	// between rounds. Nil means use the default (1500ms). *0 means no delay.
+	// DealDisplayDelayMS controls how long the deal snapshot lingers before
+	// the transition broadcast. A deal snapshot is emitted for every deal,
+	// including when this is *0. Nil means use the default (1500ms).
 	DealDisplayDelayMS *int `json:"deal_display_delay_ms,omitempty"`
 	// TurnTimeoutMS is the maximum time in milliseconds to wait for
 	// a human player to act before auto-playing an AI move on their

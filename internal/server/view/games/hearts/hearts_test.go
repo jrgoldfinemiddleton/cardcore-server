@@ -228,7 +228,7 @@ func TestTrickNumberCapped(t *testing.T) {
 }
 
 // TestPlayerViewPhasePriority verifies the override hierarchy below the
-// paused state: TrickComplete > RoundComplete > engine phase.
+// paused state: TrickComplete > RoundComplete > DealPending > engine phase.
 func TestPlayerViewPhasePriority(t *testing.T) {
 	phases := []hearts.Phase{hearts.PhaseDeal, hearts.PhaseScore}
 	for _, phase := range phases {
@@ -249,12 +249,64 @@ func TestPlayerViewPhasePriority(t *testing.T) {
 			t.Errorf("phase %v, RoundComplete: got %q, want %q", phase, got, want)
 		}
 
+		// DealPending overrides the engine phase.
+		vs = ViewState{Game: g, DealPending: true}
+		snap = PlayerView(vs, 0, 0)
+		if got, want := snap.Phase, "deal"; got != want {
+			t.Errorf("phase %v, DealPending: got %q, want %q", phase, got, want)
+		}
+
+		// RoundComplete overrides DealPending.
+		vs = ViewState{Game: g, RoundComplete: true, DealPending: true}
+		snap = PlayerView(vs, 0, 0)
+		if got, want := snap.Phase, "round_complete"; got != want {
+			t.Errorf("phase %v, RoundComplete and DealPending: got %q, want %q", phase, got, want)
+		}
+
 		// TrickComplete overrides RoundComplete.
 		vs = ViewState{Game: g, TrickComplete: true, RoundComplete: true}
 		snap = PlayerView(vs, 0, 0)
 		if got, want := snap.Phase, "trick_complete"; got != want {
 			t.Errorf("phase %v, both overrides: got %q, want %q", phase, got, want)
 		}
+	}
+}
+
+// TestPlayerViewDealPhase verifies that a pending deal exposes the freshly
+// dealt hand while suppressing all legal actions.
+func TestPlayerViewDealPhase(t *testing.T) {
+	g := dealGame(t)
+
+	snap := PlayerView(ViewState{Game: g, DealPending: true}, 0, 1)
+
+	if got, want := snap.Phase, "deal"; got != want {
+		t.Errorf("Phase: got %q, want %q", got, want)
+	}
+	if got, want := len(snap.Hand), hearts.HandSize; got != want {
+		t.Errorf("Hand length: got %d, want %d", got, want)
+	}
+	if got := len(snap.LegalActions); got != 0 {
+		t.Errorf("LegalActions length: got %d, want 0", got)
+	}
+}
+
+// TestObserverViewDealPhase verifies that a pending deal exposes every freshly
+// dealt hand to observers while suppressing all legal actions.
+func TestObserverViewDealPhase(t *testing.T) {
+	g := dealGame(t)
+
+	snap := ObserverView(ViewState{Game: g, DealPending: true}, 1)
+
+	if got, want := snap.Phase, "deal"; got != want {
+		t.Errorf("Phase: got %q, want %q", got, want)
+	}
+	for seat, hand := range snap.Hands {
+		if got, want := len(hand), hearts.HandSize; got != want {
+			t.Errorf("Hands[%d] length: got %d, want %d", seat, got, want)
+		}
+	}
+	if got := len(snap.LegalActions); got != 0 {
+		t.Errorf("LegalActions length: got %d, want 0", got)
 	}
 }
 

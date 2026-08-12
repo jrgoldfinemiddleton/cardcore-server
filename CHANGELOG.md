@@ -10,6 +10,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- Hearts `deal` phase on the wire: every deal (game start and each round boundary) now broadcasts a server-synthesized `deal` snapshot carrying the freshly dealt hands with empty `legal_actions` and `turn_deadline_ms` 0, followed — after `deal_display_delay_ms` — by the actionable `passing`/`playing` transition snapshot, so each round begins with one extra broadcast. The pair is emitted even when the delay is `0` (zero skips only the pause), and clients subscribing during the initial deal window are served the deal snapshot immediately instead of waiting out the delay
+- TUI Hearts observer deal view: observers now see the same `Dealing...` overlay as seated players during the `deal` phase instead of the square table with a stale turn line
 - `cmd/cardcore-tui/games/hearts/AGENTS.md` package guide for the Hearts TUI slice
 - `TestConstAndFieldDocComments` convention test: every exported const (grouped, iota, or single) and every field of an exported struct must have a doc comment starting with its name; the `exhaustive` linter is enabled with `default-signifies-exhaustive: true`, and the rules are documented in CONTRIBUTING.md
 - `make bench` target: runs all benchmarks with `-benchmem -count=6` for `benchstat` comparison (supporting the release-flow performance spot-check), backed by the new `golang.org/x/perf` tool dependency
@@ -94,6 +96,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- Hearts turn deadline timing: a round's first `turn_deadline_ms` is now stamped on the post-deal transition snapshot instead of before the deal display window, so the deal display time no longer consumes the human's turn time
 - TUI theme ownership: the game-agnostic `Theme` palette moved out of the Hearts package into a new `cmd/cardcore-tui/theme/` package; `heartstui.Theme` now embeds the shell palette and adds only the Hearts-specific `WinnerBg` field, and the TUI's `newGameClient` takes the theme name so each game constructs its own palette. The pre-game menu and layout styles no longer depend on the Hearts package
 - Nested `AGENTS.md` directory trees now cover every functional production file in their subtree (adding the previously missing `internal/server/session/registry.go` and `internal/client/games/hearts/symbols.go`, and expanding `session/games/hearts/`) and omit `doc.go` and plain unit-test files; helper, benchmark, stress, and integration test files remain listed
 - Session-layer documentation accuracy: `Config.AIActionDelayMS` now documents that the pacing delay elapses before the Cardcore engine computes the AI's move, so the observed gap between AI turns is the delay plus the engine's computation time; `TurnTimeoutMS` notes the AI move is auto-played on the human's behalf; `Summary` is identified as the abbreviated form of `Info`; each `Manager` sentinel error has its own doc comment; the `Manager` type comment explains why its maps are mutex-protected (concurrent transport handler goroutines, with ADR-006 covering the session-goroutine side); and the `SubscribePlayer`/`SubscribeObserver` doc comments now state that subscriptions are handed to the session goroutine via commands

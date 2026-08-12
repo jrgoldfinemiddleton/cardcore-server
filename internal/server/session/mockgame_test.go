@@ -69,6 +69,84 @@ type delayGame struct {
 // seq value so tests can verify the sequence number in the wire format.
 type seqSnapshotGame struct{}
 
+// dealPendingGame records deal consumption, deadline stamping, and snapshot
+// sequence so tests can verify both startup and resumed deal transitions.
+type dealPendingGame struct {
+	pending    bool
+	resumeDeal bool
+	delay      int
+	deadlines  []time.Time
+}
+
+// HandleAction returns StepContinue; dealPendingGame tests drive startup or
+// resume behavior directly.
+func (g *dealPendingGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
+	return StepResult{Outcome: StepContinue}, nil
+}
+
+// AIPlay returns StepContinue; dealPendingGame tests use a human seat.
+func (g *dealPendingGame) AIPlay(int) (StepResult, error) {
+	return StepResult{Outcome: StepContinue}, nil
+}
+
+// Resume optionally starts a fresh deal and returns StepContinue.
+func (g *dealPendingGame) Resume() (StepResult, error) {
+	if g.resumeDeal {
+		g.pending = true
+	}
+	return StepResult{Outcome: StepContinue}, nil
+}
+
+// Turn returns the single human seat used by deal transition tests.
+func (g *dealPendingGame) Turn() int { return 0 }
+
+// PlayerSnapshot returns the sequence, synthesized phase marker, and deadline.
+func (g *dealPendingGame) PlayerSnapshot(_, seq int) any {
+	return g.snapshot(seq)
+}
+
+// ObserverSnapshot returns the same transition fields as PlayerSnapshot.
+func (g *dealPendingGame) ObserverSnapshot(seq int) any {
+	return g.snapshot(seq)
+}
+
+// DealPending reports whether the deal snapshot is awaiting display.
+func (g *dealPendingGame) DealPending() bool { return g.pending }
+
+// DisplayDelay consumes a pending deal and returns the configured delay.
+func (g *dealPendingGame) DisplayDelay() int {
+	if !g.pending {
+		return 0
+	}
+	g.pending = false
+	return g.delay
+}
+
+// SetTurnDeadline records every deadline update for ordering assertions.
+func (g *dealPendingGame) SetTurnDeadline(deadline time.Time) {
+	g.deadlines = append(g.deadlines, deadline)
+}
+
+// SetPaused is a no-op; dealPendingGame does not model external pauses.
+func (g *dealPendingGame) SetPaused(bool) {}
+
+// snapshot builds the observable state used by deal transition tests.
+func (g *dealPendingGame) snapshot(seq int) any {
+	phase := "playing"
+	if g.pending {
+		phase = "deal"
+	}
+	var deadline time.Time
+	if len(g.deadlines) > 0 {
+		deadline = g.deadlines[len(g.deadlines)-1]
+	}
+	return map[string]any{
+		"seq":              seq,
+		"phase":            phase,
+		"turn_deadline_ms": deadline.UnixMilli(),
+	}
+}
+
 // HandleAction accepts every action and returns StepContinue; the seq test
 // exercises snapshot numbering, not action handling.
 func (seqSnapshotGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
@@ -106,6 +184,9 @@ func (seqSnapshotGame) ObserverSnapshot(seq int) any {
 
 // DisplayDelay returns zero; the seq test does not exercise UX pacing.
 func (seqSnapshotGame) DisplayDelay() int { return 0 }
+
+// DealPending reports false; seqSnapshotGame has no deal phase to display.
+func (seqSnapshotGame) DealPending() bool { return false }
 
 // SetTurnDeadline is a no-op; seqSnapshotGame does not track turn
 // deadlines.
@@ -159,6 +240,9 @@ func (a *aiPlayPauseGame) ObserverSnapshot(int) any {
 // session's configured AI action delay.
 func (a *aiPlayPauseGame) DisplayDelay() int { return 0 }
 
+// DealPending reports false; aiPlayPauseGame does not model fresh deals.
+func (a *aiPlayPauseGame) DealPending() bool { return false }
+
 // SetTurnDeadline is a no-op; aiPlayPauseGame does not track turn
 // deadlines.
 func (a *aiPlayPauseGame) SetTurnDeadline(time.Time) {}
@@ -198,6 +282,9 @@ func (d *delayGame) ObserverSnapshot(int) any { return nil }
 // DisplayDelay returns the configured delay so the test can verify the
 // goroutine sleeps before advancing past the initial state.
 func (d *delayGame) DisplayDelay() int { return d.delay }
+
+// DealPending reports false so delayGame exercises display pacing without a deal.
+func (d *delayGame) DealPending() bool { return false }
 
 // SetTurnDeadline is a no-op; delayGame does not track turn deadlines.
 func (d *delayGame) SetTurnDeadline(time.Time) {}
@@ -244,6 +331,9 @@ func (m *mockGame) ObserverSnapshot(int) any {
 // DisplayDelay returns zero so tests are not slowed by UX pacing.
 func (m *mockGame) DisplayDelay() int { return 0 }
 
+// DealPending reports false; mockGame has no deal phase to display.
+func (m *mockGame) DealPending() bool { return false }
+
 // SetTurnDeadline is a no-op; mockGame does not track turn deadlines.
 func (m *mockGame) SetTurnDeadline(time.Time) {}
 
@@ -288,6 +378,9 @@ func (s *stepFinishedGame) ObserverSnapshot(int) any {
 
 // DisplayDelay returns zero; the game-over tests do not exercise UX pacing.
 func (s *stepFinishedGame) DisplayDelay() int { return 0 }
+
+// DealPending reports false; stepFinishedGame does not model fresh deals.
+func (s *stepFinishedGame) DealPending() bool { return false }
 
 // SetTurnDeadline is a no-op; stepFinishedGame does not track turn
 // deadlines.
@@ -335,6 +428,9 @@ func (u *unmarshalableGame) ObserverSnapshot(int) any {
 // DisplayDelay returns zero; the marshal-failure test does not exercise UX
 // pacing.
 func (u *unmarshalableGame) DisplayDelay() int { return 0 }
+
+// DealPending reports false; unmarshalableGame fails on its initial snapshot.
+func (u *unmarshalableGame) DealPending() bool { return false }
 
 // SetTurnDeadline is a no-op; unmarshalableGame does not track turn
 // deadlines.
@@ -384,6 +480,9 @@ func (p *playerSnapshotUnmarshalableGame) ObserverSnapshot(int) any {
 // DisplayDelay returns zero; the marshal-failure tests do not exercise UX
 // pacing.
 func (p *playerSnapshotUnmarshalableGame) DisplayDelay() int { return 0 }
+
+// DealPending reports false; this mock isolates player snapshot marshaling.
+func (p *playerSnapshotUnmarshalableGame) DealPending() bool { return false }
 
 // SetTurnDeadline is a no-op; playerSnapshotUnmarshalableGame does not
 // track turn deadlines.
@@ -435,6 +534,9 @@ func (g *timeoutGame) ObserverSnapshot(int) any {
 // turn-timeout configuration, not the game.
 func (g *timeoutGame) DisplayDelay() int { return 0 }
 
+// DealPending reports false; timeoutGame starts directly on a human turn.
+func (g *timeoutGame) DealPending() bool { return false }
+
 // SetTurnDeadline is a no-op; timeoutGame lets the session own deadline
 // scheduling and does not track it.
 func (g *timeoutGame) SetTurnDeadline(time.Time) {}
@@ -483,6 +585,9 @@ func (a *aiPlayFinishedGame) ObserverSnapshot(int) any {
 // instead of using game pacing.
 func (a *aiPlayFinishedGame) DisplayDelay() int { return 0 }
 
+// DealPending reports false; aiPlayFinishedGame does not model fresh deals.
+func (a *aiPlayFinishedGame) DealPending() bool { return false }
+
 // SetTurnDeadline is a no-op; aiPlayFinishedGame does not track turn
 // deadlines.
 func (a *aiPlayFinishedGame) SetTurnDeadline(time.Time) {}
@@ -529,6 +634,9 @@ func (i *invalidTurnGame) ObserverSnapshot(int) any {
 // DisplayDelay returns zero; the invalid-turn test does not exercise UX
 // pacing.
 func (i *invalidTurnGame) DisplayDelay() int { return 0 }
+
+// DealPending reports false; invalidTurnGame fails before game progression.
+func (i *invalidTurnGame) DealPending() bool { return false }
 
 // SetTurnDeadline is a no-op; invalidTurnGame does not track turn
 // deadlines.
@@ -586,6 +694,9 @@ func (d *deadlineBroadcastGame) ObserverSnapshot(seq int) any {
 // DisplayDelay returns zero; the deadline test does not exercise UX pacing.
 func (d *deadlineBroadcastGame) DisplayDelay() int { return 0 }
 
+// DealPending reports false; deadlineBroadcastGame models actionable turns.
+func (d *deadlineBroadcastGame) DealPending() bool { return false }
+
 // SetTurnDeadline stores the deadline in the deadline field so the next
 // snapshot broadcasts it as turn_deadline_ms.
 func (d *deadlineBroadcastGame) SetTurnDeadline(deadline time.Time) {
@@ -627,6 +738,9 @@ func (g *handleActionSpyGame) ObserverSnapshot(int) any { return nil }
 
 // DisplayDelay returns zero so spy tests are not slowed by UX pacing.
 func (g *handleActionSpyGame) DisplayDelay() int { return 0 }
+
+// DealPending reports false; handleActionSpyGame does not model fresh deals.
+func (g *handleActionSpyGame) DealPending() bool { return false }
 
 // SetTurnDeadline is a no-op; handleActionSpyGame does not track turn
 // deadlines.

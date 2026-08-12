@@ -72,6 +72,7 @@ func TestIntegrationTUIClientFullGame(t *testing.T) {
 	c := NewClient(0, false, NewDarkTheme())
 
 	var (
+		gotDeal             bool
 		gotPass             bool
 		gotPlay             bool
 		gotTrickComplete    bool
@@ -95,6 +96,11 @@ outer:
 		}
 
 		switch c.phase {
+		case heartsclient.PhaseDeal:
+			gotDeal = true
+			if !strings.Contains(rendered, "Dealing") {
+				t.Errorf("deal render: got %q, want to contain %q", rendered, "Dealing")
+			}
 		case heartsclient.PhasePassing:
 			gotPass = true
 			if c.playerSnap.Turn == 0 {
@@ -156,6 +162,9 @@ outer:
 		}
 	}
 
+	if !gotDeal {
+		t.Error("never saw deal phase")
+	}
 	if !gotPass {
 		t.Error("never saw passing phase")
 	}

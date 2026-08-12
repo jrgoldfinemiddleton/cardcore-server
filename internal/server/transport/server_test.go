@@ -1506,6 +1506,9 @@ func (stubGame) ObserverSnapshot(seq int) any {
 // keeps transport tests fast.
 func (stubGame) DisplayDelay() int { return 0 }
 
+// DealPending reports false; stubGame has no deal phase to display.
+func (stubGame) DealPending() bool { return false }
+
 // SetTurnDeadline is a no-op; stubGame does not track turn deadlines.
 func (stubGame) SetTurnDeadline(time.Time) {}
 
@@ -1553,6 +1556,9 @@ func (unmarshalableStubGame) ObserverSnapshot(int) any {
 
 // DisplayDelay returns 0; unmarshalableStubGame has no pacing states.
 func (unmarshalableStubGame) DisplayDelay() int { return 0 }
+
+// DealPending reports false; unmarshalableStubGame fails on snapshot marshal.
+func (unmarshalableStubGame) DealPending() bool { return false }
 
 // SetTurnDeadline is a no-op; unmarshalableStubGame does not track turn
 // deadlines.

@@ -37,6 +37,8 @@
 // single "playing" entry with "first_legal" covers every human turn in
 // the playing phase across all tricks and all rounds, regardless of
 // server pacing or the number of AI turns between human turns.
+// Transitional phases ("deal", "trick_complete", "round_complete") need
+// no script entry and are skipped automatically.
 //
 // Exit codes
 //

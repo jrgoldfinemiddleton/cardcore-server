@@ -37,8 +37,8 @@ type GameAdapter struct {
 	// roundDelay is the display delay in milliseconds returned when a
 	// round completes.
 	roundDelay int
-	// dealPending is true after a fresh Deal() and consumed by the first
-	// DisplayDelay() call in the new round.
+	// dealPending is true after a fresh Deal(), drives the synthesized deal
+	// phase through ViewState and DealPending, and is consumed by DisplayDelay.
 	dealPending bool
 	// previousScores holds the cumulative scores at the start of the current
 	// round. It is used to compute the per-seat score delta shown in the
@@ -71,7 +71,8 @@ const defaultHumanAIType = "random"
 // NewGameAdapter creates a Hearts game adapter. It validates the seat
 // configuration, creates AI players for all seats (AI seats use their
 // configured ai_type; human seats use their configured ai_type when set,
-// falling back to "random" otherwise), and deals the first hand.
+// falling back to "random" otherwise), and deals the first hand. It marks the
+// deal pending so the session emits deal before the first actionable snapshot.
 func NewGameAdapter(
 	seats []session.SeatConfig, rng *rand.Rand,
 	dealDelay, trickDelay, roundDelay int,
@@ -236,7 +237,8 @@ func (a *GameAdapter) Resume() (session.StepResult, error) {
 				Outcome: session.StepFinished,
 			}, nil
 		}
-		// New round: deal and continue.
+		// New round: dealPending makes session.resumePauses broadcast deal
+		// and then the actionable transition after the display delay.
 		if err := a.game.Deal(); err != nil {
 			return session.StepResult{},
 				fmt.Errorf("deal: %w", err)
@@ -278,10 +280,15 @@ func (a *GameAdapter) SetPaused(paused bool) {
 	a.isPaused = paused
 }
 
-// DisplayDelay returns phase-aware pacing: deal delay on fresh deals,
-// trick delay on trick completion, round delay on round completion, and
-// zero otherwise. This gives clients time to render each phase
-// transition.
+// DealPending reports whether a freshly dealt hand is awaiting its deal-phase
+// display window.
+func (a *GameAdapter) DealPending() bool {
+	return a.dealPending
+}
+
+// DisplayDelay returns phase-aware pacing: deal delay on fresh deals, trick
+// delay on trick completion, round delay on round completion, and zero
+// otherwise. Consuming a fresh deal clears deal-phase synthesis.
 func (a *GameAdapter) DisplayDelay() int {
 	if a.dealPending {
 		a.dealPending = false
@@ -424,6 +431,7 @@ func (a *GameAdapter) advanceTurn() {
 func (a *GameAdapter) viewState() heartsview.ViewState {
 	vs := heartsview.ViewState{
 		Game:           a.game,
+		DealPending:    a.dealPending,
 		TurnDeadline:   a.turnDeadline,
 		PreviousScores: a.previousScores,
 	}

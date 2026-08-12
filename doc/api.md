@@ -107,7 +107,7 @@ Creates a new session in `draft` state.
 | `game` | string | yes | Game identifier (e.g., `"hearts"`). |
 | `seats` | array of seat config | yes | One entry per seat. |
 | `ai_action_delay_ms` | integer | no | Delay in milliseconds between AI turns. Default: `1000`. Use `0` for tests. |
-| `deal_display_delay_ms` | integer | no | How long to show the deal before advancing. Applied after every `Deal()` — initial game start and between rounds. Default: `1500`. Use `0` for tests. |
+| `deal_display_delay_ms` | integer | no | How long the `deal` snapshot lingers before the transition snapshot. A `deal` snapshot is broadcast at every deal, including when this is `0`; zero skips only the pause. Default: `1500`. |
 | `turn_timeout_ms` | integer | no | Maximum time in milliseconds to wait for a human player to act before auto-playing an AI move. Default: `30000` (30s). Use `0` to disable. |
 
 > **UX hint:** If a human sends an action at the exact moment the timeout fires, the server may process the timeout first and reject the human action with `wrong_turn`. To minimize this race, clients should disable the play UI at least 500 ms before the configured timeout (e.g., a 30 s timeout should show a 29.5 s countdown and grey out controls at 0 s remaining).
@@ -241,6 +241,10 @@ POST /sessions/{id}/start
 
 Transitions the session from `draft` to `active`. Initializes the game
 engine. No request body.
+
+The first game snapshot is `phase: "deal"` at `seq=1`. After
+`deal_display_delay_ms`, the server sends the actionable `passing` or
+`playing` snapshot with the turn deadline at `seq=2`.
 
 **Response:** `200 OK`
 
@@ -403,6 +407,11 @@ increasing integer starting at 1. Every snapshot the server sends has
 `seq >= 1`. The initial snapshot sent on WebSocket connection (both
 player and observer) carries `seq=1` if no state changes have occurred
 yet, or the current `seq` if the client connected mid-game.
+
+At each deal the session broadcasts two snapshots: first the
+server-synthesized `deal` snapshot with no active deadline, then the
+actionable transition after `deal_display_delay_ms`. This remains two
+broadcasts when the configured delay is `0`.
 
 On connection, the client initializes `maxSeenSeq` to 0, so the initial
 snapshot is always accepted. When sending a command, the client includes

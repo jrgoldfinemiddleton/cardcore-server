@@ -1014,6 +1014,44 @@ func TestSessionInitialDisplayDelay(t *testing.T) {
 	}
 }
 
+// TestSessionInitialDealBroadcastsTwice verifies that startup emits deal before
+// waiting and stamps the human deadline only on the transition snapshot.
+func TestSessionInitialDealBroadcastsTwice(t *testing.T) {
+	testSessionInitialDealBroadcastsTwice(t, 20)
+}
+
+// TestSessionDealZeroDelayStillBroadcasts verifies that a zero display delay
+// skips only sleeping and preserves both startup broadcasts.
+func TestSessionDealZeroDelayStillBroadcasts(t *testing.T) {
+	testSessionInitialDealBroadcastsTwice(t, 0)
+}
+
+// TestSessionResumePausesDealTransition verifies that a resumed fresh deal
+// advances seq twice and stamps the deadline only after the deal delay.
+func TestSessionResumePausesDealTransition(t *testing.T) {
+	timeout := 10000
+	g := &dealPendingGame{resumeDeal: true, delay: 20}
+	s := newSession("test", g, Config{
+		Seats:         []SeatConfig{{Type: SeatHuman}},
+		TurnTimeoutMS: &timeout,
+	}, DefaultDelays{}, nil)
+	stopSessionGoroutine(s)
+	s.cancel = make(chan struct{})
+	s.seq = 5
+	ch := make(chan SubscriberMessage, subChanSize)
+	s.players[0] = ch
+
+	gotResult := s.resumePauses()
+
+	if gotResult != driveHuman {
+		t.Errorf("resumePauses result: got %d, want %d", gotResult, driveHuman)
+	}
+	if got, want := s.seq, 7; got != want {
+		t.Errorf("seq: got %d, want %d", got, want)
+	}
+	assertDealTransitionSnapshots(t, ch, 6, 7)
+}
+
 // TestHandlePauseCmdSuccess verifies that a valid pause command sets the
 // paused state and broadcasts a snapshot.
 func TestHandlePauseCmdSuccess(t *testing.T) {
@@ -1403,4 +1441,75 @@ func (p *pauseSpyGame) Paused() bool {
 func stopSessionGoroutine(s *session) {
 	close(s.cancel)
 	<-s.done
+}
+
+// testSessionInitialDealBroadcastsTwice verifies startup deal sequencing for a
+// configured display delay.
+func testSessionInitialDealBroadcastsTwice(t *testing.T, delay int) {
+	t.Helper()
+	timeout := 10000
+	g := &dealPendingGame{pending: true, delay: delay}
+	s := &session{
+		id:            "test",
+		seq:           1,
+		game:          g,
+		config:        Config{Seats: []SeatConfig{{Type: SeatHuman}}, TurnTimeoutMS: &timeout},
+		actionIDs:     make(map[string][]byte),
+		actionIDList:  list.New(),
+		actionIDIndex: make(map[string]*list.Element),
+		players:       map[int]chan SubscriberMessage{0: make(chan SubscriberMessage, subChanSize)},
+		cmds:          make(chan command, cmdChanSize),
+		cancel:        make(chan struct{}),
+		done:          make(chan struct{}),
+		logger:        slog.Default(),
+	}
+	go s.run()
+	t.Cleanup(func() {
+		close(s.cancel)
+		<-s.done
+	})
+
+	assertDealTransitionSnapshots(t, s.players[0], 1, 2)
+}
+
+// assertDealTransitionSnapshots checks the two observable startup or resume
+// snapshots in order.
+func assertDealTransitionSnapshots(
+	t *testing.T, ch <-chan SubscriberMessage, dealSeq, nextSeq int,
+) {
+	t.Helper()
+	for index, want := range []struct {
+		seq         int
+		phase       string
+		hasDeadline bool
+	}{
+		{seq: dealSeq, phase: "deal", hasDeadline: false},
+		{seq: nextSeq, phase: "playing", hasDeadline: true},
+	} {
+		select {
+		case msg := <-ch:
+			var got struct {
+				Seq            int    `json:"seq"`
+				Phase          string `json:"phase"`
+				TurnDeadlineMS int64  `json:"turn_deadline_ms"`
+			}
+			if err := json.Unmarshal(msg.Data, &got); err != nil {
+				t.Fatalf("snapshot %d unmarshal: %v", index, err)
+			}
+			if got.Seq != want.seq {
+				t.Errorf("snapshot %d seq: got %d, want %d", index, got.Seq, want.seq)
+			}
+			if got.Phase != want.phase {
+				t.Errorf("snapshot %d phase: got %q, want %q", index, got.Phase, want.phase)
+			}
+			if (got.TurnDeadlineMS > 0) != want.hasDeadline {
+				t.Errorf(
+					"snapshot %d deadline present: got %t, want %t",
+					index, got.TurnDeadlineMS > 0, want.hasDeadline,
+				)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("timed out waiting for snapshot %d", index)
+		}
+	}
 }

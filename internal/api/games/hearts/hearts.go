@@ -27,7 +27,8 @@ type PlayerSnapshot struct {
 	Seq int `json:"seq"`
 	// Phase is the current game phase: one of "deal", "passing",
 	// "playing", "trick_complete", "round_complete", "game_over", or
-	// "paused".
+	// "paused". Deal is server-synthesized once per fresh deal and carries
+	// the newly dealt hand with no legal actions or turn deadline.
 	Phase string `json:"phase"`
 	// RoundNumber is the current round, 1-indexed.
 	RoundNumber int `json:"round_number"`
@@ -66,11 +67,12 @@ type PlayerSnapshot struct {
 	// LegalActions lists the cards the player may legally play or pass.
 	// During the passing phase it holds the player's full hand; during the
 	// playing phase it is empty when it is not the player's turn. A paused
-	// snapshot keeps the legal actions of the underlying phase.
+	// snapshot keeps the legal actions of the underlying phase. It is empty
+	// during deal.
 	LegalActions []Card `json:"legal_actions"`
 	// TurnDeadlineMS is the server-side deadline for the current human
 	// turn as Unix milliseconds since the epoch, or 0 when no deadline is
-	// active.
+	// active. It is 0 during deal.
 	TurnDeadlineMS int64 `json:"turn_deadline_ms"`
 	// Paused indicates whether the game is currently paused.
 	Paused bool `json:"paused"`
@@ -85,7 +87,8 @@ type ObserverSnapshot struct {
 	Seq int `json:"seq"`
 	// Phase is the current game phase: one of "deal", "passing",
 	// "playing", "trick_complete", "round_complete", "game_over", or
-	// "paused".
+	// "paused". Deal is server-synthesized once per fresh deal and carries
+	// all newly dealt hands with no legal actions or turn deadline.
 	Phase string `json:"phase"`
 	// RoundNumber is the current round, 1-indexed.
 	RoundNumber int `json:"round_number"`
@@ -126,11 +129,11 @@ type ObserverSnapshot struct {
 	// moon shot (0 for the shooter, 26 for each other seat).
 	RoundPoints []int `json:"round_points"`
 	// LegalActions lists the cards the seat indicated by Turn may legally
-	// play or pass.
+	// play or pass. It is empty during deal.
 	LegalActions []Card `json:"legal_actions"`
 	// TurnDeadlineMS is the server-side deadline for the current human
 	// turn as Unix milliseconds since the epoch, or 0 when no deadline is
-	// active.
+	// active. It is 0 during deal.
 	TurnDeadlineMS int64 `json:"turn_deadline_ms"`
 	// Paused indicates whether the game is currently paused.
 	Paused bool `json:"paused"`
