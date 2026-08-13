@@ -125,7 +125,9 @@ func (e *HTTPError) Error() string {
 // CreateSession creates a new session in draft state.
 // On success it returns the session ID and seat info (including tokens
 // for human seats).
-func (c *SessionClient) CreateSession(ctx context.Context, cfg Config) (string, []SeatInfo, error) {
+func (c *SessionClient) CreateSession(
+	ctx context.Context, cfg Config,
+) (sessionID string, seats []SeatInfo, err error) {
 	data, err := json.Marshal(cfg)
 	if err != nil {
 		c.logger().Error("marshal create session config", "error", err)

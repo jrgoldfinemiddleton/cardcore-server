@@ -239,7 +239,7 @@ func (tallGameClient) LastError() string { return "" }
 
 // HandleKey is a no-op; tallGameClient does not handle input, so it
 // never produces a command or status.
-func (tallGameClient) HandleKey(_ tea.KeyPressMsg) (client.Command, bool, string) {
+func (tallGameClient) HandleKey(_ tea.KeyPressMsg) (cmd client.Command, send bool, status string) {
 	return client.Command{}, false, ""
 }
 
@@ -260,6 +260,6 @@ func (tallGameClient) SetInputDisabled(_ bool) {}
 func (tallGameClient) IsHumanTurn() bool { return false }
 
 // TogglePause always returns no command; tallGameClient does not model pause state.
-func (tallGameClient) TogglePause(_ bool) (client.Command, bool) {
+func (tallGameClient) TogglePause(_ bool) (cmd client.Command, send bool) {
 	return client.Command{}, false
 }

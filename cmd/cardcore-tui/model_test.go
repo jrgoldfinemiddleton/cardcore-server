@@ -785,7 +785,7 @@ func (f *fakeGame) LastError() string {
 // HandleKey increments keyCalls and returns the configured keyCmd,
 // keySend, and keyStatus so each test controls what a key press yields
 // and can verify the delegation happened.
-func (f *fakeGame) HandleKey(_ tea.KeyPressMsg) (client.Command, bool, string) {
+func (f *fakeGame) HandleKey(_ tea.KeyPressMsg) (cmd client.Command, send bool, status string) {
 	f.keyCalls++
 	return f.keyCmd, f.keySend, f.keyStatus
 }
@@ -816,7 +816,7 @@ func (f *fakeGame) IsHumanTurn() bool {
 // TogglePause returns a "resume" command when paused and a "pause"
 // command otherwise, mirroring the real client's toggle semantics so
 // pause tests get a sendable command.
-func (f *fakeGame) TogglePause(paused bool) (client.Command, bool) {
+func (f *fakeGame) TogglePause(paused bool) (cmd client.Command, send bool) {
 	if paused {
 		return client.Command{Type: "resume"}, true
 	}
