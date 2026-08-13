@@ -242,9 +242,13 @@ POST /sessions/{id}/start
 Transitions the session from `draft` to `active`. Initializes the game
 engine. No request body.
 
-The first game snapshot is `phase: "deal"` at `seq=1`. After
-`deal_display_delay_ms`, the server sends the actionable `passing` or
-`playing` snapshot with the turn deadline at `seq=2`.
+When the game opens with a fresh deal to display, the first snapshot is
+the deal snapshot at `seq=1`; after `deal_display_delay_ms` the server
+sends the actionable snapshot at `seq=2`, stamped with the first turn
+deadline when the opening turn is a human seat. A game with no deal to
+display instead sends a single actionable snapshot at `seq=1`. Which
+phases a game emits on start is defined in its protocol file (see
+[Supported Games](#supported-games)).
 
 **Response:** `200 OK`
 

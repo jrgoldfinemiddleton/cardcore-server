@@ -19,19 +19,27 @@ const (
 // driveResult tells driveTurns what happened inside processTurns or
 // resumePauses so it can decide whether to loop, return to run(), or
 // terminate the session.
-//
-// driveFatal triggers session cleanup inside
-// driveTurns. driveShutdown means the cancel channel fired during a
-// pacing delay and the handler should return to run()'s select loop
-// immediately without further processing so the goroutine can exit
-// without mutating state.
 type driveResult int
 
+// Outcomes that processTurns and resumePauses report to driveTurns.
 const (
+	// driveHuman means the game is waiting on a human seat's action;
+	// driveTurns returns so run()'s select loop can wait for the
+	// player's command or the turn timeout.
 	driveHuman driveResult = iota
+	// drivePaused means the game reached a pausable state; driveTurns
+	// loops into resumePauses until the pause chain resolves.
 	drivePaused
+	// driveFinished means the game is over or the session finished
+	// along the way; driveTurns returns so run() can drain and exit.
 	driveFinished
+	// driveFatal means an unrecoverable error occurred; driveTurns
+	// performs session cleanup itself — closing subscribers, invoking
+	// onDone, and marking the session finished — before returning.
 	driveFatal
+	// driveShutdown means the cancel channel fired during a pacing
+	// delay; the handler returns toward run()'s select loop without
+	// further state mutation so the cancellation can proceed.
 	driveShutdown
 )
 
@@ -74,11 +82,23 @@ type session struct {
 	players map[int]chan SubscriberMessage
 	// observers holds all observer subscriber channels.
 	observers []chan SubscriberMessage
-	// dealPlayerSnapshots holds seq-stable deal snapshots for players who
-	// subscribe after DisplayDelay consumes the adapter flag but before the
-	// transition broadcast.
+	// dealPlayerSnapshots holds the deal-phase player snapshots marshaled
+	// at the start of the deal display window, keyed by seat. The game
+	// adapter's pending-deal flag — the state behind the Game
+	// interface's DealPending method, which the view layer renders as
+	// the synthesized deal phase — is consumed by the DisplayDelay call
+	// that opens the window, so a snapshot generated mid-window would
+	// render the actionable phase instead of deal. The cache ensures
+	// players who subscribe during the window receive the same deal
+	// view, at the same seq, that connected subscribers already saw.
 	dealPlayerSnapshots map[int][]byte
-	// dealObserverSnapshot is the matching observer snapshot during that window.
+	// dealObserverSnapshot is the observer counterpart of
+	// dealPlayerSnapshots: the deal-phase observer snapshot marshaled at
+	// the start of the deal display window. Observers who subscribe
+	// after DisplayDelay consumed the pending-deal flag but before the
+	// transition broadcast receive this cached snapshot; once
+	// clearDealSnapshots ends the window, new observers get a freshly
+	// generated snapshot of the actionable state.
 	dealObserverSnapshot []byte
 
 	// cmds receives commands from the Manager.
@@ -240,12 +260,11 @@ func (s *session) run() {
 // session starts and would otherwise wait out the window on a blank
 // screen and never see the deal — while gameplay commands are deferred
 // until the transition broadcast, because the deal phase is not
-// actionable (doc/games/hearts/protocol.md). Deferral is deliberate:
-// the dealt hand is already final, so an early command is valid content
-// sent during a cosmetic pause, and rejecting it with wrong_phase would
-// punish the fastest clients for a server-side delay. The trick/round
-// display windows apply the same policy by leaving commands queued in
-// the channel during their sleeps.
+// actionable. Deferral is deliberate: the dealt hand is already final,
+// so an early command is valid content sent during a cosmetic pause, and
+// rejecting it with wrong_phase would punish eager clients for a
+// server-side delay. The trick/round display windows apply the same policy
+// by leaving commands queued in the channel during their sleeps.
 func (s *session) runDealPhase() bool {
 	s.broadcastSnapshot()
 	if s.finished {
@@ -330,12 +349,26 @@ func (s *session) awaitDealWindow(delay int) (deferred []command, ok bool) {
 	}
 }
 
-// driveTurns is the central orchestrator for the game event loop.
-// If fromPause is false it first calls processTurns to check the
-// current seat; if true it enters the resume cycle immediately because
-// the game is in a paused state. The status enums prevent unbounded
-// mutual recursion and keep all state transitions synchronous on the
-// session goroutine.
+// driveTurns is the central orchestrator for the game event loop. When
+// fromPause is false it starts with processTurns, which checks the seat
+// whose turn it is and plays AI turns until a human turn, a pause, or
+// the end of the game. When fromPause is true the caller has just
+// applied a mutation that returned StepPause, so the game is parked in
+// a pausable state awaiting Resume and Turn is not meaningful (the Game
+// interface only guarantees Turn after StepContinue); driveTurns
+// therefore starts with resumePauses instead of letting processTurns
+// inspect a stale turn.
+//
+// processTurns and resumePauses never call each other: they report a
+// driveResult and let driveTurns decide the next step. That converts
+// the would-be mutual recursion between them — a pause inside
+// processTurns leads to resumePauses, whose StepContinue leads back to
+// processTurns, and so on — into the flat loop below, so a long chain
+// of consecutive pauses (say, a full round of trick pauses in an all-AI
+// Hearts game) cannot grow the goroutine's stack without bound. Every
+// state transition also stays inline on the session goroutine: control
+// returns to run()'s select loop only via a driveResult, never through
+// a nested call or a spawned goroutine.
 func (s *session) driveTurns(fromPause bool) driveResult {
 	s.logger.Debug("driveTurns", "from_pause", fromPause)
 
@@ -362,9 +395,26 @@ func (s *session) driveTurns(fromPause bool) driveResult {
 	return status
 }
 
-// resumePauses waits for a pause display delay and calls Resume. A resumed
-// fresh deal is broadcast before its own delay, followed by the actionable
-// transition snapshot. It returns a driveResult so driveTurns can continue.
+// resumePauses advances the game out of a pausable state. It waits out
+// the pause's display delay (e.g. the trick or round display window),
+// calls Resume, and broadcasts the resulting snapshot at a new seq.
+//
+// Resume can itself produce a fresh deal: in Hearts, for example,
+// resuming from the round-complete pause ends the old round and deals
+// the next one, and any game with repeated deals can do the same. When
+// that happens the broadcast above is the new deal's deal snapshot —
+// the adapter's pending-deal flag is still set at broadcast time, and
+// the DisplayDelay call in the StepContinue branch below consumes it —
+// and resumePauses then waits out the new deal's own display window
+// before broadcasting the actionable transition snapshot at another new
+// seq. A deal that arrives via Resume thereby produces the same
+// deal-then-transition snapshot pair as the game's opening deal.
+//
+// The returned driveResult tells driveTurns how to proceed: drivePaused
+// when Resume returned another StepPause (chained pauses), the
+// processTurns result when play continues, driveFinished when the game
+// ended, driveFatal when Resume failed, or driveShutdown when cancel
+// fired during a wait.
 func (s *session) resumePauses() driveResult {
 	delay := s.game.DisplayDelay()
 	if delay > 0 {

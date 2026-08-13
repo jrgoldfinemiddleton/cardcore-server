@@ -39,7 +39,13 @@ func (s *session) sendError(seat int, code, message, actionID string) {
 	s.sendNonBlocking(ch, b)
 }
 
-// handleSubscribePlayer registers a new player subscriber.
+// handleSubscribePlayer registers a new player subscriber and sends it an
+// initial snapshot. While the deal display window is open — after the deal
+// broadcast, before the actionable transition — it sends the cached deal
+// snapshot for the seat, so the late subscriber sees the same deal view at
+// the same seq as connected players; at all other times it generates a
+// fresh snapshot of the current state.
+//
 // If the seat already has a subscriber, the old channel is closed.
 func (s *session) handleSubscribePlayer(c subscribePlayerCmd) {
 	replaced := false
@@ -63,7 +69,11 @@ func (s *session) handleSubscribePlayer(c subscribePlayerCmd) {
 	s.sendNonBlocking(c.ch, snap)
 }
 
-// handleSubscribeObserver registers a new observer subscriber.
+// handleSubscribeObserver registers a new observer subscriber and sends it
+// an initial snapshot: the cached deal observer snapshot while the deal
+// display window is open (after the deal broadcast, before the actionable
+// transition), or a freshly generated full-state snapshot at all other
+// times.
 func (s *session) handleSubscribeObserver(c subscribeObserverCmd) {
 	s.logger.Info("observer subscribed", "observer_count", len(s.observers)+1)
 	s.observers = append(s.observers, c.ch)

@@ -38,7 +38,8 @@ type GameAdapter struct {
 	// round completes.
 	roundDelay int
 	// dealPending is true after a fresh Deal(), drives the synthesized deal
-	// phase through ViewState and DealPending, and is consumed by DisplayDelay.
+	// phase through [heartsview.ViewState] and DealPending(), and is consumed
+	// by DisplayDelay().
 	dealPending bool
 	// previousScores holds the cumulative scores at the start of the current
 	// round. It is used to compute the per-seat score delta shown in the
