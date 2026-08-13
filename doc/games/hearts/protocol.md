@@ -180,6 +180,13 @@ Each trick entry (ordered by play sequence, not by seat index):
 | `round_complete` | A round has ended. Scores updated. |
 | `game_over` | Game has ended. Final scores in `scores`. |
 
+For Hearts, the first snapshot after start is `deal` at `seq=1`; after
+`deal_display_delay_ms` the actionable `passing` snapshot follows at
+`seq=2`, stamped with the first turn deadline when the opening turn is
+a human seat. The same deal-then-transition pair marks every round
+boundary: `round_complete`, then the next round's `deal`, then the
+actionable `passing` or `playing` snapshot.
+
 The server may introduce additional intermediate phases for UX pacing
 in the future.
 

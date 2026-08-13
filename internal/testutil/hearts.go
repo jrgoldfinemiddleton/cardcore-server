@@ -39,7 +39,7 @@ func (c *TestHeartsConfig) RegisterFlags(*flag.FlagSet) {}
 func (c *TestHeartsConfig) Validate() error { return nil }
 
 // NewGame creates a real Hearts adapter using the test config's deterministic
-// RNG and requested deal delay. Trick and round delays remain zero.
+// RNG and requested deal delay. Trick and round delays are always zero.
 func (c *TestHeartsConfig) NewGame(cfg session.Config, _ *rand.Rand) (session.Game, error) {
 	dealDelay := 0
 	if cfg.DealDisplayDelayMS != nil {
