@@ -110,9 +110,9 @@ func (c *Client) HandleSnapshot(raw json.RawMessage) {
 }
 
 // HandleKey processes a key press during an actionable phase, returning a
-// command to send (with send true) or a status message to flash. Observers and
+// cmd with send set, or a status message to flash. Observers and
 // non-actionable phases return no command and no status.
-func (c *Client) HandleKey(key tea.KeyPressMsg) (client.Command, bool, string) {
+func (c *Client) HandleKey(key tea.KeyPressMsg) (cmd client.Command, send bool, status string) {
 	if c.observer {
 		return client.Command{}, false, ""
 	}
@@ -130,7 +130,7 @@ func (c *Client) HandleKey(key tea.KeyPressMsg) (client.Command, bool, string) {
 
 // TogglePause builds a pause or resume command based on the current
 // paused state.
-func (c *Client) TogglePause(paused bool) (client.Command, bool) {
+func (c *Client) TogglePause(paused bool) (cmd client.Command, send bool) {
 	if paused {
 		cmd, err := heartsclient.NewResumeMessage(c.nextActionID(), 0)
 		if err != nil {
@@ -214,14 +214,18 @@ func (c *Client) IsHumanTurn() bool {
 
 // handlePausedKey handles key presses during the paused phase.
 // The model layer handles the 'p' resume toggle, so all direct keys are ignored.
-func (c *Client) handlePausedKey(tea.KeyPressMsg) (client.Command, bool, string) {
+func (c *Client) handlePausedKey(
+	tea.KeyPressMsg,
+) (cmd client.Command, send bool, status string) {
 	return client.Command{}, false, ""
 }
 
 // handlePassingKey handles navigation, selection, and submission during the
 // passing phase. Input is ignored once the player has submitted or when input
 // is disabled (e.g., waiting for the next snapshot or another player's turn).
-func (c *Client) handlePassingKey(key tea.KeyPressMsg) (client.Command, bool, string) {
+func (c *Client) handlePassingKey(
+	key tea.KeyPressMsg,
+) (cmd client.Command, send bool, status string) {
 	if c.submitted || c.inputDisabled {
 		return client.Command{}, false, ""
 	}
@@ -241,7 +245,9 @@ func (c *Client) handlePassingKey(key tea.KeyPressMsg) (client.Command, bool, st
 // handlePlayingKey handles navigation and submission during the playing phase.
 // Input is ignored once the player has submitted or when input is disabled
 // (e.g., waiting for the next snapshot or another player's turn).
-func (c *Client) handlePlayingKey(key tea.KeyPressMsg) (client.Command, bool, string) {
+func (c *Client) handlePlayingKey(
+	key tea.KeyPressMsg,
+) (cmd client.Command, send bool, status string) {
 	if c.submitted || c.inputDisabled {
 		return client.Command{}, false, ""
 	}
@@ -258,7 +264,7 @@ func (c *Client) handlePlayingKey(key tea.KeyPressMsg) (client.Command, bool, st
 
 // submitPass builds a pass_cards command for the selected cards, or returns a
 // status message when the wrong number of cards is selected.
-func (c *Client) submitPass() (client.Command, bool, string) {
+func (c *Client) submitPass() (cmd client.Command, send bool, status string) {
 	cmd, err := BuildPassCommand(c.nextActionID(), c.selected)
 	if err != nil {
 		return client.Command{}, false, "Select exactly 3 cards to pass"
@@ -269,7 +275,7 @@ func (c *Client) submitPass() (client.Command, bool, string) {
 
 // submitPlay builds a play_card command for the card under the cursor, or
 // returns a status message for out-of-turn or illegal plays.
-func (c *Client) submitPlay() (client.Command, bool, string) {
+func (c *Client) submitPlay() (cmd client.Command, send bool, status string) {
 	if c.playerSnap.Turn != c.seat {
 		return client.Command{}, false, "Not your turn"
 	}

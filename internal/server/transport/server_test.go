@@ -1593,10 +1593,10 @@ func setupTestServer(t *testing.T) (*Server, *session.Manager) {
 // setupTestServerWithSession creates a server and an active session with
 // 1 human + 3 AI seats. It returns the server, session ID, and the
 // human seat's bearer token.
-func setupTestServerWithSession(t *testing.T) (*Server, string, string) {
+func setupTestServerWithSession(t *testing.T) (srv *Server, sessionID, token string) {
 	t.Helper()
 	mgr := mockManager()
-	srv := NewServer(Config{Manager: mgr, Addr: ":0"})
+	srv = NewServer(Config{Manager: mgr, Addr: ":0"})
 
 	cfg := session.Config{
 		Game: "hearts",
@@ -1617,7 +1617,6 @@ func setupTestServerWithSession(t *testing.T) (*Server, string, string) {
 		t.Fatalf("start session: %v", err)
 	}
 
-	var token string
 	for _, s := range seats {
 		if s.Type == session.SeatHuman {
 			token = s.Token
@@ -1635,13 +1634,13 @@ func setupTestServerWithSession(t *testing.T) (*Server, string, string) {
 // session whose snapshots cannot be marshaled to JSON. It returns the
 // server, session ID, and human seat token.
 func setupTestServerWithUnmarshalableSession(t *testing.T) (
-	*Server, string, string,
+	srv *Server, sessionID, token string,
 ) {
 	t.Helper()
 	r := session.NewRegistry()
 	r.Register(&unmarshalableTestGameConfig{})
 	mgr := session.NewManager(r, session.DefaultServerDelays)
-	srv := NewServer(Config{Manager: mgr, Addr: ":0"})
+	srv = NewServer(Config{Manager: mgr, Addr: ":0"})
 
 	cfg := session.Config{
 		Game: "hearts",
@@ -1661,7 +1660,6 @@ func setupTestServerWithUnmarshalableSession(t *testing.T) (
 		t.Fatalf("start session: %v", err)
 	}
 
-	var token string
 	for _, s := range seats {
 		if s.Type == session.SeatHuman {
 			token = s.Token

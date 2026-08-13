@@ -381,7 +381,7 @@ func createSession(
 	game, aiType string,
 	observer bool,
 	pacing int,
-) (string, string, error) {
+) (sessionID, token string, err error) {
 	// pacing maps to the session's AI action delay. The deal display delay
 	// is forced to 0: the CLI is scripted and has no interactive display
 	// to pace.

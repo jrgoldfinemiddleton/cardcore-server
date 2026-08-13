@@ -72,13 +72,13 @@ func NewScriptExecutor(script Script, mySeat int, builder GameBuilder) *ScriptEx
 	return &ScriptExecutor{script: script, mySeat: mySeat, builder: builder}
 }
 
-// Step evaluates a snapshot. It returns a command if the snapshot
-// indicates it is this seat's turn in a scripted phase. The second
-// return value is true when the snapshot's phase is "game_over".
-// If it is not this seat's turn, or the phase is transitional and has
-// no script entry, it returns the zero value, false, nil. An actionable
-// phase with no script entry returns an error: the script is incomplete.
-func (e *ScriptExecutor) Step(snapshot []byte) (client.Command, bool, error) {
+// Step evaluates a snapshot. cmd is non-zero when the snapshot indicates
+// it is this seat's turn in a scripted phase. done is true when the
+// snapshot's phase is "game_over". When it is not this seat's turn, or
+// the phase is transitional and has no script entry, cmd is the zero
+// Command and done is false. An actionable phase with no script entry
+// returns an error: the script is incomplete.
+func (e *ScriptExecutor) Step(snapshot []byte) (cmd client.Command, done bool, err error) {
 	var env struct {
 		Phase string `json:"phase"`
 		Turn  int    `json:"turn"`
@@ -114,7 +114,7 @@ func (e *ScriptExecutor) Step(snapshot []byte) (client.Command, bool, error) {
 		return client.Command{}, false, fmt.Errorf("unmarshal seq: %w", err)
 	}
 
-	cmd, err := e.builder.BuildCommand(
+	cmd, err = e.builder.BuildCommand(
 		entry.Action, entry.Selector, entry.SelectorArgs,
 		snapshot, actionID, seqEnv.Seq,
 	)

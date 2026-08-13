@@ -355,7 +355,7 @@ func (m *Manager) Delete(id string) error {
 
 // LookupToken resolves a bearer token to its session and seat index.
 // Returns ErrNotFound if the token is invalid or the session has expired.
-func (m *Manager) LookupToken(token string) (string, int, error) {
+func (m *Manager) LookupToken(token string) (sessionID string, seat int, err error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
