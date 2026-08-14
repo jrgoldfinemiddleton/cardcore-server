@@ -14,7 +14,7 @@ Hearts is the first implemented game. Other games will follow the same vertical-
 
 ## Quickstart
 
-Install [Go](https://go.dev/) 1.25.12+, then build the binaries:
+Install [Go](https://go.dev/) 1.25.13+, then build the binaries:
 
 ```bash
 git clone https://github.com/jrgoldfinemiddleton/cardcore-server.git
@@ -76,7 +76,7 @@ All flags have a matching `CARDCORE_*` environment variable. Explicit flags take
 
 - `-log-level` (server): minimum severity to log (`debug`, `info`, `warn`, `error`). Default is `info`.
 - `-shutdown-timeout-secs` (server): graceful shutdown timeout in seconds.
-- `-pacing-ms` / `-exit-delay-ms` (CLI): delays between snapshots and before exiting, in milliseconds.
+- `-pacing-delay-ms` / `-exit-delay-ms` (CLI): pacing delay before each AI turn, and linger time after `game_over` before exiting, in milliseconds.
 - `-debug` (TUI): writes debug logs to `tui.log` in the **current working directory**.
 - `-observe` (TUI/CLI): watch the full game state without taking a seat. All hands are visible, and you receive every snapshot, but you cannot send moves.
 

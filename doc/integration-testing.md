@@ -224,7 +224,7 @@ Every resource created in a test must be released so a panicking or failing test
 ## 15. Anti-patterns to avoid
 
 - "It passed once" as proof.
-- Letting full-game tests timeout repeatedly while guessing.
+- Letting full-game tests time out repeatedly while guessing why they are failing.
 - Increasing timeout to hide a hang.
 - Increasing buffer size without understanding who drains it.
 - Accepting EOF before terminal state.

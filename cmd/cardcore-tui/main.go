@@ -119,28 +119,33 @@ func parseFlags(args []string) (*tuiConfig, error) {
 	fs := flag.NewFlagSet("cardcore-tui", flag.ContinueOnError)
 	fs.StringVar(&cfg.server, "server",
 		flags.EnvOrDefault("CARDCORE_TUI_SERVER", "http://127.0.0.1:8080"),
-		"server base URL (env: CARDCORE_TUI_SERVER)")
+		"base URL of the cardcore server (env: CARDCORE_TUI_SERVER)")
 	fs.StringVar(&cfg.game, "game",
 		flags.EnvOrDefault("CARDCORE_TUI_GAME", "hearts"),
-		"game to play (env: CARDCORE_TUI_GAME)")
+		"game to play, e.g. hearts (env: CARDCORE_TUI_GAME)")
 	fs.StringVar(&cfg.session, "session",
 		flags.EnvOrDefault("CARDCORE_TUI_SESSION", ""),
-		"session ID to join (env: CARDCORE_TUI_SESSION)")
+		"join this existing session ID instead of auto-creating one "+
+			"(env: CARDCORE_TUI_SESSION)")
 	fs.StringVar(&cfg.token, "token",
 		flags.EnvOrDefault("CARDCORE_TUI_TOKEN", ""),
-		"seat bearer token (env: CARDCORE_TUI_TOKEN)")
+		"bearer token for the seat being joined, issued at session "+
+			"creation (env: CARDCORE_TUI_TOKEN)")
 	fs.IntVar(&cfg.seat, "seat",
 		flags.IntEnvOrDefault("CARDCORE_TUI_SEAT", 0),
-		"seat index (game-dependent) (env: CARDCORE_TUI_SEAT)")
+		"seat index to occupy, 0-based (env: CARDCORE_TUI_SEAT)")
 	fs.BoolVar(&cfg.observer, "observe",
 		flags.BoolEnvOrDefault("CARDCORE_TUI_OBSERVE", false),
-		"observer mode (receive-only) (env: CARDCORE_TUI_OBSERVE)")
+		"create an all-AI session and watch it with all hands visible "+
+			"(receive-only) (env: CARDCORE_TUI_OBSERVE)")
 	fs.BoolVar(&cfg.debug, "debug",
 		flags.BoolEnvOrDefault("CARDCORE_TUI_DEBUG", false),
-		"enable debug logging (env: CARDCORE_TUI_DEBUG)")
+		"write debug logs to tui.log in the current working directory "+
+			"(env: CARDCORE_TUI_DEBUG)")
 	fs.StringVar(&cfg.aiType, "ai-type",
 		flags.EnvOrDefault("CARDCORE_TUI_AI_TYPE", "random"),
-		"AI player type (env: CARDCORE_TUI_AI_TYPE)")
+		"AI implementation for the bot seats: random, heuristic, or "+
+			"pimc (env: CARDCORE_TUI_AI_TYPE)")
 	fs.StringVar(&cfg.theme, "theme",
 		flags.EnvOrDefault("CARDCORE_TUI_THEME", themeDark),
 		"color theme: dark or light (env: CARDCORE_TUI_THEME)")

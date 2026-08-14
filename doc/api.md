@@ -35,7 +35,7 @@ configuration, and communication channels.
           │                       │
           ▼                       ▼
        ┌───────┐            ┌──────────┐          engine
-       │ draft │───────────▶│  active  │──-─────▶ reports
+       │ draft │───────────▶│  active  │────────▶ reports
        └───────┘            └──────────┘         completion
           │                       │                  │
           │ DELETE                │ DELETE           ▼
@@ -44,7 +44,7 @@ configuration, and communication channels.
                     ▼    ▼                      └──────────┘
                  ┌──────────┐                        │
                  │ expired  │◀───────────────────────┘
-                 └──────────┘      DELETE or process exit
+                 └──────────┘      DELETE or server shutdown
 ```
 
 | State | Description |
@@ -56,17 +56,20 @@ configuration, and communication channels.
 
 `DELETE` in the diagram refers to a client sending the HTTP request
 `DELETE /sessions/{id}`. It is the explicit action that cleans up a
-session. Sessions do not auto-expire (except on process exit).
+session. Sessions do not auto-expire (except on server shutdown).
+"Server shutdown" means the *server* process: sessions live in server
+memory only, so graceful shutdown or process termination expires every
+session. A client process exiting has no effect on session state.
 
 ### State transitions
 
 | From | To | Trigger |
 |------|----|---------|
 | `draft` | `active` | `POST /sessions/{id}/start` |
-| `draft` | `expired` | `DELETE /sessions/{id}` or process exit |
+| `draft` | `expired` | `DELETE /sessions/{id}` or server shutdown |
 | `active` | `finished` | Engine reports game completion |
-| `active` | `expired` | `DELETE /sessions/{id}` or process exit |
-| `finished` | `expired` | `DELETE /sessions/{id}` or process exit |
+| `active` | `expired` | `DELETE /sessions/{id}` or server shutdown |
+| `finished` | `expired` | `DELETE /sessions/{id}` or server shutdown |
 
 ---
 
@@ -104,13 +107,13 @@ Creates a new session in `draft` state.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `game` | string | yes | Game identifier (e.g., `"hearts"`). |
+| `game` | string | yes | Game identifier from the [Supported Games](#supported-games) table (e.g., `"hearts"`). |
 | `seats` | array of seat config | yes | One entry per seat. |
 | `ai_action_delay_ms` | integer | no | Delay in milliseconds between AI turns. Default: `1000`. Use `0` for tests. |
 | `deal_display_delay_ms` | integer | no | How long the `deal` snapshot lingers before the transition snapshot. A `deal` snapshot is broadcast at every deal, including when this is `0`; zero skips only the pause. Default: `1500`. |
 | `turn_timeout_ms` | integer | no | Maximum time in milliseconds to wait for a human player to act before auto-playing an AI move. Default: `30000` (30s). Use `0` to disable. |
 
-> **UX hint:** If a human sends an action at the exact moment the timeout fires, the server may process the timeout first and reject the human action with `wrong_turn`. To minimize this race, clients should disable the play UI at least 500 ms before the configured timeout (e.g., a 30 s timeout should show a 29.5 s countdown and grey out controls at 0 s remaining).
+> **UX hint:** If a human sends an action at the exact moment the timeout fires, the server may process the timeout first and reject the human action with `wrong_turn`. To minimize this race, clients should disable the play UI at least 500ms before the configured timeout (e.g., a 30s timeout should show a 29.5s countdown and gray out controls at 0s remaining).
 
 Each seat config:
 
@@ -385,8 +388,11 @@ message with an empty or over-length `action_id` is rejected as
 
 ### `snapshot`
 
-Full game state filtered for the receiving client's seat. Sent after
-every state change and immediately on WebSocket connection.
+Full game state for the receiving client. Player snapshots are
+filtered for the receiving client's seat (opponents' cards are
+masked); observer snapshots are unfiltered — omniscient, with all
+hands visible. Sent after every state change and immediately on
+WebSocket connection.
 
 Every snapshot contains at minimum:
 
@@ -485,10 +491,14 @@ WebSocket error messages.
 
 ## Seat Tokens
 
-- Tokens are issued only for human seats at session creation.
+- Tokens are issued only for human seats, at session creation and
+  again whenever the seat configuration is replaced.
 - Generated using `crypto/rand`: 32 bytes of random data, hex-encoded
   to a 64-character string.
-- Delivered in the `POST /sessions` response.
+- Delivered in the `POST /sessions` response (`seats[].token`) and,
+  when a patch replaces the seat configuration, in the
+  `PATCH /sessions/{id}` response (`seat_tokens[].token`). Replacing
+  seats invalidates all former tokens.
 - Used in the `Authorization: Bearer <token>` header on WebSocket
   upgrade.
 - Each token maps to exactly one session and one seat. The mapping is
@@ -502,15 +512,16 @@ WebSocket error messages.
 
 When it is an AI seat's turn:
 
-1. The session goroutine calls the AI's play method internally. No
-   WebSocket command is involved.
+1. The server waits `ai_action_delay_ms` milliseconds (configured per
+   session), then the session goroutine calls the AI's play method
+   internally. No WebSocket command is involved. The delay is fixed,
+   not a floor: it always elapses in full before the AI's move is
+   computed, so the observed gap between AI turns is the delay plus
+   the AI's compute time.
 2. The server applies the AI's move to the engine.
 3. The server sends a `snapshot` to all connected clients.
-4. If the next turn is also an AI seat, the server waits at least
-   `ai_action_delay_ms` milliseconds (configured per session) before
-    repeating from step 1. The delay is a floor: if the AI's compute
-   time exceeds `ai_action_delay_ms`, no additional delay is added.
-5. This continues until it is a human seat's turn or the game ends.
+4. This repeats from step 1 — waiting the full delay before each AI
+   turn — until it is a human seat's turn or the game ends.
 
 The client infers "AI is thinking" by checking the `turn` field in the
 last snapshot: if `turn` indicates an AI seat, the next snapshot will
@@ -572,8 +583,9 @@ spades").
   No application-level keepalive is needed. A slow player will not
   time out.
 - WebSocket close frames are reserved for unrecoverable situations
-  only (see Command Rejection section). All recoverable errors are
-  sent as `error` messages over the open connection.
+  only (see [Command Rejection](#command-rejection) section). All
+  recoverable errors are sent as `error` messages over the open
+  connection.
 - Second connection per seat: the existing connection is closed
   (kicked). The new connection receives an initial snapshot.
 - Snapshot multiplexing: the server may send snapshots from the
@@ -589,6 +601,10 @@ spades").
 
 ## Supported Games
 
-| Game | Protocol File |
-|------|--------------|
-| Hearts | [`doc/games/hearts/protocol.md`](games/hearts/protocol.md) |
+The `game` field in `POST /sessions` takes the identifier listed
+here. This table is the canonical list of supported games; there is
+no endpoint that enumerates them at runtime.
+
+| Game | Identifier | Protocol File |
+|------|------------|---------------|
+| Hearts | `"hearts"` | [`doc/games/hearts/protocol.md`](games/hearts/protocol.md) |

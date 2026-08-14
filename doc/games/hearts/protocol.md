@@ -143,7 +143,7 @@ game-specific fields for Hearts:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `phase` | string | Current game phase (see Phases below). |
+| `phase` | string | Current game phase (see [Phases](#phases) below). |
 | `round_number` | integer | Current round (1-indexed). |
 | `trick_number` | integer | Current trick within the round (1-indexed). Only meaningful during `playing` and `trick_complete` phases. |
 | `pass_direction` | string | `"left"`, `"right"`, `"across"`, or `"none"`. Indicates which direction cards are passed this round. |
@@ -194,10 +194,10 @@ in the future.
 
 ## Legal Actions
 
+During the `deal` phase, `legal_actions` is empty for players and observers.
+
 During the `passing` phase, `legal_actions` contains all cards in the
 player's hand (any 3 may be selected).
-
-During the `deal` phase, `legal_actions` is empty for players and observers.
 
 During the `playing` phase, `legal_actions` contains the cards the
 player may legally play, filtered by Hearts rules:
@@ -217,12 +217,12 @@ phase.
 Observer snapshots use the same structure with the following
 differences:
 
-| Field | Difference |
-|-------|-----------|
-| `hand` | Replaced by `hands`: array of arrays, indexed by seat. All cards visible. |
-| `trick_history` | Added: array of completed tricks this round. Each trick is an array of trick entries in play order. |
-| `legal_actions` | Shows legal actions for the seat indicated by `turn`; empty during `deal`. |
-| `turn_deadline_ms` | Same semantics as the player snapshot field: active human turn deadline, or `0` during `deal` and when none. |
+| Field | Type | Difference |
+|-------|------|------------|
+| `hands` | array of arrays of card objects | Replaces `hand`: indexed by seat. All cards visible. |
+| `trick_history` | array of arrays of trick entries | Added: completed tricks this round. Each trick is in play order. |
+| `legal_actions` | array of card objects | Shows legal actions for the seat indicated by `turn`; empty during `deal`. |
+| `turn_deadline_ms` | integer | Same semantics as the player snapshot field: active human turn deadline, or `0` during `deal` and when none. |
 
 ---
 

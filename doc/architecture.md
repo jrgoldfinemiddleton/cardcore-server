@@ -69,13 +69,13 @@ github.com/jrgoldfinemiddleton/cardcore-server
 ```
 draft ──► active ──► finished
   │          │           │
-  └──────────┴───────────┴──► expired (via DELETE or process exit)
+  └──────────┴───────────┴──► expired (via DELETE or server shutdown)
 ```
 
 - **Draft**: session created, config mutable, game not started.
 - **Active**: game in progress, commands accepted.
-- **Finished**: terminal game state reached (final snapshot sent).
-- **Expired**: session torn down (DELETE endpoint or server shutdown).
+- **Finished**: terminal game state reached (final snapshot sent). Persists until explicitly deleted or the server shuts down.
+- **Expired**: session torn down (DELETE endpoint or server shutdown). Sessions live in server memory only, so any server process exit expires every session; a client process exiting has no effect.
 
 ## Concurrency Model
 

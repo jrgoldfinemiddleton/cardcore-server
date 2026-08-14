@@ -9,7 +9,7 @@ The code follows the [suckless philosophy](https://suckless.org/philosophy/): sm
 The project infrastructure — documentation, CI, convention enforcement, and contributor tooling — deliberately goes beyond what a pure suckless project would include. Cardcore is designed to be approachable by contributors who are new to Go, which requires guardrails and guidance that suckless projects targeting experienced users typically omit.
 
 ## Strict Transport Boundary
-All client-server communication uses HTTP and WebSocket, even when server and client run in the same process on localhost. There are no in-process shortcuts. The TUI always exercises the real network path. This ensures a single code path and minimizes "works locally but breaks over network" bugs.
+All client-server communication uses HTTP and WebSocket, even when server and client run on the same machine. There are no in-process shortcuts. The TUI always exercises the real network path. This ensures a single code path and minimizes "works locally but breaks over network" bugs.
 
 ## Full-State Snapshots
 The server sends a complete seat-filtered snapshot after every state change. No incremental diffs, no patch sequences. Snapshots are idempotent — a lost or duplicate snapshot causes no harm. This is viable because card game state is small (a few KB per snapshot) and eliminates an entire class of synchronization bugs.
