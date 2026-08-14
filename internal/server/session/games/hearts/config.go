@@ -44,10 +44,12 @@ func (c *GameConfig) Name() string { return GameName }
 func (c *GameConfig) RegisterFlags(fs *flag.FlagSet) {
 	fs.IntVar(&c.trickDisplayDelayMS, "hearts-trick-display-delay-ms",
 		flags.IntEnvOrDefault("CARDCORE_SERVER_HEARTS_TRICK_DISPLAY_DELAY_MS", 3000),
-		"Hearts trick delay in ms (env: CARDCORE_SERVER_HEARTS_TRICK_DISPLAY_DELAY_MS)")
+		"Hearts: milliseconds to display the completed trick before the "+
+			"next one begins (env: CARDCORE_SERVER_HEARTS_TRICK_DISPLAY_DELAY_MS)")
 	fs.IntVar(&c.roundDisplayDelayMS, "hearts-round-display-delay-ms",
 		flags.IntEnvOrDefault("CARDCORE_SERVER_HEARTS_ROUND_DISPLAY_DELAY_MS", 5000),
-		"Hearts round delay in ms (env: CARDCORE_SERVER_HEARTS_ROUND_DISPLAY_DELAY_MS)")
+		"Hearts: milliseconds to display the round scores before the "+
+			"next deal (env: CARDCORE_SERVER_HEARTS_ROUND_DISPLAY_DELAY_MS)")
 }
 
 // Validate checks that the parsed Hearts flag values are non-negative.

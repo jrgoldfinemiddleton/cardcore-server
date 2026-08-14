@@ -19,15 +19,21 @@ This directory contains Architecture Decision Records (ADRs) — durable design 
 
 ## Key ADRs
 
+These are the load-bearing ADRs — absolutely crucial for any human or
+AI agent session to read before changing the server:
+
 | ADR | Topic | Critical Rule |
 |-----|-------|---------------|
-| 001 | ADR process | How we write and maintain ADRs |
 | 004 | Strict transport boundary | No in-process shortcuts — always HTTP/WebSocket |
 | 006 | Session ownership | One goroutine per session, no locks on game state |
 | 007 | State sync model | Full snapshots, no incremental diffs |
 | 008 | Authentication | Capability-based: session ID + per-seat bearer tokens |
-| 009 | Dependency policy | Stdlib-first; external deps require explicit approval |
-| 010 | Development order | Hearts-first, then generic abstractions when second game demands |
+
+The remaining ADRs in this directory cover process and policy (how
+ADRs are written, documentation structure, repository scope, the API
+contract strategy, dependency approval, development order, client
+snapshot consumption, and error-recovery responsibilities). Read them
+when a change touches their topic.
 
 ## Anti-Patterns
 

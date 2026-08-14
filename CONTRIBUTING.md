@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-[Go](https://go.dev/) 1.25.12+. Dev tools like [golangci-lint](https://golangci-lint.run/) are managed via the `tool` directive in `go.mod` and compiled automatically on first use.
+[Go](https://go.dev/) 1.25.13+. Dev tools like [golangci-lint](https://golangci-lint.run/) are managed via the `tool` directive in `go.mod` and compiled automatically on first use.
 
 ## Development Workflow
 
@@ -76,7 +76,7 @@ For guidance on designing, assessing, and debugging full-game integration tests,
 
 ### Test helpers convention
 
-Shared test fixtures (mock implementations, setup helpers) live in `*_helpers_test.go` files within the package. Examples: `internal/server/session/helpers_test.go` contains `mockGame`, `mockGameRegistry`, `mustCreateAndStart`, `validHeartsCfg`. This mirrors the `cardcore` engine's `helpers_test.go` / `bench_helpers_test.go` pattern.
+Shared test fixtures (mock implementations, setup helpers) live in `*helpers_test.go` files within the package. Example: `internal/server/session/helpers_test.go` contains `mockGame`, `mockGameRegistry`, `mustCreateAndStart`, `validHeartsCfg`. This mirrors the `cardcore` engine's `helpers_test.go` / `bench_helpers_test.go` pattern.
 
 Fixtures that are reused across multiple packages live in standalone packages:
 
@@ -100,19 +100,35 @@ Production models need no explicit synchronization: the framework calls `Update`
 
 ### Benchmarks
 
-Benchmark targets:
+Benchmarks live in `bench_test.go` files next to the code they measure:
 
-- Snapshot serialization throughput (JSON encoding of seat-filtered state)
-- Session command throughput (commands/sec through the full pipeline)
-- AI turn latency end-to-end (engine call + snapshot generation + broadcast)
+- Snapshot serialization (JSON encoding of seat-filtered state): `internal/server/view/games/hearts/bench_test.go`
+- AI turn latency through the Hearts adapter: `internal/server/session/games/hearts/bench_test.go`
+- Session command round-trip latency over a real WebSocket: `internal/client/bench_test.go`
+
+Run them with:
+
+```bash
+make bench
+```
+
+This runs every `Benchmark*` with `-benchmem -count=6` for `benchstat`-compatible output. When changing performance-sensitive code, run benchmarks before and after your change and include the comparison in your PR description:
+
+```bash
+git stash
+make bench 2>&1 | tee /tmp/bench-old.txt
+git stash pop
+make bench 2>&1 | tee /tmp/bench-new.txt
+go tool benchstat /tmp/bench-old.txt /tmp/bench-new.txt
+```
+
+Note any regressions greater than 2× in the PR description. Smaller fluctuations are normal and do not need to be called out.
 
 Benchmark conventions follow `cardcore`'s:
 
 - Use stdlib `testing.B` only (no third-party benchmark frameworks).
 - Share deterministic fixtures via `*_helpers_test.go` builders.
 - Place `Benchmark*` functions after `Test*` in the file.
-
-Benchmarks are not yet implemented. When the benchmark suite is added, this section will be updated with the comparison workflow.
 
 ## Code Conventions
 
@@ -141,16 +157,12 @@ type Card struct {
 }
 ```
 
-`convention_test.go` enforces these rules: `TestDocComments` covers functions and methods, and `TestConstAndFieldDocComments` covers constants and exported struct fields.
-
 Use links in comments to help readers navigate to referenced resources. Square brackets are reserved for Go doc links; other targets use a `See` line.
 
 - **Go symbols** — use standard Go doc links: `[package.Symbol]` for a symbol in another package of this module (e.g., `[session.Game]`), and `[package.Symbol.Method]` with the full chain inside the brackets for methods and fields (e.g., `[view.View.PlayerSnapshot]`). Do not link same-package identifiers; name them plainly instead. For standard-library or external-module symbols, use the full import path (e.g., `[log/slog.Default]`); the short form (e.g., `[slog.Default]`) is allowed only in files that already import the package; in a package doc comment (`doc.go`) the short form is allowed when any file in the package imports it. Do not link obvious stdlib types (`error`, `context.Context`).
 - **ADRs** — reference from code comments as `See ADR-NNN (doc/decisions/NNN-slug.md).` Go doc links cannot target Markdown files, so do not bracket ADR references. Place the reference in the package `doc.go` or near the code that embodies the decision.
 - **Repository docs** — reference from code comments as `See doc/<path>.md[#anchor].` (e.g., `See doc/api.md#websocket-inbound-messages.`). In Markdown files, use normal Markdown links with relative paths for in-repo targets and full URLs only for cross-repo targets.
 - **External resources** — put a bare URL on a `See` line (e.g., `See RFC 6455 §7.4: https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.`).
-
-`convention_test.go` (`TestDocLinks`) verifies that bracketed doc links resolve and that `ADR-NNN` and `doc/....md` references in comments point at existing files.
 
 ### Function ordering
 

@@ -131,25 +131,32 @@ func parseFlags(args []string, registry *session.Registry) (*serverConfig, error
 	fs := flag.NewFlagSet("cardcore-server", flag.ContinueOnError)
 	fs.StringVar(&cfg.addr, "addr",
 		flags.EnvOrDefault("CARDCORE_SERVER_ADDR", "127.0.0.1:8080"),
-		"listen address (env: CARDCORE_SERVER_ADDR)")
+		"host:port address to listen on (env: CARDCORE_SERVER_ADDR)")
 	fs.StringVar(&cfg.logLevel, "log-level",
 		flags.EnvOrDefault("CARDCORE_SERVER_LOG_LEVEL", "info"),
-		"log level: debug, info, warn, error (env: CARDCORE_SERVER_LOG_LEVEL)")
+		"minimum severity to log: debug, info, warn, or error "+
+			"(env: CARDCORE_SERVER_LOG_LEVEL)")
 	fs.StringVar(&cfg.logFile, "log-file",
 		flags.EnvOrDefault("CARDCORE_SERVER_LOG_FILE", ""),
-		"log file path (empty logs to stderr) (env: CARDCORE_SERVER_LOG_FILE)")
+		"write logs to this file instead of stderr "+
+			"(env: CARDCORE_SERVER_LOG_FILE)")
 	fs.IntVar(&cfg.shutdownTimeout, "shutdown-timeout-secs",
 		flags.IntEnvOrDefault("CARDCORE_SERVER_SHUTDOWN_TIMEOUT_SECS", 10),
-		"graceful shutdown timeout in seconds (env: CARDCORE_SERVER_SHUTDOWN_TIMEOUT_SECS)")
+		"seconds to wait for connections and sessions to close during "+
+			"graceful shutdown (env: CARDCORE_SERVER_SHUTDOWN_TIMEOUT_SECS)")
 	fs.IntVar(&cfg.aiActionDelay, "ai-action-delay-ms",
 		flags.IntEnvOrDefault("CARDCORE_SERVER_AI_ACTION_DELAY_MS", 1000),
-		"AI action delay in milliseconds (env: CARDCORE_SERVER_AI_ACTION_DELAY_MS)")
+		"delay in milliseconds before each AI turn; paces AI play so "+
+			"humans can follow (env: CARDCORE_SERVER_AI_ACTION_DELAY_MS)")
 	fs.IntVar(&cfg.dealDisplayDelay, "deal-display-delay-ms",
 		flags.IntEnvOrDefault("CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS", 1500),
-		"deal display delay in milliseconds (env: CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS)")
+		"delay in milliseconds to show each freshly dealt hand before "+
+			"play becomes actionable (env: CARDCORE_SERVER_DEAL_DISPLAY_DELAY_MS)")
 	fs.IntVar(&cfg.turnTimeout, "turn-timeout-ms",
 		flags.IntEnvOrDefault("CARDCORE_SERVER_TURN_TIMEOUT_MS", 30000),
-		"human turn timeout in milliseconds (env: CARDCORE_SERVER_TURN_TIMEOUT_MS)")
+		"milliseconds a human turn may take before an AI move is "+
+			"auto-played for that seat; 0 disables "+
+			"(env: CARDCORE_SERVER_TURN_TIMEOUT_MS)")
 
 	registry.RegisterFlags(fs)
 

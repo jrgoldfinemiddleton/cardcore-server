@@ -93,37 +93,45 @@ func parseFlags(args []string) (*cliConfig, error) {
 	fs := flag.NewFlagSet("cardcore-cli", flag.ContinueOnError)
 	fs.StringVar(&cfg.script, "script",
 		flags.EnvOrDefault("CARDCORE_CLI_SCRIPT", ""),
-		"path to JSON script file (env: CARDCORE_CLI_SCRIPT)")
+		"path to the JSON script file of actions to execute "+
+			"(required unless -observe) (env: CARDCORE_CLI_SCRIPT)")
 	fs.StringVar(&cfg.addr, "addr",
 		flags.EnvOrDefault("CARDCORE_CLI_ADDR", "http://127.0.0.1:8080"),
-		"server address (env: CARDCORE_CLI_ADDR)")
+		"base URL of the cardcore server (env: CARDCORE_CLI_ADDR)")
 	fs.StringVar(&cfg.game, "game",
 		flags.EnvOrDefault("CARDCORE_CLI_GAME", heartsclient.GameName),
-		"game to play (env: CARDCORE_CLI_GAME)")
+		"game identifier, e.g. hearts (env: CARDCORE_CLI_GAME)")
 	fs.BoolVar(&cfg.observe, "observe",
 		flags.BoolEnvOrDefault("CARDCORE_CLI_OBSERVE", false),
-		"create 4-AI session and observe (env: CARDCORE_CLI_OBSERVE)")
+		"create an all-AI session and watch it play (receive-only) "+
+			"(env: CARDCORE_CLI_OBSERVE)")
 	fs.StringVar(&cfg.sessionID, "session-id",
 		flags.EnvOrDefault("CARDCORE_CLI_SESSION_ID", ""),
-		"existing session ID to join (env: CARDCORE_CLI_SESSION_ID)")
+		"join this existing session ID instead of creating a new one "+
+			"(env: CARDCORE_CLI_SESSION_ID)")
 	fs.StringVar(&cfg.token, "token",
 		flags.EnvOrDefault("CARDCORE_CLI_TOKEN", ""),
-		"bearer token for the seat being joined (env: CARDCORE_CLI_TOKEN)")
+		"bearer token for the seat being joined, issued at session "+
+			"creation (env: CARDCORE_CLI_TOKEN)")
 	fs.IntVar(&cfg.seat, "seat",
 		flags.IntEnvOrDefault("CARDCORE_CLI_SEAT", 0),
 		"seat index to join (0-based) (env: CARDCORE_CLI_SEAT)")
 	fs.BoolVar(&cfg.deleteOnExit, "delete-on-exit",
 		flags.BoolEnvOrDefault("CARDCORE_CLI_DELETE_ON_EXIT", false),
-		"delete session on exit (env: CARDCORE_CLI_DELETE_ON_EXIT)")
-	fs.IntVar(&cfg.pacing, "pacing-ms",
-		flags.IntEnvOrDefault("CARDCORE_CLI_PACING_MS", 500),
-		"pacing delay in milliseconds (env: CARDCORE_CLI_PACING_MS)")
+		"delete the session from the server when the game ends "+
+			"(player mode only) (env: CARDCORE_CLI_DELETE_ON_EXIT)")
+	fs.IntVar(&cfg.pacing, "pacing-delay-ms",
+		flags.IntEnvOrDefault("CARDCORE_CLI_PACING_DELAY_MS", 500),
+		"delay in milliseconds before each AI turn; applies only when "+
+			"this command creates the session (env: CARDCORE_CLI_PACING_DELAY_MS)")
 	fs.StringVar(&cfg.aiType, "ai-type",
 		flags.EnvOrDefault("CARDCORE_CLI_AI_TYPE", aiTypeRandom),
-		"AI player type (env: CARDCORE_CLI_AI_TYPE)")
+		"AI implementation for bot seats and the human fallback: "+
+			"random, heuristic, or pimc (env: CARDCORE_CLI_AI_TYPE)")
 	fs.IntVar(&cfg.exitDelay, "exit-delay-ms",
 		flags.IntEnvOrDefault("CARDCORE_CLI_EXIT_DELAY_MS", 1000),
-		"exit delay in milliseconds (env: CARDCORE_CLI_EXIT_DELAY_MS)")
+		"time in milliseconds to wait after game_over before exiting "+
+			"(env: CARDCORE_CLI_EXIT_DELAY_MS)")
 
 	fs.Usage = func() {
 		_, _ = fmt.Fprintf(fs.Output(), "Usage: %s [flags]\n\n", fs.Name())
@@ -155,7 +163,7 @@ func parseFlags(args []string) (*cliConfig, error) {
 		return nil, fmt.Errorf("-seat must be >= 0")
 	}
 	if cfg.pacing < 0 {
-		return nil, fmt.Errorf("-pacing-ms must be >= 0")
+		return nil, fmt.Errorf("-pacing-delay-ms must be >= 0")
 	}
 	if cfg.exitDelay < 0 {
 		return nil, fmt.Errorf("-exit-delay-ms must be >= 0")

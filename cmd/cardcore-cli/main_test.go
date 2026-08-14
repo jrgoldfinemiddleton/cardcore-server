@@ -56,7 +56,7 @@ func TestParseFlagsEnvFallback(t *testing.T) {
 	t.Setenv("CARDCORE_CLI_TOKEN", "token-123")
 	t.Setenv("CARDCORE_CLI_SEAT", "2")
 	t.Setenv("CARDCORE_CLI_DELETE_ON_EXIT", "true")
-	t.Setenv("CARDCORE_CLI_PACING_MS", "100")
+	t.Setenv("CARDCORE_CLI_PACING_DELAY_MS", "100")
 	t.Setenv("CARDCORE_CLI_AI_TYPE", "pimc")
 	t.Setenv("CARDCORE_CLI_EXIT_DELAY_MS", "2000")
 
@@ -104,13 +104,13 @@ func TestParseFlagsEnvFallback(t *testing.T) {
 // environment variables.
 func TestParseFlagsFlagOverride(t *testing.T) {
 	t.Setenv("CARDCORE_CLI_ADDR", "http://localhost:9090")
-	t.Setenv("CARDCORE_CLI_PACING_MS", "100")
+	t.Setenv("CARDCORE_CLI_PACING_DELAY_MS", "100")
 	t.Setenv("CARDCORE_CLI_AI_TYPE", "pimc")
 
 	cfg, err := parseFlags([]string{
 		"-observe",
 		"-addr", "http://localhost:1111",
-		"-pacing-ms", "0",
+		"-pacing-delay-ms", "0",
 		"-ai-type", "random",
 	})
 	if err != nil {
@@ -134,7 +134,7 @@ func TestParseFlagsFlagOverride(t *testing.T) {
 // TestParseFlagsInvalidEnv verifies that invalid environment variable values
 // fall back to hardcoded defaults.
 func TestParseFlagsInvalidEnv(t *testing.T) {
-	t.Setenv("CARDCORE_CLI_PACING_MS", "not-an-int")
+	t.Setenv("CARDCORE_CLI_PACING_DELAY_MS", "not-an-int")
 	t.Setenv("CARDCORE_CLI_EXIT_DELAY_MS", "-1")
 	t.Setenv("CARDCORE_CLI_SEAT", "-5")
 
@@ -171,8 +171,8 @@ func TestParseFlagsValidation(t *testing.T) {
 	if _, err := parseFlags([]string{"-observe", "-seat", "-1"}); err == nil {
 		t.Errorf("parseFlags got nil error, want error for negative seat")
 	}
-	if _, err := parseFlags([]string{"-observe", "-pacing-ms", "-1"}); err == nil {
-		t.Errorf("parseFlags got nil error, want error for negative pacing-ms")
+	if _, err := parseFlags([]string{"-observe", "-pacing-delay-ms", "-1"}); err == nil {
+		t.Errorf("parseFlags got nil error, want error for negative pacing-delay-ms")
 	}
 	if _, err := parseFlags([]string{"-observe", "-exit-delay-ms", "-1"}); err == nil {
 		t.Errorf("parseFlags got nil error, want error for negative exit-delay-ms")
