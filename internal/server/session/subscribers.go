@@ -6,8 +6,8 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/api"
 )
 
-// sendNonBlocking sends data to a channel without blocking.
-// If the channel is full, the data is dropped.
+// sendNonBlocking sends data to a channel without blocking. If the channel
+// is full, the data is dropped.
 func (s *session) sendNonBlocking(ch chan SubscriberMessage, data []byte) {
 	select {
 	case ch <- SubscriberMessage{Data: data}:

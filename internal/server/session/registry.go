@@ -66,6 +66,9 @@ func (r *Registry) ValidateConfig(cfg Config) error {
 }
 
 // NewGame creates a Game instance for cfg using the registered game factory.
+// The error is non-nil when cfg.Game matches no registered factory (an
+// ErrInvalidConfig wrapping) or when the factory itself rejects the config
+// or otherwise fails to build the game.
 func (r *Registry) NewGame(cfg Config, rng *rand.Rand) (Game, error) {
 	f, ok := r.factories[cfg.Game]
 	if !ok {

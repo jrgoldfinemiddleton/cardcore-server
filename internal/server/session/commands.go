@@ -169,6 +169,12 @@ func (s *session) handleAcceptedAction(c playCmd, res StepResult) {
 	s.cacheActionID(c.msg.ActionID, snap)
 
 	c.resp <- SubmitResult{}
+	// The driveTurns results are ignored deliberately: driveTurns records
+	// every terminal outcome on the session itself (closing subscribers,
+	// firing onDone, setting finished on driveFatal and driveFinished),
+	// and run() re-checks s.finished as soon as this command returns.
+	// Only run()'s initial call uses the result, to decide whether to
+	// enter the select loop at all.
 	switch res.Outcome {
 	case StepContinue:
 		s.driveTurns(false)
@@ -183,8 +189,8 @@ func (s *session) handleAcceptedAction(c playCmd, res StepResult) {
 // the current human seat.
 func (s *session) handleTurnTimeout() {
 	seat := s.game.Turn()
-	// Guard that the seat is still human (e.g., client disconnected human
-	// player since timeout was set).
+	// Guard that the seat is still human (e.g., client did not disconnect
+	// human player after turn timeout was set).
 	if !s.isHumanSeat(seat) {
 		s.logger.Debug("turn timeout skipped: seat no longer human", "seat", seat)
 		return
@@ -243,6 +249,8 @@ func (s *session) handlePauseCmd(c playCmd) {
 		}}
 		return
 	}
+	// Pause the game and record the remaining time on the turn deadline
+	// so it can be restored on resume.
 	if s.turnTimeout() > 0 {
 		s.pauseRemaining = time.Until(s.turnDeadline)
 	}

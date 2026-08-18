@@ -992,25 +992,62 @@ func TestObserverSnapshotMarshal(t *testing.T) {
 	}
 }
 
-// TestSessionInitialDisplayDelay verifies that the goroutine sleeps for
-// the game's DisplayDelay after the initial broadcast.
-func TestSessionInitialDisplayDelay(t *testing.T) {
-	g := &delayGame{delay: 50}
-	s := newSession("test", g, Config{Seats: []SeatConfig{{Type: SeatHuman}}}, DefaultDelays{}, nil)
-	defer close(s.cancel)
-
-	start := time.Now()
-	select {
-	case <-s.done:
-	case <-time.After(500 * time.Millisecond):
+// TestSessionNoDealSkipsDisplayDelay verifies that a game without a
+// pending deal is actionable immediately at startup: DisplayDelay is never
+// consulted on the no-deal path, and the single initial snapshot already
+// carries the human turn deadline.
+func TestSessionNoDealSkipsDisplayDelay(t *testing.T) {
+	timeout := 10000
+	g := &dealPendingGame{pending: false, delay: 5000}
+	s := &session{
+		id:            "test",
+		seq:           1,
+		game:          g,
+		config:        Config{Seats: []SeatConfig{{Type: SeatHuman}}, TurnTimeoutMS: &timeout},
+		actionIDs:     make(map[string][]byte),
+		actionIDList:  list.New(),
+		actionIDIndex: make(map[string]*list.Element),
+		players:       map[int]chan SubscriberMessage{0: make(chan SubscriberMessage, subChanSize)},
+		cmds:          make(chan command, cmdChanSize),
+		cancel:        make(chan struct{}),
+		done:          make(chan struct{}),
+		logger:        slog.Default(),
 	}
-	elapsed := time.Since(start)
+	go s.run()
+	t.Cleanup(func() {
+		close(s.cancel)
+		<-s.done
+	})
 
-	// The goroutine sleeps out the 50ms display delay, then parks waiting
-	// on the human seat (turn timeout disabled), so the select above
-	// times out at 500ms and elapsed necessarily exceeds the delay.
-	if elapsed < 50*time.Millisecond {
-		t.Errorf("goroutine did not wait for display delay: elapsed %v, want >= 50ms", elapsed)
+	select {
+	case msg := <-s.players[0]:
+		var got struct {
+			Seq            int    `json:"seq"`
+			Phase          string `json:"phase"`
+			TurnDeadlineMS int64  `json:"turn_deadline_ms"`
+		}
+		if err := json.Unmarshal(msg.Data, &got); err != nil {
+			t.Fatalf("initial snapshot unmarshal: %v", err)
+		}
+		if got.Seq != 1 {
+			t.Errorf("initial snapshot seq: got %d, want 1", got.Seq)
+		}
+		if got.Phase != "playing" {
+			t.Errorf("initial snapshot phase: got %q, want %q", got.Phase, "playing")
+		}
+		if got.TurnDeadlineMS <= 0 {
+			t.Errorf("initial snapshot turn_deadline_ms: got %d, want > 0", got.TurnDeadlineMS)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for initial snapshot")
+	}
+
+	// Let the goroutine run well past the point where it would consult
+	// DisplayDelay; the configured 5s delay must never be observed or
+	// slept on.
+	time.Sleep(100 * time.Millisecond)
+	if got := g.displayDelayCalls; got != 0 {
+		t.Errorf("DisplayDelay calls during no-deal startup: got %d, want 0", got)
 	}
 }
 

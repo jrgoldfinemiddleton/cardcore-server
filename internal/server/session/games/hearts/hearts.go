@@ -306,14 +306,14 @@ func (a *GameAdapter) DisplayDelay() int {
 	return 0
 }
 
-// PlayerSnapshot delegates to heartsview.PlayerView, which clones the
+// PlayerSnapshot delegates to [heartsview.PlayerView], which clones the
 // engine state and masks other seats' hands so each player sees only
 // their own cards.
 func (a *GameAdapter) PlayerSnapshot(seat int, seq int) any {
 	return heartsview.PlayerView(a.viewState(), hearts.Seat(seat), seq)
 }
 
-// ObserverSnapshot delegates to heartsview.ObserverView, which clones the
+// ObserverSnapshot delegates to [heartsview.ObserverView], which clones the
 // engine state and exposes all seats' hands for omniscient viewing.
 func (a *GameAdapter) ObserverSnapshot(seq int) any {
 	return heartsview.ObserverView(a.viewState(), seq)

@@ -86,7 +86,8 @@ func (s *session) cacheDealSnapshots() bool {
 }
 
 // clearDealSnapshots ends the late-subscription deal window before the
-// actionable transition is broadcast.
+// actionable transition is broadcast.  It clears the cached snapshots to
+// free memory and prevent stale data from being sent to new subscribers.
 func (s *session) clearDealSnapshots() {
 	s.dealPlayerSnapshots = nil
 	s.dealObserverSnapshot = nil

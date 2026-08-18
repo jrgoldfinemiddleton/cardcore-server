@@ -10,7 +10,7 @@ type Card struct {
 	Suit string `json:"suit"`
 }
 
-// TrickEntry represents one card played in a trick, in play order.
+// TrickEntry represents one card played in a trick.
 type TrickEntry struct {
 	// Seat is the index of the seat that played this card.
 	Seat int `json:"seat"`
@@ -44,13 +44,16 @@ type PlayerSnapshot struct {
 	// it is only meaningful during the "trick_complete" phase and is -1 in
 	// other phases.
 	TrickWinner int `json:"trick_winner"`
-	// HeartsBroken indicates whether hearts have been played to any trick
-	// this round.
+	// HeartsBroken indicates whether hearts have been played this round.
+	// The engine sets it the instant a heart is played into the current
+	// trick, so it flips to true mid-trick — a snapshot broadcast while
+	// that trick is still in progress already reports true. It resets to
+	// false on each new deal.
 	HeartsBroken bool `json:"hearts_broken"`
 	// Hand is the receiving player's current hand, sorted.
 	Hand []Card `json:"hand"`
-	// HandCounts holds the number of cards in each seat's hand, indexed by
-	// seat.
+	// HandCounts holds the number of cards remaining in each seat's hand,
+	// indexed by seat.
 	HandCounts []int `json:"hand_counts"`
 	// Trick holds the cards played to the current trick so far, in play
 	// order.
@@ -59,10 +62,10 @@ type PlayerSnapshot struct {
 	// rounds.
 	Scores []int `json:"scores"`
 	// RoundPoints holds the penalty points accumulated this round per
-	// seat; it resets to zero at the start of each round. During the
-	// round_complete phase it instead carries the score delta applied for
-	// the round, which differs from the raw penalty points on a successful
-	// moon shot (0 for the shooter, 26 for each other seat).
+	// seat; all values are reset to zero at the start of each round.
+	// During the round_complete phase it instead carries the score delta
+	// applied for the round, which differs from the raw penalty points on
+	// a successful moonshot (0 for the shooter, 26 for each other seat).
 	RoundPoints []int `json:"round_points"`
 	// LegalActions lists the cards the player may legally play or pass.
 	// During the passing phase it holds the player's full hand; during the
@@ -104,10 +107,13 @@ type ObserverSnapshot struct {
 	// it is only meaningful during the "trick_complete" phase and is -1 in
 	// other phases.
 	TrickWinner int `json:"trick_winner"`
-	// HeartsBroken indicates whether hearts have been played to any trick
-	// this round.
+	// HeartsBroken indicates whether hearts have been played this round.
+	// The engine sets it the instant a heart is played into the current
+	// trick, so it flips to true mid-trick — a snapshot broadcast while
+	// that trick is still in progress already reports true. It resets to
+	// false on each new deal.
 	HeartsBroken bool `json:"hearts_broken"`
-	// Hands holds every seat's hand, indexed by seat; all cards are
+	// Hands holds every seat's hand, indexed by seat; all held cards are
 	// visible.
 	Hands [][]Card `json:"hands"`
 	// HandCounts holds the number of cards in each seat's hand, indexed by
@@ -123,10 +129,10 @@ type ObserverSnapshot struct {
 	// rounds.
 	Scores []int `json:"scores"`
 	// RoundPoints holds the penalty points accumulated this round per
-	// seat; it resets to zero at the start of each round. During the
-	// round_complete phase it instead carries the score delta applied for
-	// the round, which differs from the raw penalty points on a successful
-	// moon shot (0 for the shooter, 26 for each other seat).
+	// seat; all values are reset to zero at the start of each round.
+	// During the round_complete phase it instead carries the score delta
+	// applied for the round, which differs from the raw penalty points on
+	// a successful moonshot (0 for the shooter, 26 for each other seat).
 	RoundPoints []int `json:"round_points"`
 	// LegalActions lists the cards the seat indicated by Turn may legally
 	// play or pass. It is empty during deal.

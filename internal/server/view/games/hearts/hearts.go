@@ -179,7 +179,7 @@ func buildPhase(vs ViewState, g *hearts.Game) string {
 // buildRoundPoints returns the per-seat round points to display.
 //
 // During round_complete, the value is the actual score delta applied to each
-// seat for the round (e.g., 0 for the moon shooter and 26 for the other seats
+// seat for the round (e.g., 0 for the moon-shooter and 26 for the other seats
 // when the moon is shot). During all other phases, it is the raw penalty points
 // captured in tricks so far.
 func buildRoundPoints(vs ViewState, g *hearts.Game) []int {
@@ -211,6 +211,7 @@ func buildTrick(trick hearts.Trick) []heartsapi.TrickEntry {
 
 // trickWinner returns the seat that won the current trick, or -1 if the trick
 // is empty. It follows the same rule as the engine: highest card of the led suit.
+// Only expected to be called when TrickComplete is true.
 func trickWinner(g *hearts.Game) int {
 	if g.Trick.Count == 0 {
 		return -1

@@ -102,8 +102,10 @@ type Game interface {
 	// DisplayDelay returns the number of milliseconds to wait before
 	// advancing past the current game state. Zero means advance
 	// immediately. The session goroutine calls this after broadcasting
-	// a snapshot in a pausable or initial state to give clients time
-	// to render it.
+	// a snapshot in a pausable state to give clients time to render it.
+	// An opening display window must be expressed via DealPending, not
+	// an initial DisplayDelay: the session arms the first turn deadline
+	// at startup, so an initial delay would dock the first human turn.
 	DisplayDelay() int
 
 	// SetTurnDeadline stores the authoritative turn deadline for the

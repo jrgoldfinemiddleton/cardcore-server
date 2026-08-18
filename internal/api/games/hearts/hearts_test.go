@@ -140,6 +140,7 @@ func TestPlayerSnapshotJSON(t *testing.T) {
 		Turn:          0,
 		TrickWinner:   -1,
 		HeartsBroken:  false,
+		Paused:        false,
 		Hand: []Card{
 			{Rank: "four", Suit: "clubs"},
 			{Rank: "jack", Suit: "clubs"},
@@ -159,7 +160,7 @@ func TestPlayerSnapshotJSON(t *testing.T) {
 			{Seat: 3, Card: Card{Rank: "five", Suit: "diamonds"}},
 		},
 		Scores:      []int{0, 0, 0, 0},
-		RoundPoints: []int{0, 1, 0, 3},
+		RoundPoints: []int{0, 0, 3, 0},
 		LegalActions: []Card{
 			{Rank: "seven", Suit: "diamonds"},
 			{Rank: "queen", Suit: "diamonds"},
@@ -203,6 +204,9 @@ func TestPlayerSnapshotJSON(t *testing.T) {
 	if got.HeartsBroken != false {
 		t.Errorf("got HeartsBroken %v, want %v", got.HeartsBroken, false)
 	}
+	if got.Paused != false {
+		t.Errorf("got Paused %v, want %v", got.Paused, false)
+	}
 	if len(got.Hand) != 11 {
 		t.Errorf("got Hand length %d, want %d", len(got.Hand), 11)
 	}
@@ -228,8 +232,8 @@ func TestPlayerSnapshotJSON(t *testing.T) {
 	if got.Scores[0] != 0 {
 		t.Errorf("got Scores[0] %d, want %d", got.Scores[0], 0)
 	}
-	if got.RoundPoints[3] != 3 {
-		t.Errorf("got RoundPoints[3] %d, want %d", got.RoundPoints[3], 3)
+	if got.RoundPoints[2] != 3 {
+		t.Errorf("got RoundPoints[2] %d, want %d", got.RoundPoints[2], 3)
 	}
 	if len(got.LegalActions) != 2 {
 		t.Errorf("got LegalActions length %d, want %d", len(got.LegalActions), 2)

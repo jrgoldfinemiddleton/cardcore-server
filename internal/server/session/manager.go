@@ -56,8 +56,11 @@ type entry struct {
 
 // tokenInfo holds the session and seat associated with a bearer token.
 type tokenInfo struct {
+	// sessionID is the ID of the session the token belongs to.
 	sessionID string
-	seat      int
+	// seat is the index of the seat the token authenticates within that
+	// session.
+	seat int
 }
 
 // Manager is a thread-safe registry of game sessions. Transport handlers
@@ -199,14 +202,17 @@ func (m *Manager) List() []Summary {
 
 // Update applies patch to the session identified by id. Only the seat
 // configuration and the delay/timeout values may be changed, and only
-// while the session is in draft state; all provided fields are applied
-// together. When patch.Seats is non-nil, all former seat tokens are
-// invalidated and the returned []Seat contains freshly minted bearer
-// tokens for every human seat, including unchanged ones; otherwise it is
-// nil. The returned *Info never contains tokens. Returns
-// ErrNotFound (missing/expired), ErrNotDraft (already started), or
-// ErrInvalidConfig if the resulting configuration fails game-agnostic or
-// game-specific validation.
+// while the session is in draft state. The patch is merged onto the
+// current configuration and the result is validated before anything is
+// applied, so a rejected patch — including a delay-only patch with an
+// invalid (negative) value — leaves the session untouched; when the patch
+// is valid, all provided fields are applied together. When patch.Seats is
+// non-nil, all former seat tokens are invalidated and the returned []Seat
+// contains freshly minted bearer tokens for every human seat, including
+// unchanged ones; otherwise it is nil. The returned *Info never contains
+// tokens. Returns ErrNotFound (missing/expired), ErrNotDraft (already
+// started), or ErrInvalidConfig if the merged configuration fails
+// game-agnostic or game-specific validation.
 func (m *Manager) Update(
 	id string, patch PatchConfig,
 ) (*Info, []Seat, error) {
@@ -221,21 +227,32 @@ func (m *Manager) Update(
 		return nil, nil, ErrNotDraft
 	}
 
+	// Merge the patch onto the current configuration and validate the
+	// result before mutating anything: a rejected patch leaves the
+	// session untouched, and the delay/timeout fields are validated even
+	// on a delay-only patch.
+	merged := e.config
+	if patch.Seats != nil {
+		merged.Seats = patch.Seats
+	}
+	if patch.AIActionDelayMS != nil {
+		merged.AIActionDelayMS = patch.AIActionDelayMS
+	}
+	if patch.DealDisplayDelayMS != nil {
+		merged.DealDisplayDelayMS = patch.DealDisplayDelayMS
+	}
+	if patch.TurnTimeoutMS != nil {
+		merged.TurnTimeoutMS = patch.TurnTimeoutMS
+	}
+	if err := validateConfig(merged); err != nil {
+		return nil, nil, err
+	}
+	if err := m.registry.ValidateConfig(merged); err != nil {
+		return nil, nil, err
+	}
+
 	var seats []Seat
 	if patch.Seats != nil {
-		cfg := Config{
-			Game:               e.config.Game,
-			Seats:              patch.Seats,
-			AIActionDelayMS:    e.config.AIActionDelayMS,
-			DealDisplayDelayMS: e.config.DealDisplayDelayMS,
-			TurnTimeoutMS:      e.config.TurnTimeoutMS,
-		}
-		if err := validateConfig(cfg); err != nil {
-			return nil, nil, err
-		}
-		if err := m.registry.ValidateConfig(cfg); err != nil {
-			return nil, nil, err
-		}
 		// Build the replacement seats before mutating the entry so a
 		// token-generation failure leaves the session untouched.
 		newSeats, err := buildSeats(patch.Seats)
@@ -247,7 +264,6 @@ func (m *Manager) Update(
 				delete(m.tokenIndex, s.Token)
 			}
 		}
-		e.config.Seats = patch.Seats
 		e.seats = newSeats
 		for i, s := range newSeats {
 			if s.Token != "" {
@@ -257,15 +273,7 @@ func (m *Manager) Update(
 		seats = newSeats
 	}
 
-	if patch.AIActionDelayMS != nil {
-		e.config.AIActionDelayMS = patch.AIActionDelayMS
-	}
-	if patch.DealDisplayDelayMS != nil {
-		e.config.DealDisplayDelayMS = patch.DealDisplayDelayMS
-	}
-	if patch.TurnTimeoutMS != nil {
-		e.config.TurnTimeoutMS = patch.TurnTimeoutMS
-	}
+	e.config = merged
 
 	return e.info(id), seats, nil
 }
@@ -500,9 +508,16 @@ func (m *Manager) UnsubscribeObserver(id string, ch chan SubscriberMessage) erro
 // SubmitResult.Snapshot is set only for a stale_seq rejection (carrying
 // the latest snapshot so the client can resync) or a duplicate action_id
 // replay (carrying the cached snapshot). SubmitResult.Err is an
-// *api.ErrorMessage that is non-nil when the command is rejected. The
-// error value is non-nil only for transport-level failures (ErrNotFound,
-// ErrNotActive, or a full command queue).
+// *api.ErrorMessage that is non-nil when the command is rejected.
+//
+// The two error channels are distinct. The returned error is non-nil only
+// when the command never reached the game engine — the session does not
+// exist or has expired (ErrNotFound), the session is not active or its
+// goroutine exited before replying (ErrNotActive), or the command queue is
+// full — because no other outcome is possible while the Manager holds its
+// RLock and merely routes the command. Game-level rejections (illegal
+// move, wrong phase, stale seq, pause rejection) are decided by the
+// session goroutine and reported in SubmitResult.Err instead.
 func (m *Manager) SubmitAction(
 	id string, seat int, msg *api.InboundMessage,
 ) (SubmitResult, error) {
@@ -670,6 +685,21 @@ func validateConfig(cfg Config) error {
 				ErrInvalidConfig, i,
 			)
 		}
+	}
+	if cfg.AIActionDelayMS != nil && *cfg.AIActionDelayMS < 0 {
+		return fmt.Errorf(
+			"%w: ai_action_delay_ms must be non-negative", ErrInvalidConfig,
+		)
+	}
+	if cfg.DealDisplayDelayMS != nil && *cfg.DealDisplayDelayMS < 0 {
+		return fmt.Errorf(
+			"%w: deal_display_delay_ms must be non-negative", ErrInvalidConfig,
+		)
+	}
+	if cfg.TurnTimeoutMS != nil && *cfg.TurnTimeoutMS < 0 {
+		return fmt.Errorf(
+			"%w: turn_timeout_ms must be non-negative", ErrInvalidConfig,
+		)
 	}
 	return nil
 }
