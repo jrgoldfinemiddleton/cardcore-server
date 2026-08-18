@@ -31,14 +31,17 @@ const (
 	SeatAI = "ai"
 )
 
-// SeatConfig describes a single seat's setup at session creation time.
+// SeatConfig describes a single seat's setup. It is used both at session
+// creation and when a draft session's seat configuration is replaced via
+// Manager.Update.
 type SeatConfig struct {
 	// Type is "human" or "ai".
 	Type string `json:"type"`
 	// AIType is the AI implementation name (e.g., "random", "heuristic").
-	// For AI seats it drives that seat's play. For human seats it is the
-	// fallback AI used when the human turn times out or auto-play is
-	// needed; empty means the game's default fallback ("random" for Hearts).
+	// For AI seats it drives that seat's play. For human seats it selects
+	// the fallback AI that plays on the seat's behalf when the human's
+	// turn timer expires; empty means the game's default fallback
+	// ("random" for Hearts).
 	AIType string `json:"ai_type,omitempty"`
 }
 
@@ -58,16 +61,17 @@ type Config struct {
 	// Cardcore engine computes the AI's move only afterwards, so the
 	// observed time between AI turns is this delay plus the engine's
 	// move-computation time. Nil means use the default (1000ms).
-	// *0 means no delay.
+	// *0 means no delay. Negative values are invalid.
 	AIActionDelayMS *int `json:"ai_action_delay_ms,omitempty"`
 	// DealDisplayDelayMS controls how long the deal snapshot lingers before
 	// the transition broadcast. A deal snapshot is emitted for every deal,
 	// including when this is *0. Nil means use the default (1500ms).
+	// Negative values are invalid.
 	DealDisplayDelayMS *int `json:"deal_display_delay_ms,omitempty"`
 	// TurnTimeoutMS is the maximum time in milliseconds to wait for
 	// a human player to act before auto-playing an AI move on their
 	// behalf. Nil means use the default (30000ms = 30s). *0 means
-	// disabled (no timeout).
+	// disabled (no timeout). Negative values are invalid.
 	TurnTimeoutMS *int `json:"turn_timeout_ms,omitempty"`
 }
 

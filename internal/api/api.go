@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 )
 
 // MaxActionIDLength is the maximum allowed length for an action_id value.
@@ -89,7 +90,7 @@ func ValidateInboundMessage(msg *InboundMessage) error {
 		return errors.New("missing action_id")
 	}
 	if len(msg.ActionID) > MaxActionIDLength {
-		return errors.New("action_id exceeds 256 characters")
+		return fmt.Errorf("action_id exceeds %d characters", MaxActionIDLength)
 	}
 	if msg.Seq < 0 {
 		return errors.New("negative seq")

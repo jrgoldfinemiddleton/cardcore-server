@@ -59,12 +59,6 @@ type handleActionSpyGame struct {
 	handleActionCalls int
 }
 
-// delayGame is a mock Game that returns a fixed non-zero DisplayDelay for
-// verifying the goroutine sleep paths.
-type delayGame struct {
-	delay int
-}
-
 // seqSnapshotGame is a mock Game that returns snapshots embedding the
 // seq value so tests can verify the sequence number in the wire format.
 type seqSnapshotGame struct{}
@@ -72,10 +66,11 @@ type seqSnapshotGame struct{}
 // dealPendingGame records deal consumption, deadline stamping, and snapshot
 // sequence so tests can verify both startup and resumed deal transitions.
 type dealPendingGame struct {
-	pending    bool
-	resumeDeal bool
-	delay      int
-	deadlines  []time.Time
+	pending           bool
+	resumeDeal        bool
+	delay             int
+	displayDelayCalls int
+	deadlines         []time.Time
 }
 
 // HandleAction returns StepContinue; dealPendingGame tests drive startup or
@@ -114,7 +109,10 @@ func (g *dealPendingGame) ObserverSnapshot(seq int) any {
 func (g *dealPendingGame) DealPending() bool { return g.pending }
 
 // DisplayDelay consumes a pending deal and returns the configured delay.
+// It records every call so no-deal startup tests can assert the hook is
+// never consulted on that path.
 func (g *dealPendingGame) DisplayDelay() int {
+	g.displayDelayCalls++
 	if !g.pending {
 		return 0
 	}
@@ -250,47 +248,6 @@ func (a *aiPlayPauseGame) SetTurnDeadline(time.Time) {}
 // SetPaused is a no-op; aiPlayPauseGame does not track external pause
 // state.
 func (a *aiPlayPauseGame) SetPaused(bool) {}
-
-// HandleAction accepts every action and returns StepContinue; the delay
-// test exercises only the initial display-delay sleep.
-func (d *delayGame) HandleAction(int, *api.InboundMessage) (StepResult, *CommandError) {
-	return StepResult{}, nil
-}
-
-// AIPlay returns StepFinished. The display-delay test configures a human
-// seat, so it is never called; it exists to satisfy the Game interface.
-func (d *delayGame) AIPlay(int) (StepResult, error) {
-	return StepResult{Outcome: StepFinished}, nil
-}
-
-// Resume returns StepContinue; delayGame never enters a pausable state.
-func (d *delayGame) Resume() (StepResult, error) {
-	return StepResult{Outcome: StepContinue}, nil
-}
-
-// Turn always returns seat 0; the delay test configures a single seat.
-func (d *delayGame) Turn() int { return 0 }
-
-// PlayerSnapshot returns nil, which marshals to null; the delay test
-// measures elapsed time, not snapshot content.
-func (d *delayGame) PlayerSnapshot(int, int) any { return nil }
-
-// ObserverSnapshot returns nil, which marshals to null; the delay test has
-// no observer subscribers.
-func (d *delayGame) ObserverSnapshot(int) any { return nil }
-
-// DisplayDelay returns the configured delay so the test can verify the
-// goroutine sleeps before advancing past the initial state.
-func (d *delayGame) DisplayDelay() int { return d.delay }
-
-// DealPending reports false so delayGame exercises display pacing without a deal.
-func (d *delayGame) DealPending() bool { return false }
-
-// SetTurnDeadline is a no-op; delayGame does not track turn deadlines.
-func (d *delayGame) SetTurnDeadline(time.Time) {}
-
-// SetPaused is a no-op; delayGame does not track pause state.
-func (d *delayGame) SetPaused(bool) {}
 
 // HandleAction accepts every action and returns StepContinue; mockGame
 // only satisfies the Game interface for session lifecycle tests and does

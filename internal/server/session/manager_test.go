@@ -315,6 +315,115 @@ func TestUpdateTurnTimeout(t *testing.T) {
 	}
 }
 
+// TestCreateNegativeDelaysRejected verifies that Create rejects configs
+// carrying a negative delay or timeout value.
+func TestCreateNegativeDelaysRejected(t *testing.T) {
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
+	neg := -1
+
+	tests := []struct {
+		name string
+		set  func(cfg *Config)
+	}{
+		{"ai_action_delay_ms", func(cfg *Config) { cfg.AIActionDelayMS = &neg }},
+		{"deal_display_delay_ms", func(cfg *Config) { cfg.DealDisplayDelayMS = &neg }},
+		{"turn_timeout_ms", func(cfg *Config) { cfg.TurnTimeoutMS = &neg }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validHeartsCfg()
+			tt.set(&cfg)
+			_, _, err := m.Create(cfg)
+			if !errors.Is(err, ErrInvalidConfig) {
+				t.Errorf("got error %v, want ErrInvalidConfig", err)
+			}
+		})
+	}
+}
+
+// TestUpdateNegativeDelayRejected verifies that a delay-only patch with a
+// negative value is validated and rejected, leaving the session unchanged.
+func TestUpdateNegativeDelayRejected(t *testing.T) {
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
+	neg := -1
+
+	info, _, err := m.Create(validHeartsCfg())
+	if err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+	id := info.SessionID
+
+	tests := []struct {
+		name  string
+		patch PatchConfig
+	}{
+		{"ai_action_delay_ms", PatchConfig{AIActionDelayMS: &neg}},
+		{"deal_display_delay_ms", PatchConfig{DealDisplayDelayMS: &neg}},
+		{"turn_timeout_ms", PatchConfig{TurnTimeoutMS: &neg}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := m.Update(id, tt.patch)
+			if !errors.Is(err, ErrInvalidConfig) {
+				t.Errorf("got error %v, want ErrInvalidConfig", err)
+			}
+		})
+	}
+
+	// The rejected patches applied nothing: delays still resolve from the
+	// original config (validHeartsCfg sets ai_action_delay_ms to 0; the
+	// other two fields are nil and fall back to the server defaults).
+	got, err := m.Get(id)
+	if err != nil {
+		t.Fatalf("Get() error: %v", err)
+	}
+	if got.AIActionDelayMS != 0 {
+		t.Errorf("got ai_action_delay_ms %d, want 0", got.AIActionDelayMS)
+	}
+	if got.DealDisplayDelayMS != DefaultServerDelays.DealDisplayDelayMS {
+		t.Errorf("got deal_display_delay_ms %d, want %d",
+			got.DealDisplayDelayMS, DefaultServerDelays.DealDisplayDelayMS)
+	}
+	if got.TurnTimeoutMS != DefaultServerDelays.TurnTimeoutMS {
+		t.Errorf("got turn_timeout_ms %d, want %d",
+			got.TurnTimeoutMS, DefaultServerDelays.TurnTimeoutMS)
+	}
+}
+
+// TestUpdateInvalidMergedConfigAppliesNothing verifies that a patch
+// carrying valid seats but an invalid delay value is rejected as a whole:
+// no partial application, so the original seat tokens still resolve.
+func TestUpdateInvalidMergedConfigAppliesNothing(t *testing.T) {
+	m := NewManager(mockGameRegistry(), DefaultServerDelays)
+	neg := -1
+
+	info, originalSeats, err := m.Create(validHeartsCfg())
+	if err != nil {
+		t.Fatalf("Create() error: %v", err)
+	}
+	id := info.SessionID
+
+	_, _, err = m.Update(id, PatchConfig{
+		Seats:           validHeartsCfg().Seats,
+		TurnTimeoutMS:   &neg,
+		AIActionDelayMS: &neg,
+	})
+	if !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("got error %v, want ErrInvalidConfig", err)
+	}
+
+	// The original human-seat tokens must still authenticate: the seat
+	// replacement was not applied.
+	for _, s := range originalSeats {
+		if s.Token == "" {
+			continue
+		}
+		if _, _, err := m.LookupToken(s.Token); err != nil {
+			t.Errorf("seat %d: original token no longer resolves: %v", s.Index, err)
+		}
+	}
+}
+
 // TestUpdateSeatsAndDelaysApplyTogether verifies that a patch carrying
 // both a seat configuration and delay/timeout overrides applies every
 // field, returning fresh seat tokens and the merged delay values.

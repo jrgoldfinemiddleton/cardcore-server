@@ -145,14 +145,14 @@ func TestRoundCompletePoints(t *testing.T) {
 	t.Run("normal round", func(t *testing.T) {
 		g := hearts.New(rand.New(rand.NewPCG(1, 2)))
 		g.Scores = [hearts.NumPlayers]int{15, 13, 4, 20}
-		g.RoundPts = [hearts.NumPlayers]int{5, 8, 0, 13}
+		g.RoundPts = [hearts.NumPlayers]int{2, 8, 0, 16}
 
 		vs := ViewState{
 			Game:           g,
 			RoundComplete:  true,
-			PreviousScores: [hearts.NumPlayers]int{10, 5, 4, 7},
+			PreviousScores: [hearts.NumPlayers]int{13, 5, 4, 4},
 		}
-		wantDelta := []int{5, 8, 0, 13}
+		wantDelta := []int{2, 8, 0, 16}
 
 		ps := PlayerView(vs, 0, 0)
 		os := ObserverView(vs, 0)
@@ -166,16 +166,16 @@ func TestRoundCompletePoints(t *testing.T) {
 		}
 	})
 
-	t.Run("moon shot", func(t *testing.T) {
+	t.Run("moonshot", func(t *testing.T) {
 		g := hearts.New(rand.New(rand.NewPCG(1, 2)))
 		// Seat 0 shot the moon: its score stays the same, others gain 26.
-		g.Scores = [hearts.NumPlayers]int{10, 31, 28, 29}
+		g.Scores = [hearts.NumPlayers]int{13, 31, 28, 32}
 		g.RoundPts = [hearts.NumPlayers]int{26, 0, 0, 0}
 
 		vs := ViewState{
 			Game:           g,
 			RoundComplete:  true,
-			PreviousScores: [hearts.NumPlayers]int{10, 5, 2, 3},
+			PreviousScores: [hearts.NumPlayers]int{13, 5, 2, 6},
 		}
 		wantDelta := []int{0, 26, 26, 26}
 
@@ -356,21 +356,62 @@ func TestObserverViewPausedFlag(t *testing.T) {
 }
 
 // TestBuildPhasePaused verifies that when Paused is true, buildPhase returns
-// the string "paused" regardless of engine phase.
+// the string "paused" for every engine phase, and that Paused also wins over
+// every combination of transition flags.
 func TestBuildPhasePaused(t *testing.T) {
-	g := dealGame(t)
-	vs := ViewState{Game: g, Paused: true}
-	if got := buildPhase(vs, g); got != "paused" {
-		t.Fatalf("buildPhase paused: got %q, want 'paused'", got)
+	phases := []hearts.Phase{
+		hearts.PhaseDeal,
+		hearts.PhasePass,
+		hearts.PhasePlay,
+		hearts.PhaseScore,
+		hearts.PhaseEnd,
+	}
+	for _, phase := range phases {
+		t.Run(heartsapi.PhaseToWire(phase), func(t *testing.T) {
+			g := hearts.New(rand.New(rand.NewPCG(1, 2)))
+			g.Phase = phase
+
+			vs := ViewState{Game: g, Paused: true}
+			if got, want := buildPhase(vs, g), "paused"; got != want {
+				t.Errorf("buildPhase: got %q, want %q", got, want)
+			}
+
+			// Paused wins over every transition flag combination.
+			vs = ViewState{
+				Game:          g,
+				Paused:        true,
+				TrickComplete: true,
+				RoundComplete: true,
+				DealPending:   true,
+			}
+			if got, want := buildPhase(vs, g), "paused"; got != want {
+				t.Errorf("buildPhase with all transition flags: got %q, want %q", got, want)
+			}
+		})
 	}
 }
 
-// TestBuildPhaseNotPaused verifies the normal phase string is returned when not paused.
+// TestBuildPhaseNotPaused verifies that when Paused is false and no
+// transition flags are set, buildPhase returns the wire-format mapping of
+// the current engine phase.
 func TestBuildPhaseNotPaused(t *testing.T) {
-	g := dealGame(t)
-	vs := ViewState{Game: g, Paused: false}
-	if got := buildPhase(vs, g); got == "paused" {
-		t.Fatalf("buildPhase not paused: got %q, want not 'paused'", got)
+	phases := []hearts.Phase{
+		hearts.PhaseDeal,
+		hearts.PhasePass,
+		hearts.PhasePlay,
+		hearts.PhaseScore,
+		hearts.PhaseEnd,
+	}
+	for _, phase := range phases {
+		t.Run(heartsapi.PhaseToWire(phase), func(t *testing.T) {
+			g := hearts.New(rand.New(rand.NewPCG(1, 2)))
+			g.Phase = phase
+
+			vs := ViewState{Game: g}
+			if got, want := buildPhase(vs, g), heartsapi.PhaseToWire(phase); got != want {
+				t.Errorf("buildPhase: got %q, want %q", got, want)
+			}
+		})
 	}
 }
 

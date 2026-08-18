@@ -10,24 +10,37 @@ import (
 
 // createResponse is the JSON body for POST /sessions responses.
 type createResponse struct {
-	SessionID string         `json:"session_id"`
-	Seats     []session.Seat `json:"seats"`
+	// SessionID is the newly created session's identifier.
+	SessionID string `json:"session_id"`
+	// Seats holds the created seats, including the freshly minted bearer
+	// token for each human seat (empty for AI seats). This is the only
+	// response that surfaces tokens.
+	Seats []session.Seat `json:"seats"`
 }
 
 // listResponse is the JSON body for GET /sessions responses.
 type listResponse struct {
+	// Sessions holds a summary of every session that is not expired.
 	Sessions []session.Summary `json:"sessions"`
 }
 
 // startResponse is the JSON body for POST /sessions/{id}/start responses.
 type startResponse struct {
+	// SessionID is the started session's identifier.
 	SessionID string `json:"session_id"`
-	State     string `json:"state"`
+	// State is the session's lifecycle state after the start, always
+	// "active".
+	State string `json:"state"`
 }
 
 // patchResponse is the JSON body for PATCH /sessions/{id} responses.
 type patchResponse struct {
+	// Info is the full session detail after the patch; it never contains
+	// seat tokens.
 	session.Info
+	// SeatTokens holds freshly minted bearer tokens for every human seat
+	// when the patch replaced the seat configuration, invalidating all
+	// former tokens. It is omitted when the patch did not change seats.
 	SeatTokens []session.Seat `json:"seat_tokens,omitempty"`
 }
 

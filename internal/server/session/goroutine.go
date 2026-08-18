@@ -9,10 +9,22 @@ import (
 )
 
 const (
-	cmdChanSize       = 64
-	subChanSize       = 64
+	// cmdChanSize is the buffer size of a session's command channel. The
+	// buffer lets Manager methods fast-fail with "command queue full"
+	// instead of blocking while holding a lock.
+	cmdChanSize = 64
+	// subChanSize is the buffer size of each subscriber channel. The
+	// buffer absorbs bursts of snapshots so a slow subscriber's channel
+	// does not stall the broadcast loop; a full buffer drops the snapshot
+	// and the client resyncs via stale_seq on its next action.
+	subChanSize = 64
+	// actionIDCacheSize is the maximum number of action IDs retained in
+	// the idempotent replay cache before the least-recently-used entry is
+	// evicted.
 	actionIDCacheSize = 1000
 
+	// errType is the Type value stamped on every outbound
+	// api.ErrorMessage.
 	errType = "error"
 )
 
@@ -157,24 +169,17 @@ func (s *session) run() {
 	} else {
 		// Stamp the turn deadline onto the initial snapshot so clients
 		// see the timer for the first human turn before any commands
-		// are submitted, then honor the game's initial-state pacing
-		// hook (zero for a game whose opening needs no pacing).
+		// are submitted. There is deliberately no initial display delay
+		// on this path: a game with no deal is actionable immediately,
+		// and sleeping here would dock the first human turn by the
+		// delay. A game whose opening needs a display window expresses
+		// it via DealPending (see runDealPhase), which stamps the
+		// deadline only at the actionable transition.
 		s.scheduleTurnDeadline()
 		s.broadcastSnapshot()
 		if s.finished {
 			s.drainCmds()
 			return
-		}
-		delay := s.game.DisplayDelay()
-		if delay > 0 {
-			s.logger.Debug("initial display delay", "delay_ms", delay)
-			select {
-			case <-time.After(time.Duration(delay) * time.Millisecond):
-			case <-s.cancel:
-				s.closeSubscribers()
-				s.drainCmds()
-				return
-			}
 		}
 	}
 
@@ -184,6 +189,13 @@ func (s *session) run() {
 	// it without driving first would deadlock any game whose first turn
 	// is not a human's: no command would ever arrive and no timeout
 	// would be armed.
+	//
+	// fromPause=false is passed with full confidence: StepPause arises
+	// only as the outcome of a mutating call (HandleAction, AIPlay,
+	// Resume), no mutation has run yet on this fresh game, and every
+	// mutation site drains its own pause chain via driveTurns before
+	// returning — so the game cannot be parked in a pausable state here
+	// and Turn is meaningful for processTurns.
 	driveTurnsResult := s.driveTurns(false)
 	if driveTurnsResult == driveFinished || s.finished {
 		s.drainCmds()
@@ -221,6 +233,13 @@ func (s *session) run() {
 			// guard in handlePlay; do not let them clear waitingForHuman,
 			// or resume would skip restoring the turn deadline from
 			// pauseRemaining.
+			//
+			// If a human command arrives while waitingForHuman is true, the
+			// command is for the current turn. If the command is not a
+			// pause/resume, clear waitingForHuman so handleCommand does not
+			// call driveTurns again after processing the command. That
+			// prevents a human from submitting multiple commands in a row
+			// and having them all apply to the same turn.
 			if pc, ok := cmd.(playCmd); ok && s.waitingForHuman &&
 				pc.seat == s.game.Turn() && s.isHumanSeat(pc.seat) &&
 				pc.msg.Type != "pause" && pc.msg.Type != "resume" && !s.paused {
