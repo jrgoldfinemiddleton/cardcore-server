@@ -46,7 +46,11 @@ const (
 	// RecoveryRetryDifferent is returned for illegal_move: the attempted move
 	// violated the game rules. ADR-013 classifies illegal_move as fatal — a
 	// structured client prevents it via client-side validation rather than
-	// retrying with a different action.
+	// retrying with a different action. The reason for classifying illegal_move
+	// as fatal for structured clients is that the client's structure clearly
+	// failed to prevent the illegal move, and retrying with a different action
+	// is not guaranteed to succeed. However, unstructured clients may be able to
+	// recover by retrying with a different action.
 	RecoveryRetryDifferent = "retry_different"
 	// RecoveryTerminal indicates that the client should not retry; the session
 	// is finished, a pause/resume operation was rejected, or an internal or
@@ -55,7 +59,9 @@ const (
 	// RecoveryFixAndRetry is returned for malformed_message: the envelope or
 	// payload was invalid. ADR-013 classifies malformed_message as fatal — a
 	// structured client validates before sending rather than fixing and
-	// retrying a rejected message.
+	// retrying a rejected message. The assumption is that a structured client
+	// must be buggy or broken if it has sent a malformed message, and cannot be
+	// trusted further.
 	RecoveryFixAndRetry = "fix_and_retry"
 )
 
