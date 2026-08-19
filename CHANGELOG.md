@@ -10,6 +10,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- `-version` flag on all three binaries (`cardcore-server`, `cardcore-tui`, `cardcore-cli`), with matching `CARDCORE_SERVER_VERSION` / `CARDCORE_TUI_VERSION` / `CARDCORE_CLI_VERSION` environment variables: prints the version, commit, build date, and builder injected via `-ldflags` at release time; local development builds report `dev`
 - `nakedret` linting: naked returns are now forbidden in every function regardless of length (`max-func-lines: 0`), so named result parameters serve purely as signature documentation and every return statement stays explicit
 - Hearts `deal` phase on the wire: every deal (game start and each round boundary) now broadcasts a server-synthesized `deal` snapshot carrying the freshly dealt hands with empty `legal_actions` and `turn_deadline_ms` 0, followed — after `deal_display_delay_ms` — by the actionable `passing`/`playing` transition snapshot, so each round begins with one extra broadcast. The pair is emitted even when the delay is `0` (zero skips only the pause), and clients subscribing during the initial deal window are served the deal snapshot immediately instead of waiting out the delay
 - TUI Hearts observer deal view: observers now see the same `Dealing...` overlay as seated players during the `deal` phase instead of the square table with a stale turn line

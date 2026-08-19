@@ -47,11 +47,22 @@ type tuiConfig struct {
 	// menuSkipped is true when the user explicitly set a game-related flag,
 	// bypassing the interactive menu.
 	menuSkipped bool
+	// showVersion is true when -version is set: print build information and exit.
+	showVersion bool
 }
 
 const (
 	themeDark  = "dark"
 	themeLight = "light"
+)
+
+// Build information, injected via -ldflags -X at release time. The default
+// values identify local development builds.
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+	builtBy = "source"
 )
 
 // main is the entry point for the cardcore TUI client.
@@ -81,6 +92,12 @@ func main() {
 		}
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
+	}
+
+	if cfg.showVersion {
+		fmt.Printf("cardcore-tui %s (commit %s, built %s by %s)\n",
+			version, commit, date, builtBy)
+		os.Exit(0)
 	}
 
 	resolvedCfg, err := runMenu(cfg)
@@ -149,6 +166,9 @@ func parseFlags(args []string) (*tuiConfig, error) {
 	fs.StringVar(&cfg.theme, "theme",
 		flags.EnvOrDefault("CARDCORE_TUI_THEME", themeDark),
 		"color theme: dark or light (env: CARDCORE_TUI_THEME)")
+	fs.BoolVar(&cfg.showVersion, "version",
+		flags.BoolEnvOrDefault("CARDCORE_TUI_VERSION", false),
+		"print version information and exit (env: CARDCORE_TUI_VERSION)")
 
 	fs.Usage = func() {
 		_, _ = fmt.Fprintf(fs.Output(), "Usage: %s [flags]\n\n", fs.Name())
@@ -162,6 +182,10 @@ func parseFlags(args []string) (*tuiConfig, error) {
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
+	}
+
+	if cfg.showVersion {
+		return cfg, nil
 	}
 
 	fs.Visit(func(f *flag.Flag) {

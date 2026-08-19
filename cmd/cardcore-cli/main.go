@@ -25,6 +25,15 @@ const (
 
 var errBrokenPipe = errors.New("broken pipe")
 
+// Build information, injected via -ldflags -X at release time. The default
+// values identify local development builds.
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+	builtBy = "source"
+)
+
 // GameFormatter formats snapshots into compact notation for a specific game.
 type GameFormatter interface {
 	FormatSnapshot(snapshot []byte) string
@@ -59,6 +68,8 @@ type cliConfig struct {
 	// exitDelay is the time to wait after game_over before exiting, in
 	// milliseconds.
 	exitDelay int
+	// showVersion is true when -version is set: print build information and exit.
+	showVersion bool
 }
 
 // main is the entry point for the cardcore client CLI.
@@ -74,6 +85,12 @@ func main() {
 		}
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
+	}
+
+	if cfg.showVersion {
+		fmt.Printf("cardcore-cli %s (commit %s, built %s by %s)\n",
+			version, commit, date, builtBy)
+		os.Exit(0)
 	}
 
 	if err := run(cfg); err != nil {
@@ -132,6 +149,9 @@ func parseFlags(args []string) (*cliConfig, error) {
 		flags.IntEnvOrDefault("CARDCORE_CLI_EXIT_DELAY_MS", 1000),
 		"time in milliseconds to wait after game_over before exiting "+
 			"(env: CARDCORE_CLI_EXIT_DELAY_MS)")
+	fs.BoolVar(&cfg.showVersion, "version",
+		flags.BoolEnvOrDefault("CARDCORE_CLI_VERSION", false),
+		"print version information and exit (env: CARDCORE_CLI_VERSION)")
 
 	fs.Usage = func() {
 		_, _ = fmt.Fprintf(fs.Output(), "Usage: %s [flags]\n\n", fs.Name())
@@ -145,6 +165,10 @@ func parseFlags(args []string) (*cliConfig, error) {
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
+	}
+
+	if cfg.showVersion {
+		return cfg, nil
 	}
 
 	if cfg.script == "" && !cfg.observe {

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -136,6 +138,18 @@ func TestParseFlagsLogFile(t *testing.T) {
 	}
 }
 
+// TestParseFlagsVersion verifies that -version is accepted and bypasses
+// unrelated flag validation.
+func TestParseFlagsVersion(t *testing.T) {
+	cfg, err := parseFlags([]string{"-version"}, testRegistry())
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	if !cfg.showVersion {
+		t.Errorf("showVersion got %v, want true", cfg.showVersion)
+	}
+}
+
 // TestRegistryContainsHearts verifies that the default registry used by the
 // server contains the Hearts game.
 func TestRegistryContainsHearts(t *testing.T) {
@@ -204,6 +218,35 @@ func TestRunWithArgsAndSignalLogFile(t *testing.T) {
 	}
 	if len(data) == 0 {
 		t.Error("log file is empty")
+	}
+}
+
+// TestRunWithArgsAndSignalVersion verifies that -version prints build
+// information to stdout and returns 0 without starting the server.
+func TestRunWithArgsAndSignalVersion(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	old := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = old }()
+
+	code := runWithArgsAndSignal([]string{"-version"}, make(chan os.Signal, 1))
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("close pipe writer: %v", err)
+	}
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read captured stdout: %v", err)
+	}
+
+	if code != 0 {
+		t.Errorf("exit code got %d, want 0", code)
+	}
+	if !strings.Contains(string(out), "cardcore-server") {
+		t.Errorf("version output got %q, want it to contain %q", string(out), "cardcore-server")
 	}
 }
 

@@ -179,6 +179,18 @@ func TestParseFlagsValidation(t *testing.T) {
 	}
 }
 
+// TestParseFlagsVersion verifies that -version is accepted on its own,
+// bypassing the -script requirement.
+func TestParseFlagsVersion(t *testing.T) {
+	cfg, err := parseFlags([]string{"-version"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	if !cfg.showVersion {
+		t.Errorf("showVersion got %v, want true", cfg.showVersion)
+	}
+}
+
 // TestRunMissingScriptFile verifies that run() returns an error when the
 // configured script file does not exist. A real server backs the test so
 // session creation and the WebSocket connect succeed, isolating the script

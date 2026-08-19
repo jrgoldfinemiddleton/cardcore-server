@@ -210,6 +210,21 @@ func TestParseFlagsAITypeNoSession(t *testing.T) {
 	}
 }
 
+// TestParseFlagsVersion verifies that -version is accepted on its own and
+// does not skip the pre-game menu.
+func TestParseFlagsVersion(t *testing.T) {
+	cfg, err := parseFlags([]string{"-version"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	if !cfg.showVersion {
+		t.Errorf("showVersion got %v, want true", cfg.showVersion)
+	}
+	if cfg.menuSkipped {
+		t.Errorf("menuSkipped got %v, want false", cfg.menuSkipped)
+	}
+}
+
 // TestParseFlagsMenuSkippedExplicitFlags verifies that explicit game-related
 // flags cause parseFlags to set menuSkipped to true.
 func TestParseFlagsMenuSkippedExplicitFlags(t *testing.T) {
