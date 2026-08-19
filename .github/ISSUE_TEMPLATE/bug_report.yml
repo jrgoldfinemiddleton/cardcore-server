@@ -33,7 +33,7 @@ body:
     id: version
     attributes:
       label: cardcore-server version
-      description: You can find this with `go list -m github.com/jrgoldfinemiddleton/cardcore-server`.
+      description: Run any binary with `-version` (e.g., `cardcore-server -version`). If you installed from source with `go install`, use `go list -m github.com/jrgoldfinemiddleton/cardcore-server`.
       placeholder: v0.1.0
     validations:
       required: true

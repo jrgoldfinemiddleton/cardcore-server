@@ -20,6 +20,15 @@ import (
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/server/transport"
 )
 
+// Build information, injected via -ldflags -X at release time. The default
+// values identify local development builds.
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+	builtBy = "source"
+)
+
 // serverConfig holds all generic command-line flag values after parsing.
 // Game-specific flags are owned by the registered game adapters.
 type serverConfig struct {
@@ -30,6 +39,7 @@ type serverConfig struct {
 	aiActionDelay    int
 	dealDisplayDelay int
 	turnTimeout      int
+	showVersion      bool
 }
 
 // main is the entry point for the cardcore-server binary. It delegates to
@@ -61,6 +71,12 @@ func runWithArgsAndSignal(args []string, sigCh <-chan os.Signal) int {
 		}
 		fmt.Fprintln(os.Stderr, err)
 		return 2
+	}
+
+	if cfg.showVersion {
+		fmt.Printf("cardcore-server %s (commit %s, built %s by %s)\n",
+			version, commit, date, builtBy)
+		return 0
 	}
 
 	lvl := new(slog.LevelVar)
@@ -157,6 +173,9 @@ func parseFlags(args []string, registry *session.Registry) (*serverConfig, error
 		"milliseconds a human turn may take before an AI move is "+
 			"auto-played for that seat; 0 disables "+
 			"(env: CARDCORE_SERVER_TURN_TIMEOUT_MS)")
+	fs.BoolVar(&cfg.showVersion, "version",
+		flags.BoolEnvOrDefault("CARDCORE_SERVER_VERSION", false),
+		"print version information and exit (env: CARDCORE_SERVER_VERSION)")
 
 	registry.RegisterFlags(fs)
 
@@ -172,6 +191,10 @@ func parseFlags(args []string, registry *session.Registry) (*serverConfig, error
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
+	}
+
+	if cfg.showVersion {
+		return cfg, nil
 	}
 
 	if cfg.shutdownTimeout <= 0 {
