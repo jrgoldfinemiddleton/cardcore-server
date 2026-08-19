@@ -22,7 +22,9 @@ type SeatConfig struct {
 
 // Config holds the parameters for creating a new session.
 type Config struct {
-	// Game is the game identifier (e.g., "hearts").
+	// Game is the game identifier (e.g., "hearts"). It must match a game
+	// registered on the server; unknown values fail session creation with
+	// HTTP 400.
 	Game string `json:"game"`
 	// Seats defines each seat's configuration.
 	Seats []SeatConfig `json:"seats"`
@@ -34,8 +36,9 @@ type Config struct {
 	// nil means use the server default.
 	DealDisplayDelayMS *int `json:"deal_display_delay_ms,omitempty"`
 	// TurnTimeoutMS is the maximum time in milliseconds to wait for
-	// a human player to act before auto-playing an AI move. Zero means
-	// no timeout. nil means use the server default.
+	// a human player to act before auto-playing an AI move on its
+	// behalf. Zero means no timeout. nil means use the server
+	// default.
 	TurnTimeoutMS *int `json:"turn_timeout_ms,omitempty"`
 }
 
@@ -98,23 +101,29 @@ type SessionClient struct {
 	// BaseURL is the server base URL (e.g., "http://localhost:8080").
 	BaseURL string
 	// HTTPClient is the HTTP client used for requests. If nil,
-	// [http.DefaultClient] is used.
+	// http.DefaultClient is used.
 	HTTPClient *http.Client
 	// Logger is the structured logger for client operations. If nil,
-	// [slog.Default] is used.
+	// slog.Default is used.
 	Logger *slog.Logger
 }
 
 // createResponse is the JSON body for POST /sessions responses.
 type createResponse struct {
-	SessionID string     `json:"session_id"`
-	Seats     []SeatInfo `json:"seats"`
+	// SessionID is the opaque session identifier.
+	SessionID string `json:"session_id"`
+	// Seats describes each created seat, including bearer tokens for
+	// human seats.
+	Seats []SeatInfo `json:"seats"`
 }
 
 // startResponse is the JSON body for POST /sessions/{id}/start responses.
 type startResponse struct {
+	// SessionID is the opaque session identifier.
 	SessionID string `json:"session_id"`
-	State     string `json:"state"`
+	// State is the session lifecycle state after the start transition
+	// (e.g., "active").
+	State string `json:"state"`
 }
 
 // Error returns a string including the status code and message.
@@ -225,7 +234,7 @@ func (c *SessionClient) GetSession(ctx context.Context, sessionID string) (Sessi
 	return info, nil
 }
 
-// logger returns the configured logger or [slog.Default] if nil.
+// logger returns the configured logger or slog.Default if nil.
 func (c *SessionClient) logger() *slog.Logger {
 	if c.Logger != nil {
 		return c.Logger
