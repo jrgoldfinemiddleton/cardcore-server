@@ -10,6 +10,10 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Added
 
+- Release tooling: GoReleaser v2 (declared as a `go.mod` tool) cross-compiles all three binaries for Linux, macOS, and Windows (amd64/arm64) into per-platform archives with SHA-256 checksums, published to the GitHub Release by the tag-triggered release workflow; release notes remain the hand-curated `CHANGELOG.md` section
+- `scripts/release.sh`: the single supported entry point for cutting a release — validates semver and the pre-1.0 policy, repository cleanliness and freshness, changelog readiness, `make check`, and a full GoReleaser snapshot rehearsal with a `-version` smoke test before creating and pushing an annotated tag; `--dry-run` rehearses without creating anything
+- `doc/releasing.md`: the committed maintainer-facing release process — versioning rules, artifact inventory, procedure, post-release verification, recovery, and the deferred distribution extras (signing, packages, notarization, package managers) with their trigger conditions
+- `make snapshot` target: local GoReleaser rehearsal build into `dist/` without publishing
 - `-version` flag on all three binaries (`cardcore-server`, `cardcore-tui`, `cardcore-cli`), with matching `CARDCORE_SERVER_VERSION` / `CARDCORE_TUI_VERSION` / `CARDCORE_CLI_VERSION` environment variables: prints the version, commit, build date, and builder injected via `-ldflags` at release time; local development builds report `dev`
 - `nakedret` linting: naked returns are now forbidden in every function regardless of length (`max-func-lines: 0`), so named result parameters serve purely as signature documentation and every return statement stays explicit
 - Hearts `deal` phase on the wire: every deal (game start and each round boundary) now broadcasts a server-synthesized `deal` snapshot carrying the freshly dealt hands with empty `legal_actions` and `turn_deadline_ms` 0, followed — after `deal_display_delay_ms` — by the actionable `passing`/`playing` transition snapshot, so each round begins with one extra broadcast. The pair is emitted even when the delay is `0` (zero skips only the pause), and clients subscribing during the initial deal window are served the deal snapshot immediately instead of waiting out the delay
@@ -98,6 +102,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Changed
 
+- Bumped the minimum Go version to 1.26.6 so the GoReleaser release tool is managed via the `go.mod` tool directive like the other dev tools; `charm.land/lipgloss/v2` rises to v2.0.5 through the tool's module graph
 - The `action_id` length-validation error message now formats from the `MaxActionIDLength` constant so the limit and the message cannot drift
 - Bumped the minimum Go version to 1.25.13 to pick up fixes for five standard-library vulnerabilities flagged by govulncheck (GO-2026-6218, GO-2026-6090, GO-2026-6089, GO-2026-5972, GO-2026-5026)
 - Renamed the CLI pacing flag for consistency with the other delay flags: `-pacing-ms` → `-pacing-delay-ms`, with the environment variable renamed likewise (`CARDCORE_CLI_PACING_MS` → `CARDCORE_CLI_PACING_DELAY_MS`)

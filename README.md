@@ -12,29 +12,87 @@ Cardcore Server hosts card games on a localhost WebSocket server, with a termina
 
 Hearts is the first implemented game. Other games will follow the same vertical-slice structure.
 
-## Quickstart
+## Installation
 
-Install [Go](https://go.dev/) 1.25.13+, then build the binaries:
+### Prebuilt binaries (recommended)
+
+Download the archive for your platform from the
+[latest release](https://github.com/jrgoldfinemiddleton/cardcore-server/releases/latest).
+Every archive contains all three commands plus the license and changelog:
+
+| Platform | Archive |
+|---|---|
+| Linux (amd64) | `cardcore-server_X.Y.Z_linux_amd64.tar.gz` |
+| Linux (arm64) | `cardcore-server_X.Y.Z_linux_arm64.tar.gz` |
+| macOS (Intel) | `cardcore-server_X.Y.Z_darwin_amd64.tar.gz` |
+| macOS (Apple Silicon) | `cardcore-server_X.Y.Z_darwin_arm64.tar.gz` |
+| Windows (amd64) | `cardcore-server_X.Y.Z_windows_amd64.zip` |
+| Windows (arm64) | `cardcore-server_X.Y.Z_windows_arm64.zip` |
+
+Verify, extract, and install (shown for Linux amd64; substitute your archive
+from the table above):
+
+```bash
+VERSION=0.1.0  # the release to install, without the leading "v"
+
+curl -LO "https://github.com/jrgoldfinemiddleton/cardcore-server/releases/download/v${VERSION}/cardcore-server_${VERSION}_linux_amd64.tar.gz"
+curl -LO "https://github.com/jrgoldfinemiddleton/cardcore-server/releases/download/v${VERSION}/checksums.txt"
+sha256sum -c checksums.txt --ignore-missing   # macOS: shasum -a 256 -c checksums.txt --ignore-missing
+tar -xzf "cardcore-server_${VERSION}_linux_amd64.tar.gz"
+sudo mv cardcore-server cardcore-tui cardcore-cli /usr/local/bin/
+```
+
+The archives already carry executable permissions, so no `chmod` is needed.
+
+> **macOS:** archives downloaded with `curl` do not trigger Gatekeeper. If
+> you download through a browser instead, remove the quarantine attribute
+> after extracting: `xattr -d com.apple.quarantine cardcore-*`.
+>
+> **Windows:** extract the `.zip` and run the `.exe` files. SmartScreen may
+> warn about the unsigned binaries; choose **More info → Run anyway**.
+
+### Install with Go
+
+Requires [Go](https://go.dev/) 1.26.6 or newer:
+
+```bash
+go install github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-server@latest
+go install github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-tui@latest
+go install github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-cli@latest
+```
+
+### Build from source
+
+Requires [Go](https://go.dev/) 1.26.6 or newer:
 
 ```bash
 git clone https://github.com/jrgoldfinemiddleton/cardcore-server.git
 cd cardcore-server
-make build
+make build    # binaries land in bin/
 ```
 
-In one terminal, start the server:
+## Quickstart
+
+In one terminal, start the server (use `./bin/cardcore-server` when building
+from source):
 
 ```bash
-./bin/cardcore-server
+cardcore-server
 ```
 
 In another terminal, start the TUI and select **Start Game** from the menu:
 
 ```bash
-./bin/cardcore-tui
+cardcore-tui
 ```
 
 The default menu starts a 1-human + 3-AI Hearts game. No flags are required.
+
+Every command reports its build information:
+
+```bash
+cardcore-server -version
+```
 
 ## Commands
 
@@ -65,9 +123,9 @@ For tmux, set `TERM=screen-256color` or `tmux-256color`. Focus reporting is not 
 Each command prints its full flag and environment-variable reference:
 
 ```bash
-./bin/cardcore-server -h
-./bin/cardcore-tui -h
-./bin/cardcore-cli -h
+cardcore-server -h
+cardcore-tui -h
+cardcore-cli -h
 ```
 
 All flags have a matching `CARDCORE_*` environment variable. Explicit flags take precedence.

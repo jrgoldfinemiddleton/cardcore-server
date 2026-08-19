@@ -1,4 +1,4 @@
-.PHONY: test fmt vet lint lint-extra vuln race bench stress build doc check help create-labels apply-labels clean
+.PHONY: test fmt vet lint lint-extra vuln race bench stress build snapshot doc check help create-labels apply-labels clean
 
 test: ## Run all tests
 	go test ./...
@@ -31,6 +31,9 @@ build: ## Compile all packages and binaries to bin/
 	@mkdir -p bin
 	go build -o bin/ ./cmd/...
 
+snapshot: ## Rehearse the release build locally (dist/, no publishing)
+	go tool goreleaser release --snapshot --clean
+
 doc: ## Browse docs locally via pkgsite
 	go tool pkgsite -open .
 
@@ -46,5 +49,5 @@ apply-labels: ## Compute and apply labels for PR=<n>
 	@if [ -z "$(PR)" ]; then echo "usage: make apply-labels PR=<pr-number>" >&2; exit 1; fi
 	./scripts/apply-labels.sh $(PR)
 
-clean: ## Remove build output directory
-	rm -rf bin/
+clean: ## Remove build output directories
+	rm -rf bin/ dist/

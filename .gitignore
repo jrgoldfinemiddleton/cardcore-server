@@ -17,6 +17,7 @@ coverage.html
 
 # Build output
 /bin/
+/dist/
 
 # Editor artifacts
 .DS_Store

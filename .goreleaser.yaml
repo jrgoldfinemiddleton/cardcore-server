@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: cardcore-server
+
+before:
+  hooks:
+    # Fail the release if go.mod/go.sum are not tidy (read-only check).
+    - go mod tidy -diff
+    # The tag-triggered workflow also runs `make check`; running the tests
+    # here too keeps local `make snapshot` rehearsals honest.
+    - go test ./...
+
+builds:
+  - id: cardcore-server
+    main: ./cmd/cardcore-server
+    binary: cardcore-server
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
+
+  - id: cardcore-tui
+    main: ./cmd/cardcore-tui
+    binary: cardcore-tui
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
+
+  - id: cardcore-cli
+    main: ./cmd/cardcore-cli
+    binary: cardcore-cli
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate}} -X main.builtBy=goreleaser
+
+archives:
+  - id: default
+    ids: [cardcore-server, cardcore-tui, cardcore-cli]
+    # Default name: cardcore-server_<version>_<os>_<arch>.<ext>
+    formats: ["tar.gz"]
+    format_overrides:
+      - goos: windows
+        formats: ["zip"]
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+# Release notes are hand-curated: the workflow extracts the tagged version's
+# CHANGELOG.md section and passes it via --release-notes.
+changelog:
+  disable: true
+
+release:
+  github:
+    owner: jrgoldfinemiddleton
+    name: cardcore-server
+  footer: |
+    ---
+    Verify downloads against `checksums.txt` (`sha256sum -c checksums.txt --ignore-missing`).
+    Install instructions: https://github.com/jrgoldfinemiddleton/cardcore-server#installation

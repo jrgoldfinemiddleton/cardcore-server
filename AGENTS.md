@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
 ## OVERVIEW
-`cardcore-server` is a WebSocket game server and Bubble Tea TUI client for the `cardcore` engine. It hosts card games over a JSON-over-WebSocket protocol. Module: `github.com/jrgoldfinemiddleton/cardcore-server`. Go 1.25.13.
+`cardcore-server` is a WebSocket game server and Bubble Tea TUI client for the `cardcore` engine. It hosts card games over a JSON-over-WebSocket protocol. Module: `github.com/jrgoldfinemiddleton/cardcore-server`. Go 1.26.6.
 
 ## STRUCTURE
 ```
@@ -21,10 +21,12 @@ cardcore-server/
 ├── doc/
 │   ├── api.md               # protocol spec
 │   ├── decisions/           # ADRs (architecture decision records)
-│   └── dependencies.md      # approved external dependencies
+│   ├── dependencies.md      # approved external dependencies
+│   └── releasing.md         # maintainer release process
 ├── .github/workflows/       # CI/CD (first-party actions only)
-├── scripts/                 # label sync/apply, for example
+├── scripts/                 # label sync/apply, release.sh (release entry point)
 ├── Makefile                 # build/test/lint targets
+├── .goreleaser.yaml         # release build config (cross-platform archives)
 └── .golangci.yml            # lint config
 ```
 
@@ -40,6 +42,7 @@ cardcore-server/
 | Change TUI rendering | `cmd/cardcore-tui/games/<game>/` | Pure render functions; `Client` holds cursor/selection state |
 | Change CLI formatting | `cmd/cardcore-cli/games/<game>/` | `Formatter` (compact output), `Builder` (script actions), `session.go` (create helpers) |
 | Read architecture policy | `doc/decisions/` | ADRs-004, 006, 007, 008 are the critical ones |
+| Cut a release | `scripts/release.sh`, `doc/releasing.md` | The script is the only supported way to tag a release; never tag by hand |
 
 ## CODE MAP
 | Symbol | Type | Location | Refs | Role |
@@ -89,6 +92,7 @@ cardcore-server/
 make check        # fmt + vet + lint + test (local gate)
 make race         # run all tests with -race
 make build        # compile binaries to bin/
+make snapshot     # rehearse the release build into dist/ (no publishing)
 make lint-extra   # extra-strict lint config
 go test ./...     # run all tests
 go test -race ./...   # run tests with race detector
@@ -99,7 +103,7 @@ go run ./cmd/cardcore-cli -script script.json
 
 ## NOTES
 - `make check` does not run the race detector; `make race` does.
-- Dev tools (`golangci-lint`, `pkgsite`) are declared via Go 1.25's `tool` directive in `go.mod`.
+- Dev tools (`golangci-lint`, `pkgsite`, `goreleaser`) are declared via the `tool` directive in `go.mod`.
 - Stress tests are planned but not yet implemented; when added they must be gated by a build tag so they do not run during `make check`.
 - The `internal/client` package mirrors some server DTOs intentionally; client types have JSON tags and decouple the client from server internals.
 - The `internal/testutil/` package provides shared test fixtures (deterministic Hearts configs, session/client builders, bearer token extraction) for integration tests across packages.
