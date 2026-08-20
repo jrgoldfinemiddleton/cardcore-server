@@ -8,6 +8,10 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ## [Unreleased]
 
+### Fixed
+
+- Release notes: removed `changelog.disable: true` from `.goreleaser.yaml` — with it set, GoReleaser skips its changelog pipe entirely, including the `--release-notes` file read, so the v0.1.1 GitHub Release published with a footer-only body (the release bodies for v0.1.0 and v0.1.1 have been hand-corrected to carry their changelog sections); `--release-notes` alone already bypasses commit-derived generation, and `scripts/release.sh` phase 4 now fails if `changelog.disable` is reintroduced
+
 ## [0.1.1] - 2026-08-19
 
 ### Added

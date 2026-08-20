@@ -39,8 +39,12 @@ re-running GoReleaser on the same commit reproduces the same binaries. Each
 binary reports its build information via `-version` (injected through
 `-ldflags -X`; local builds report `dev`).
 
-Release notes are the hand-curated `## [X.Y.Z]` section of `CHANGELOG.md`;
-GoReleaser's commit-derived changelog generation is disabled.
+Release notes are the hand-curated `## [X.Y.Z]` section of `CHANGELOG.md`,
+passed to GoReleaser via `--release-notes`, which bypasses commit-derived
+generation. Never set `changelog.disable` in `.goreleaser.yaml`: GoReleaser
+would skip its changelog pipe entirely, including the `--release-notes` read,
+and publish a footer-only body (v0.1.1 incident). `scripts/release.sh` guards
+against reintroducing it.
 
 ## Release procedure
 
