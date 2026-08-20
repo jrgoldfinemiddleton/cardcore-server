@@ -51,17 +51,17 @@ against reintroducing it.
 ### 1. Prepare the changelog (its own PR)
 
 1. Ensure everything for the release is merged to `main`.
-2. Run `scripts/prepare-release.sh vX.Y.Z` (`--dry-run` rehearses without
+2. Optional: run the benchmark spot-check against the previous tag
+   (`make bench` + `go tool benchstat`); if any >2x regressions show up, note
+   them in the `[Unreleased]` section before preparing.
+3. Run `scripts/prepare-release.sh vX.Y.Z` (`--dry-run` rehearses without
    creating anything). The script verifies the repository state, moves the
    `[Unreleased]` items into a dated `## [X.Y.Z] - YYYY-MM-DD` section
    (leaving `[Unreleased]` empty), and opens the PR titled
    `docs(changelog): prepare vX.Y.Z release`. Never hand-edit the changelog
    for release prep or open this PR manually.
-3. Merge the PR. Prepare and tag on the same day: `release.sh` warns when
+4. Merge the PR. Prepare and tag on the same day: `release.sh` warns when
    the changelog heading date is not the tag date.
-4. Optional: run the benchmark spot-check against the previous tag
-   (`make bench` + `go tool benchstat`) and note any >2x regressions in the
-   release notes.
 
 ### 2. Cut the release
 
