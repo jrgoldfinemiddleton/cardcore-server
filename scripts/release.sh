@@ -199,6 +199,11 @@ run_quality_gates() {
 	info "Phase 4: running quality gates (make check, goreleaser check)"
 	make check
 	go tool goreleaser check
+	# changelog.disable skips GoReleaser's changelog pipe entirely, including
+	# the --release-notes read; release bodies would publish footer-only.
+	if sed -n '/^changelog:/,/^[a-z]/p' .goreleaser.yaml | grep -q 'disable: true'; then
+		fail ".goreleaser.yaml sets changelog.disable; remove it so --release-notes is honored"
+	fi
 }
 
 run_snapshot_rehearsal() {

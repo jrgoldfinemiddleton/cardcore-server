@@ -66,9 +66,11 @@ checksum:
   algorithm: sha256
 
 # Release notes are hand-curated: the workflow extracts the tagged version's
-# CHANGELOG.md section and passes it via --release-notes.
-changelog:
-  disable: true
+# CHANGELOG.md section and passes it via --release-notes. The changelog pipe
+# reads that file before any commit-derived generation, so the file always
+# wins. Do NOT set changelog.disable: it skips the changelog pipe entirely —
+# including the --release-notes read — and the release body collapses to just
+# the footer (v0.1.1 incident).
 
 release:
   github:
