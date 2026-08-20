@@ -29,12 +29,20 @@ func RenderObserverView(snap heartsclient.ObserverSnapshot, theme Theme, width, 
 	topHand := centeredHandBlock(safeHand(snap.Hands, 0), theme, width)
 
 	// Middle: left box (Seat 3) | center diamond | right box (Seat 1).
+	// The center diamond is always 9 lines tall and lipgloss.Place never clips,
+	// so on short terminals (middleHeight < 9) the diamond overflows
+	// middleHeight. Padding the side boxes to the diamond's height keeps
+	// lipgloss.JoinHorizontal from appending unstyled lines below them, which
+	// render with the terminal's default background as a phantom row under the
+	// side hands.
+	const diamondHeight = 9
 	middleHeight := max(height-8, 0)
+	boxHeight := max(middleHeight, diamondHeight)
 	leftBox := renderVerticalHandBox(
-		safeHand(snap.Hands, 3), 3, theme, sideBlockWidth, middleHeight, lipgloss.Left)
+		safeHand(snap.Hands, 3), 3, theme, sideBlockWidth, boxHeight, lipgloss.Left)
 	rightBox := renderVerticalHandBox(
-		safeHand(snap.Hands, 1), 1, theme, sideBlockWidth, middleHeight, lipgloss.Right)
-	centerBox := renderObserverCenter(snap, theme, centerWidth, middleHeight)
+		safeHand(snap.Hands, 1), 1, theme, sideBlockWidth, boxHeight, lipgloss.Right)
+	centerBox := renderObserverCenter(snap, theme, centerWidth, boxHeight)
 	middleRow := lipgloss.JoinHorizontal(lipgloss.Top, leftBox, centerBox, rightBox)
 
 	// Bottom: Seat 2 label + hand centered across full width.
@@ -160,13 +168,31 @@ func renderVerticalHandBox(
 			Width(labelWidth).
 			Align(lipgloss.Center).
 			Render(labelText)
-		block := lipgloss.JoinVertical(lipgloss.Left, label, handContent)
+		// Join manually with theme-styled padding: lipgloss.JoinVertical pads
+		// shorter lines with unstyled spaces, which render with the terminal's
+		// default background instead of the theme's (visible on the partial
+		// bottom card row).
+		block := joinLines([]string{label, padLinesRight(handContent, labelWidth, theme)})
 		handBlock = lipgloss.Place(width, handContentHeight+1, hAlign, lipgloss.Top, block,
 			lipgloss.WithWhitespaceStyle(bgStyle))
 	}
 
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, handBlock,
 		lipgloss.WithWhitespaceStyle(bgStyle))
+}
+
+// padLinesRight right-pads every line of s to the given width with spaces
+// styled with the theme background, so the padded cells match the surrounding
+// layout background.
+func padLinesRight(s string, width int, theme Theme) string {
+	style := lipgloss.NewStyle().Background(theme.Background)
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		if w := lipgloss.Width(line); w < width {
+			lines[i] = line + style.Render(strings.Repeat(" ", width-w))
+		}
+	}
+	return joinLines(lines)
 }
 
 // renderVerticalHand renders a hand as a vertical stack of rows, clipped to
@@ -297,8 +323,15 @@ func renderObserverDiamond(snap heartsclient.ObserverSnapshot, theme Theme, widt
 		infoText = fmt.Sprintf("Seat %d's turn", snap.Turn)
 	}
 
-	gap := gapString(theme)
-	infoSlot := textStyle.Render(infoText)
+	// Render the gap and info slots as full-height blocks:
+	// lipgloss.JoinHorizontal pads shorter blocks with unstyled lines, which
+	// render with the terminal's default background above and below the info
+	// text.
+	gap := lipgloss.Place(1, 3, lipgloss.Center, lipgloss.Center, "",
+		lipgloss.WithWhitespaceStyle(bgStyle))
+	infoSlot := lipgloss.Place(lipgloss.Width(infoText), 3, lipgloss.Center, lipgloss.Center,
+		textStyle.Render(infoText),
+		lipgloss.WithWhitespaceStyle(bgStyle))
 	middleContent := lipgloss.JoinHorizontal(
 		lipgloss.Center, leftCard, gap, infoSlot, gap, rightCard)
 	middleRow := lipgloss.Place(width, 3, lipgloss.Center, lipgloss.Center, middleContent,

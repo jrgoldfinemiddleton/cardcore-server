@@ -490,3 +490,49 @@ func TestRenderDealView(t *testing.T) {
 		t.Errorf("RenderDealView has %d lines, want 14", len(lines))
 	}
 }
+
+// TestRenderPlayerDiamondNoUnstyledSpaces verifies that the trick diamond
+// paints every space cell with the theme background. lipgloss.JoinHorizontal
+// pads shorter blocks with unstyled lines, which show the terminal's default
+// background — previously visible above and below the center info text.
+func TestRenderPlayerDiamondNoUnstyledSpaces(t *testing.T) {
+	snap := heartsclient.PlayerSnapshot{
+		Phase: "playing",
+		Turn:  0,
+		Trick: []heartsclient.TrickEntry{
+			{Seat: 1, Card: heartsclient.Card{Rank: "queen", Suit: "hearts"}},
+		},
+	}
+
+	got := renderPlayerDiamond(snap, 0, NewDarkTheme(), 26)
+	for i, line := range strings.Split(got, "\n") {
+		if lineHasUnstyledSpace(line) {
+			t.Errorf("player diamond line %d has unstyled space cells: %q", i, line)
+		}
+	}
+}
+
+// TestRenderPlayingViewNoUnstyledSpaces verifies that every space cell in the
+// seated playing view is painted with the theme background. The top seat's
+// card-back row previously joined the backs with unstyled gap spaces, which
+// show the terminal's default background as thin strips between the backs.
+func TestRenderPlayingViewNoUnstyledSpaces(t *testing.T) {
+	snap := heartsclient.PlayerSnapshot{
+		Phase: "playing",
+		Turn:  2,
+		Hand: []heartsclient.Card{
+			{Rank: "ace", Suit: "spades"},
+			{Rank: "king", Suit: "hearts"},
+		},
+		HandCounts:   []int{2, 13, 13, 13},
+		Trick:        []heartsclient.TrickEntry{},
+		LegalActions: nil,
+	}
+
+	got := RenderPlayingView(snap, 0, -1, false, NewDarkTheme(), 80, 24)
+	for i, line := range strings.Split(got, "\n") {
+		if lineHasUnstyledSpace(line) {
+			t.Errorf("playing view line %d has unstyled space cells: %q", i, line)
+		}
+	}
+}
