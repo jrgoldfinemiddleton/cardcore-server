@@ -8,6 +8,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-19
+
 ### Added
 
 - `scripts/prepare-release.sh`: the single supported entry point for the changelog-preparation PR — validates semver and the pre-1.0 policy, repository cleanliness and freshness, and changelog readiness (non-empty `[Unreleased]`, no existing `[X.Y.Z]` section), inserts the dated `## [X.Y.Z]` heading, self-verifies with the same `sed` extraction the release tooling uses, then branches, commits, pushes, and opens the `docs(changelog): prepare vX.Y.Z release` PR with the fixed body so the prep PR cannot drift; `--dry-run` rehearses without creating anything
