@@ -1,6 +1,7 @@
 package heartstui
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -290,4 +291,84 @@ func TestClientRenderObserverDeal(t *testing.T) {
 	if strings.Contains(got, "'s turn") {
 		t.Errorf("observer deal render = %q, want no turn line during deal", got)
 	}
+}
+
+// TestRenderObserverViewNoUnstyledSpaces verifies that every space cell in
+// the observer view is painted with the theme background. The lipgloss join
+// functions pad with unstyled spaces, which show the terminal's default
+// background — previously visible on the partial bottom card row of the
+// left/right seat hands, on the lines above and below the center info text,
+// and (at heights below 17, where the 9-line center diamond overflows the
+// middle band) as a phantom row below the side-seat hands.
+func TestRenderObserverViewNoUnstyledSpaces(t *testing.T) {
+	hand := make([]heartsclient.Card, 0, 13)
+	for _, rank := range []string{
+		"two", "three", "four", "five", "six", "seven", "eight",
+		"nine", "ten", "jack", "queen", "king", "ace",
+	} {
+		hand = append(hand, heartsclient.Card{Rank: rank, Suit: "clubs"})
+	}
+	snap := heartsclient.ObserverSnapshot{
+		RoundNumber:   1,
+		TrickNumber:   3,
+		PassDirection: "left",
+		Phase:         heartsclient.PhasePlaying,
+		Turn:          1,
+		// 13 cards per hand: rows of 5, 5, and 3 in the side-seat boxes,
+		// so the bottom row is partial.
+		Hands: [][]heartsclient.Card{hand, hand, hand, hand},
+		Trick: []heartsclient.TrickEntry{
+			{Seat: 0, Card: heartsclient.Card{Rank: "two", Suit: "hearts"}},
+		},
+		Scores:      []int{0, 0, 0, 0},
+		RoundPoints: []int{0, 0, 0, 0},
+	}
+
+	for _, height := range []int{10, 13, 16, 17, 24, 40} {
+		got := RenderObserverView(snap, NewDarkTheme(), 80, height)
+		for i, line := range strings.Split(got, "\n") {
+			if lineHasUnstyledSpace(line) {
+				t.Errorf("observer view (height %d) line %d has unstyled space cells: %q",
+					height, i, line)
+			}
+		}
+	}
+}
+
+// lineHasUnstyledSpace reports whether the raw (ANSI-containing) line holds a
+// space cell rendered without an active background color. Such cells show the
+// terminal's default background instead of the theme's.
+func lineHasUnstyledSpace(line string) bool {
+	bgActive := false
+	i := 0
+	for i < len(line) {
+		if line[i] == '\x1b' {
+			end := strings.IndexByte(line[i:], 'm')
+			if end < 0 {
+				break
+			}
+			params := strings.Split(strings.TrimPrefix(line[i+1:i+end], "["), ";")
+			for _, p := range params {
+				switch p {
+				case "", "0", "49":
+					bgActive = false
+				case "48":
+					bgActive = true
+				default:
+					// ANSI-16 background colors (40-47, 100-107).
+					n, err := strconv.Atoi(p)
+					if err == nil && ((n >= 40 && n <= 47) || (n >= 100 && n <= 107)) {
+						bgActive = true
+					}
+				}
+			}
+			i += end + 1
+			continue
+		}
+		if line[i] == ' ' && !bgActive {
+			return true
+		}
+		i++
+	}
+	return false
 }

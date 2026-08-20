@@ -345,7 +345,7 @@ func renderCardBackRow(count int, theme Theme, maxWidth int) string {
 	for i := range cards {
 		cards[i] = back
 	}
-	gapLine := strings.Repeat(" ", gap)
+	gapLine := gapString(theme)
 	margin := gapString(theme)
 	return joinCards(cards, margin, gapLine)
 }
@@ -418,8 +418,15 @@ func renderPlayerDiamond(
 		infoText = fmt.Sprintf("Seat %d's turn", snap.Turn)
 	}
 
-	gap := gapString(theme)
-	infoSlot := textStyle.Render(infoText)
+	// Render the gap and info slots as full-height blocks:
+	// lipgloss.JoinHorizontal pads shorter blocks with unstyled lines, which
+	// render with the terminal's default background above and below the info
+	// text.
+	gap := lipgloss.Place(1, 3, lipgloss.Center, lipgloss.Center, "",
+		lipgloss.WithWhitespaceStyle(bgStyle))
+	infoSlot := lipgloss.Place(lipgloss.Width(infoText), 3, lipgloss.Center, lipgloss.Center,
+		textStyle.Render(infoText),
+		lipgloss.WithWhitespaceStyle(bgStyle))
 	middleContent := lipgloss.JoinHorizontal(
 		lipgloss.Center, leftCard, gap, infoSlot, gap, rightCard)
 	middleRow := lipgloss.Place(width, 3, lipgloss.Center, lipgloss.Center, middleContent,
