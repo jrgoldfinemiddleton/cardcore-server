@@ -8,6 +8,10 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/prepare-release.sh`: the single supported entry point for the changelog-preparation PR — validates semver and the pre-1.0 policy, repository cleanliness and freshness, and changelog readiness (non-empty `[Unreleased]`, no existing `[X.Y.Z]` section), inserts the dated `## [X.Y.Z]` heading, self-verifies with the same `sed` extraction the release tooling uses, then branches, commits, pushes, and opens the `docs(changelog): prepare vX.Y.Z release` PR with the fixed body so the prep PR cannot drift; `--dry-run` rehearses without creating anything
+
 ### Fixed
 
 - Release workflow: the changelog-extraction step now writes `release-notes.md` to the runner's temp directory instead of the repository checkout, and GoReleaser reads it from there; the in-checkout untracked file made real (non-snapshot) releases fail GoReleaser's dirty-git-state validation (`?? release-notes.md`), a failure mode invisible to `make snapshot` and `scripts/release.sh` because snapshot rehearsals skip that validation (observed on the v0.1.0 release run)
