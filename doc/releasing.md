@@ -14,7 +14,10 @@ This document is the authoritative release process for maintainers. Keep it in s
 - **Fix forward.** If a release has a problem, land the fix on `main` and tag
   the next patch version. Do not attempt to repair a published release.
 - **Releases are never cut by hand.** `scripts/release.sh` is the single
-  entry point; it rehearses the full release before creating anything.
+  entry point for tagging; it rehearses the full release before creating
+  anything. `scripts/prepare-release.sh` is the single entry point for the
+  changelog-preparation PR; it guarantees the heading format and PR body the
+  release tooling depends on.
 
 ## Release artifacts
 
@@ -44,10 +47,14 @@ GoReleaser's commit-derived changelog generation is disabled.
 ### 1. Prepare the changelog (its own PR)
 
 1. Ensure everything for the release is merged to `main`.
-2. In `CHANGELOG.md`, create a `## [X.Y.Z] - YYYY-MM-DD` heading (today's
-   date) directly below `## [Unreleased]`, move all `[Unreleased]` items into
-   the new section, and leave `[Unreleased]` empty.
-3. Open a PR titled `docs(changelog): prepare vX.Y.Z release` and merge it.
+2. Run `scripts/prepare-release.sh vX.Y.Z` (`--dry-run` rehearses without
+   creating anything). The script verifies the repository state, moves the
+   `[Unreleased]` items into a dated `## [X.Y.Z] - YYYY-MM-DD` section
+   (leaving `[Unreleased]` empty), and opens the PR titled
+   `docs(changelog): prepare vX.Y.Z release`. Never hand-edit the changelog
+   for release prep or open this PR manually.
+3. Merge the PR. Prepare and tag on the same day: `release.sh` warns when
+   the changelog heading date is not the tag date.
 4. Optional: run the benchmark spot-check against the previous tag
    (`make bench` + `go tool benchstat`) and note any >2x regressions in the
    release notes.

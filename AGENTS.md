@@ -24,7 +24,7 @@ cardcore-server/
 │   ├── dependencies.md      # approved external dependencies
 │   └── releasing.md         # maintainer release process
 ├── .github/workflows/       # CI/CD (first-party actions only)
-├── scripts/                 # label sync/apply, release.sh (release entry point)
+├── scripts/                 # label sync/apply, release.sh + prepare-release.sh (release entry points)
 ├── Makefile                 # build/test/lint targets
 ├── .goreleaser.yaml         # release build config (cross-platform archives)
 └── .golangci.yml            # lint config
