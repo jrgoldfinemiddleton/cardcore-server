@@ -8,6 +8,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-19
+
 ### Added
 
 - Release tooling: GoReleaser v2 (declared as a `go.mod` tool) cross-compiles all three binaries for Linux, macOS, and Windows (amd64/arm64) into per-platform archives with SHA-256 checksums, published to the GitHub Release by the tag-triggered release workflow; release notes remain the hand-curated `CHANGELOG.md` section
