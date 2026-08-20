@@ -8,6 +8,10 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ## [Unreleased]
 
+### Changed
+
+- Engine dependency bumped from cardcore v0.7.0 to v0.7.1; the engine release contains no code changes (release tooling and docs only), so behavior is identical
+
 ## [0.1.2] - 2026-08-20
 
 ### Fixed
