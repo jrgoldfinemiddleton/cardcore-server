@@ -8,6 +8,10 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ## [Unreleased]
 
+### Fixed
+
+- Release workflow: the changelog-extraction step now writes `release-notes.md` to the runner's temp directory instead of the repository checkout, and GoReleaser reads it from there; the in-checkout untracked file made real (non-snapshot) releases fail GoReleaser's dirty-git-state validation (`?? release-notes.md`), a failure mode invisible to `make snapshot` and `scripts/release.sh` because snapshot rehearsals skip that validation (observed on the v0.1.0 release run)
+
 ## [0.1.0] - 2026-08-19
 
 ### Added

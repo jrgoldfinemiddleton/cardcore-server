@@ -40,10 +40,15 @@ jobs:
         run: make check
 
       - name: Extract changelog section to file
+        # The notes file must live outside the checkout: GoReleaser's release
+        # mode fails on a dirty git state, and an in-tree release-notes.md is
+        # exactly that. (Snapshot rehearsals skip the dirty check, which is
+        # why this only ever fails in the real workflow.)
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          sed -n "/^## \[${VERSION}\]/,/^## \[/{/^## \[${VERSION}\]/d;/^## \[/d;p;}" CHANGELOG.md > release-notes.md
-          if [ -z "$(tr -d '[:space:]' < release-notes.md)" ]; then
+          NOTES_FILE="${{ runner.temp }}/release-notes.md"
+          sed -n "/^## \[${VERSION}\]/,/^## \[/{/^## \[${VERSION}\]/d;/^## \[/d;p;}" CHANGELOG.md > "$NOTES_FILE"
+          if [ -z "$(tr -d '[:space:]' < "$NOTES_FILE")" ]; then
             echo "::error::No changelog entry found for version ${VERSION}."
             echo "Add a '## [${VERSION}]' section to CHANGELOG.md before tagging."
             exit 1
@@ -52,4 +57,4 @@ jobs:
       - name: Build and publish with GoReleaser
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: go tool goreleaser release --clean --release-notes=release-notes.md
+        run: go tool goreleaser release --clean --release-notes="${{ runner.temp }}/release-notes.md"

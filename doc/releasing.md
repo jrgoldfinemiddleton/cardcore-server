@@ -80,8 +80,10 @@ The pushed tag triggers `.github/workflows/release.yml`, which:
 1. Verifies the tag points at a commit on `main`.
 2. Validates the tag is proper semver (no leading zeros).
 3. Runs `make check`.
-4. Extracts the `[X.Y.Z]` changelog section to `release-notes.md`.
-5. Runs `go tool goreleaser release --clean --release-notes=release-notes.md`,
+4. Extracts the `[X.Y.Z]` changelog section to a `release-notes.md` in the
+   runner's temp directory — never inside the checkout, where the untracked
+   file would fail GoReleaser's dirty-git-state validation.
+5. Runs `go tool goreleaser release --clean --release-notes=<temp file>`,
    which builds all 18 binaries (3 commands × 3 OSes × 2 architectures),
    creates the six archives and `checksums.txt`, creates the GitHub Release
    titled `vX.Y.Z` with the changelog notes, and uploads the assets.
