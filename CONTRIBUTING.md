@@ -39,6 +39,17 @@ An optional `!` after the type/scope indicates a breaking change: `feat(session)
 
 **Note on versioning:** The project is pre-v1.0.0. Breaking changes may occur in any release.
 
+## Adding a Game
+
+Follow the Hearts vertical slice: each game spans `internal/api/games/<game>/`,
+`internal/server/session/games/<game>/`, `internal/server/view/games/<game>/`,
+`internal/client/games/<game>/`, `cmd/cardcore-tui/games/<game>/`, and
+`cmd/cardcore-cli/games/<game>/`.
+
+Register the game label in the same PR: add `scope:<game>` to
+`scripts/sync-labels.sh` and add path rules for `*/games/<game>/` and
+`doc/games/<game>/` to `scripts/apply-labels.sh`.
+
 ## Guidelines
 
 - **Tests are required.** Every code change should include corresponding tests.

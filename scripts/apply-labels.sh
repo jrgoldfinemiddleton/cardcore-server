@@ -27,6 +27,7 @@ managed=(
 	"scope:client"
 	"scope:tui"
 	"scope:api"
+	"scope:hearts"
 	"scope:docs"
 	"scope:ci"
 	"scope:meta"
@@ -65,6 +66,22 @@ while IFS= read -r f; do
 		doc/api.md)
 			add_want "scope:api"
 			add_want "scope:docs" ;;
+		# Game vertical slices: the game label is additive with the layer scope.
+		doc/games/hearts/*)
+			add_want "scope:hearts"
+			add_want "scope:docs" ;;
+		internal/api/games/hearts/*)
+			add_want "scope:hearts"
+			add_want "scope:api" ;;
+		internal/server/session/games/hearts/*|internal/server/view/games/hearts/*)
+			add_want "scope:hearts"
+			add_want "scope:server" ;;
+		internal/client/games/hearts/*|cmd/cardcore-cli/games/hearts/*)
+			add_want "scope:hearts"
+			add_want "scope:client" ;;
+		cmd/cardcore-tui/games/hearts/*)
+			add_want "scope:hearts"
+			add_want "scope:tui" ;;
 		internal/api/*)
 			add_want "scope:api" ;;
 		internal/server/*|cmd/cardcore-server/*)
