@@ -45,6 +45,9 @@ type PlayerSnapshot struct {
 	Trick []TrickEntry `json:"trick"`
 	// Scores is the cumulative scores per seat across all completed rounds.
 	Scores []int `json:"scores"`
+	// Winners lists the seat indexes tied for the lowest score; meaningful
+	// only during game_over.
+	Winners []int `json:"winners,omitempty"`
 	// RoundPoints is the penalty points accumulated this round per seat.
 	// During the round_complete phase it instead carries the score delta
 	// applied for the round (0 for a successful moon shooter, 26 for each
@@ -94,6 +97,9 @@ type ObserverSnapshot struct {
 	TrickHistory [][]TrickEntry `json:"trick_history"`
 	// Scores is the cumulative scores per seat across all completed rounds.
 	Scores []int `json:"scores"`
+	// Winners lists the seat indexes tied for the lowest score; meaningful
+	// only during game_over.
+	Winners []int `json:"winners,omitempty"`
 	// RoundPoints is the penalty points accumulated this round per seat.
 	// During the round_complete phase it instead carries the score delta
 	// applied for the round (0 for a successful moon shooter, 26 for each

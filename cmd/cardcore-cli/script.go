@@ -8,6 +8,7 @@ import (
 	"slices"
 	"syscall"
 
+	heartscli "github.com/jrgoldfinemiddleton/cardcore-server/cmd/cardcore-cli/games/hearts"
 	"github.com/jrgoldfinemiddleton/cardcore-server/internal/client"
 )
 
@@ -157,12 +158,14 @@ func parseScript(data []byte) (Script, error) {
 	return s, nil
 }
 
-// printFinalScores extracts and prints the scores from a game_over snapshot.
-// A nil or undecodable snapshot (game over arrived as a server error message
-// rather than a snapshot) logs a warning and returns nil without printing.
+// printFinalScores extracts and prints the scores and winner declaration from
+// a game_over snapshot. A nil or undecodable snapshot (game over arrived as a
+// server error message rather than a snapshot) logs a warning and returns nil
+// without printing.
 func printFinalScores(snapshot []byte) error {
 	var snap struct {
-		Scores []int `json:"scores"`
+		Scores  []int `json:"scores"`
+		Winners []int `json:"winners"`
 	}
 	if err := json.Unmarshal(snapshot, &snap); err != nil {
 		slog.Warn("unmarshal final scores", "error", err)
@@ -173,6 +176,14 @@ func printFinalScores(snapshot []byte) error {
 			return errBrokenPipe
 		}
 		return fmt.Errorf("write stdout: %w", err)
+	}
+	if decl := heartscli.WinnerDeclaration(snap.Winners, snap.Scores); decl != "" {
+		if _, err := fmt.Printf("%s\n", decl); err != nil {
+			if errors.Is(err, syscall.EPIPE) {
+				return errBrokenPipe
+			}
+			return fmt.Errorf("write stdout: %w", err)
+		}
 	}
 	return nil
 }

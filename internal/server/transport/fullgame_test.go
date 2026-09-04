@@ -139,6 +139,21 @@ func TestAllAIFullGameIntegration(t *testing.T) {
 			t.Fatalf("did not observe required phase %q, got phases: %v", required, phases)
 		}
 	}
+
+	// Verify the winners field on the terminal game_over snapshot: it must
+	// be non-empty and every seat index must be valid.
+	last := snaps[len(snaps)-1]
+	if last.Phase != "game_over" {
+		t.Fatalf("last snapshot phase: got %q, want game_over", last.Phase)
+	}
+	if len(last.Winners) == 0 {
+		t.Fatal("game_over snapshot has empty winners")
+	}
+	for _, seat := range last.Winners {
+		if seat < 0 || seat >= hearts.NumPlayers {
+			t.Fatalf("winners contains invalid seat index %d", seat)
+		}
+	}
 }
 
 // TestHumanAIFullGameIntegration verifies that a human player can send

@@ -246,7 +246,9 @@ func TestFormatSnapshot(t *testing.T) {
 			// round_points include seat 0's queen of spades (14 = Q♠ plus
 			// one heart); the last trick shown is point-free. Hands are
 			// empty, and trick_winner is -1: the field is only meaningful
-			// during trick_complete, two transitions back.
+			// during trick_complete, two transitions back. The snapshot
+			// carries no winners key, so the winner is derived from the
+			// scores: seat 3 holds the minimum (64).
 			name: "game over snapshot",
 			snapshot: `{"type":"snapshot","seq":912,"phase":"game_over",` +
 				`"round_number":13,"trick_number":13,"pass_direction":"left",` +
@@ -259,7 +261,23 @@ func TestFormatSnapshot(t *testing.T) {
 				`"scores":[104,98,72,64],"round_points":[14,4,5,3],` +
 				`"legal_actions":[],"turn_deadline_ms":0,"paused":false}`,
 			want: "seq=912 phase=game_over turn=2 round=13 trick_num=13" +
-				" scores=[104 98 72 64]",
+				" scores=[104 98 72 64] winner=Seat 3 wins",
+		},
+		{
+			// A tied game over: seats 1 and 3 both finish at the lowest
+			// score. The server's winners field lists both seats, so the
+			// declaration reports a draw.
+			name: "game over draw",
+			snapshot: `{"type":"snapshot","seq":913,"phase":"game_over",` +
+				`"round_number":13,"trick_number":13,"pass_direction":"left",` +
+				`"turn":2,"trick_winner":-1,"hearts_broken":true,` +
+				`"hand":[],"hand_counts":[0,0,0,0],` +
+				`"trick":[],` +
+				`"scores":[104,64,72,64],"round_points":[14,4,5,3],` +
+				`"winners":[1,3],` +
+				`"legal_actions":[],"turn_deadline_ms":0,"paused":false}`,
+			want: "seq=913 phase=game_over turn=2 round=13 trick_num=13" +
+				" scores=[104 64 72 64] winner=Draw between seats 1, 3",
 		},
 		{
 			// Trick 7 of round 3: hearts are broken, so seat 2 leads a

@@ -61,6 +61,9 @@ type PlayerSnapshot struct {
 	// Scores holds the cumulative score per seat across all completed
 	// rounds.
 	Scores []int `json:"scores"`
+	// Winners lists the seat indexes tied for the lowest score; meaningful
+	// only during game_over.
+	Winners []int `json:"winners,omitempty"`
 	// RoundPoints holds the penalty points accumulated this round per
 	// seat; all values are reset to zero at the start of each round.
 	// During the round_complete phase it instead carries the score delta
@@ -128,6 +131,9 @@ type ObserverSnapshot struct {
 	// Scores holds the cumulative score per seat across all completed
 	// rounds.
 	Scores []int `json:"scores"`
+	// Winners lists the seat indexes tied for the lowest score; meaningful
+	// only during game_over.
+	Winners []int `json:"winners,omitempty"`
 	// RoundPoints holds the penalty points accumulated this round per
 	// seat; all values are reset to zero at the start of each round.
 	// During the round_complete phase it instead carries the score delta

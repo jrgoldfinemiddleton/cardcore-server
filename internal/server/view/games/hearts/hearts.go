@@ -63,6 +63,7 @@ func PlayerView(vs ViewState, seat hearts.Seat, seq int) *heartsapi.PlayerSnapsh
 		TrickWinner:   -1,
 		HeartsBroken:  g.HeartsBroken,
 		Scores:        g.Scores[:],
+		Winners:       buildWinners(g),
 		RoundPoints:   buildRoundPoints(vs, g),
 		Trick:         buildTrick(g.Trick),
 		LegalActions:  []heartsapi.Card{},
@@ -116,6 +117,7 @@ func ObserverView(vs ViewState, seq int) *heartsapi.ObserverSnapshot {
 		TrickWinner:   -1,
 		HeartsBroken:  g.HeartsBroken,
 		Scores:        g.Scores[:],
+		Winners:       buildWinners(g),
 		RoundPoints:   buildRoundPoints(vs, g),
 		Trick:         buildTrick(g.Trick),
 		TrickHistory:  buildTrickHistory(g.TrickHistory),
@@ -191,6 +193,21 @@ func buildRoundPoints(vs ViewState, g *hearts.Game) []int {
 		return pts
 	}
 	return g.RoundPts[:]
+}
+
+// buildWinners returns the seat indexes tied for the lowest score, or nil
+// when the game is not over. It relies on the engine's Winners error
+// contract: Winners only succeeds in the end phase.
+func buildWinners(g *hearts.Game) []int {
+	winners, err := g.Winners()
+	if err != nil {
+		return nil
+	}
+	idx := make([]int, 0, len(winners))
+	for _, s := range winners {
+		idx = append(idx, int(s))
+	}
+	return idx
 }
 
 // buildTrick converts a trick to wire-format entries in play order from the leader.

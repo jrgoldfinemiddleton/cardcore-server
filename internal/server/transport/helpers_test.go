@@ -20,8 +20,9 @@ import (
 
 // testSnapshot is a minimal snapshot struct for fast unmarshal in tests.
 type testSnapshot struct {
-	Phase string `json:"phase"`
-	Seq   int    `json:"seq"`
+	Phase   string `json:"phase"`
+	Seq     int    `json:"seq"`
+	Winners []int  `json:"winners"`
 }
 
 // mustStartTestServer starts an httptest.Server for the given Server and

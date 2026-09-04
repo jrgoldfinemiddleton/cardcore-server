@@ -8,6 +8,11 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ## [Unreleased]
 
+### Added
+
+- Hearts `game_over` snapshots now include a `winners` field (`[]int`) populated from the engine's `Game.Winners()`, so tied-for-lowest endgames expose all co-winners (a draw) on the wire; TUI player/observer and CLI players/observers render the declaration; covers `internal/api`, `internal/client` DTOs, `internal/server/view`, both cmd vertical slices
+- Bumps the cardcore engine dependency from v0.7.1 to v0.8.0 (breaking `Game.Winner`→`Game.Winners` rename consumed here)
+
 ### Changed
 
 - Engine dependency bumped from cardcore v0.7.0 to v0.7.1; the engine release contains no code changes (release tooling and docs only), so behavior is identical
