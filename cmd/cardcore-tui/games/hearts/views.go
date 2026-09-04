@@ -2,6 +2,7 @@ package heartstui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -224,7 +225,8 @@ func RenderRoundCompleteView(
 // RenderGameOverView renders the final game-over screen, using the provided
 // theme for colors and sizing the summary box to the given terminal width.
 //
-// It shows the final scores for all seats and a prompt to exit inside a
+// It shows the final scores for all seats, the winner declaration (a sole
+// winner or a draw between tied seats), and a prompt to exit inside a
 // bordered box. The viewer's seat is labeled with "(You)".
 func RenderGameOverView(
 	snap heartsclient.PlayerSnapshot,
@@ -240,6 +242,11 @@ func RenderGameOverView(
 		label := seatLabel(i, seat, theme)
 		rest := textStyle.Render(fmt.Sprintf(": %d", snap.Scores[i]))
 		lines = append(lines, label+rest)
+	}
+
+	if decl := winnerDeclaration(snap.Winners, snap.Scores); decl != "" {
+		lines = append(lines, "")
+		lines = append(lines, textStyle.Render(decl))
 	}
 
 	lines = append(lines, textStyle.Render("Press Enter to exit"))
@@ -306,6 +313,51 @@ func moonShotSeat(roundPoints []int) int {
 		}
 	}
 	return shooter
+}
+
+// winnerDeclaration returns the human-readable winner declaration for a
+// game-over snapshot: "Seat Z wins" for a sole winner, or "Draw between seats
+// X, Y" when multiple seats tie for the lowest score. When winners is empty
+// (older servers omit the field), it derives the winners from scores by
+// collecting every seat at the minimum score. It returns an empty string when
+// no winner can be determined.
+func winnerDeclaration(winners, scores []int) string {
+	if len(winners) == 0 {
+		winners = derivedWinners(scores)
+	}
+	switch len(winners) {
+	case 0:
+		return ""
+	case 1:
+		return fmt.Sprintf("Seat %d wins", winners[0])
+	default:
+		seats := make([]string, len(winners))
+		for i, w := range winners {
+			seats[i] = strconv.Itoa(w)
+		}
+		return "Draw between seats " + strings.Join(seats, ", ")
+	}
+}
+
+// derivedWinners returns the seat indexes tied for the lowest score, or nil
+// when scores is empty.
+func derivedWinners(scores []int) []int {
+	if len(scores) == 0 {
+		return nil
+	}
+	min := scores[0]
+	for _, s := range scores[1:] {
+		if s < min {
+			min = s
+		}
+	}
+	var winners []int
+	for i, s := range scores {
+		if s == min {
+			winners = append(winners, i)
+		}
+	}
+	return winners
 }
 
 // repeatLines returns a new slice containing s repeated n times.

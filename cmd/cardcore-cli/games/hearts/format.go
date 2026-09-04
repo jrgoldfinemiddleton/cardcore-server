@@ -3,6 +3,7 @@ package heartscli
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	heartsclient "github.com/jrgoldfinemiddleton/cardcore-server/internal/client/games/hearts"
@@ -25,6 +26,9 @@ type snapshotEnvelope struct {
 	TrickNumber int `json:"trick_number,omitempty"`
 	// Scores are the cumulative scores for each seat.
 	Scores []int `json:"scores,omitempty"`
+	// Winners lists the seat indexes tied for the lowest score; meaningful
+	// only during game_over.
+	Winners []int `json:"winners,omitempty"`
 	// Hand is the player's own hand (player snapshot only).
 	Hand []heartsclient.Card `json:"hand,omitempty"`
 	// LegalActions are the cards the player may legally play.
@@ -65,6 +69,9 @@ func (f *Formatter) FormatSnapshot(snapshot []byte) string {
 
 	if env.Phase == "game_over" {
 		fmt.Fprintf(&b, " scores=%v", env.Scores)
+		if decl := WinnerDeclaration(env.Winners, env.Scores); decl != "" {
+			fmt.Fprintf(&b, " winner=%s", decl)
+		}
 		return b.String()
 	}
 
@@ -97,6 +104,51 @@ func (f *Formatter) FormatSnapshot(snapshot []byte) string {
 	}
 
 	return b.String()
+}
+
+// WinnerDeclaration returns the human-readable winner declaration for a
+// game-over snapshot: "Seat Z wins" for a sole winner, or "Draw between seats
+// X, Y" when multiple seats tie for the lowest score. When winners is empty
+// (older servers omit the field), it derives the winners from scores by
+// collecting every seat at the minimum score. It returns an empty string when
+// no winner can be determined.
+func WinnerDeclaration(winners, scores []int) string {
+	if len(winners) == 0 {
+		winners = derivedWinners(scores)
+	}
+	switch len(winners) {
+	case 0:
+		return ""
+	case 1:
+		return fmt.Sprintf("Seat %d wins", winners[0])
+	default:
+		seats := make([]string, len(winners))
+		for i, w := range winners {
+			seats[i] = strconv.Itoa(w)
+		}
+		return "Draw between seats " + strings.Join(seats, ", ")
+	}
+}
+
+// derivedWinners returns the seat indexes tied for the lowest score, or nil
+// when scores is empty.
+func derivedWinners(scores []int) []int {
+	if len(scores) == 0 {
+		return nil
+	}
+	min := scores[0]
+	for _, s := range scores[1:] {
+		if s < min {
+			min = s
+		}
+	}
+	var winners []int
+	for i, s := range scores {
+		if s == min {
+			winners = append(winners, i)
+		}
+	}
+	return winners
 }
 
 // formatCards formats a slice of cards into compact notation.

@@ -92,6 +92,38 @@ func RenderObserverRoundCompleteView(
 	return placeContent(boxed, width, height, lipgloss.Center, theme)
 }
 
+// RenderObserverGameOverView renders the game-over overlay for an observer,
+// showing the final scores for all seats and the winner declaration (a sole
+// winner or a draw between tied seats) inside a bordered box.
+func RenderObserverGameOverView(
+	snap heartsclient.ObserverSnapshot,
+	theme Theme,
+	width, height int,
+) string {
+	textStyle := lipgloss.NewStyle().Foreground(theme.Text).Background(theme.Background)
+	labelStyle := lipgloss.NewStyle().
+		Foreground(theme.Text).
+		Background(theme.Background).
+		Bold(true)
+
+	var lines []string
+	lines = append(lines, textStyle.Render("Game Over"))
+
+	for i := 0; i < len(snap.Scores); i++ {
+		label := labelStyle.Render(fmt.Sprintf("Seat %d", i))
+		rest := textStyle.Render(fmt.Sprintf(": %d", snap.Scores[i]))
+		lines = append(lines, label+rest)
+	}
+
+	if decl := winnerDeclaration(snap.Winners, snap.Scores); decl != "" {
+		lines = append(lines, "")
+		lines = append(lines, textStyle.Render(decl))
+	}
+
+	boxed := summaryBoxStyle(theme, width).Render(joinLines(lines))
+	return placeContent(boxed, width, height, lipgloss.Center, theme)
+}
+
 // safeHand returns the hand for the given seat, or nil if the seat index is
 // out of range.
 func safeHand(hands [][]heartsclient.Card, seat int) []heartsclient.Card {

@@ -293,6 +293,46 @@ func TestClientRenderObserverDeal(t *testing.T) {
 	}
 }
 
+// TestRenderObserverGameOverView verifies the observer game-over view shows
+// the final scores and the winner declaration inside a bordered box.
+func TestRenderObserverGameOverView(t *testing.T) {
+	snap := heartsclient.ObserverSnapshot{
+		Scores:  []int{104, 64, 72, 64},
+		Winners: []int{1, 3},
+	}
+	got := RenderObserverGameOverView(snap, NewDarkTheme(), 80, 14)
+	if !strings.Contains(got, "Game Over") {
+		t.Errorf("RenderObserverGameOverView = %q, want 'Game Over'", got)
+	}
+	if !strings.Contains(stripANSI(got), "Seat 1: 64") {
+		t.Errorf("RenderObserverGameOverView = %q, want Seat 1 score", got)
+	}
+	if !strings.Contains(stripANSI(got), "Draw between seats 1, 3") {
+		t.Errorf("RenderObserverGameOverView = %q, want draw declaration", got)
+	}
+}
+
+// TestClientRenderObserverGameOver verifies that an observer client routes
+// game_over snapshots to the observer game-over view rather than the
+// square-table observer view.
+func TestClientRenderObserverGameOver(t *testing.T) {
+	c := NewClient(0, true, NewDarkTheme())
+	snap := heartsclient.ObserverSnapshot{
+		Phase:   heartsclient.PhaseGameOver,
+		Scores:  []int{104, 64, 72, 64},
+		Winners: []int{1, 3},
+	}
+	c.HandleSnapshot(mustMarshal(t, snap))
+
+	got := c.Render(80, 14)
+	if !strings.Contains(got, "Game Over") {
+		t.Errorf("observer render = %q, want 'Game Over'", got)
+	}
+	if !strings.Contains(stripANSI(got), "Draw between seats 1, 3") {
+		t.Errorf("observer render = %q, want draw declaration", got)
+	}
+}
+
 // TestRenderObserverViewNoUnstyledSpaces verifies that every space cell in
 // the observer view is painted with the theme background. The lipgloss join
 // functions pad with unstyled spaces, which show the terminal's default

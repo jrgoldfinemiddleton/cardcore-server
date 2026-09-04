@@ -2,6 +2,7 @@ package heartsview
 
 import (
 	"math/rand/v2"
+	"slices"
 	"testing"
 	"time"
 
@@ -720,6 +721,38 @@ func TestLegalActions(t *testing.T) {
 	if got := len(snap.LegalActions); got != 0 {
 		t.Errorf("play phase inactive seat: legal action count: got %d, want 0",
 			got)
+	}
+}
+
+// TestPlayerViewGameOverWinners verifies that when the game is over both
+// player and observer snapshots expose the seat indexes tied for the
+// lowest score, and that the field stays empty before the game ends.
+func TestPlayerViewGameOverWinners(t *testing.T) {
+	g := hearts.New(rand.New(rand.NewPCG(1, 2)))
+	g.Phase = hearts.PhaseEnd
+	g.Scores = [hearts.NumPlayers]int{104, 52, 26, 26}
+
+	vs := ViewState{Game: g}
+	want := []int{2, 3}
+
+	ps := PlayerView(vs, 0, 0)
+	if got := ps.Winners; !slices.Equal(got, want) {
+		t.Errorf("PlayerView Winners: got %v, want %v", got, want)
+	}
+	os := ObserverView(vs, 0)
+	if got := os.Winners; !slices.Equal(got, want) {
+		t.Errorf("ObserverView Winners: got %v, want %v", got, want)
+	}
+
+	// Before the game ends the field stays empty.
+	g.Phase = hearts.PhaseDeal
+	ps = PlayerView(vs, 0, 0)
+	if got := len(ps.Winners); got != 0 {
+		t.Errorf("PlayerView Winners before game over: got %v, want empty", got)
+	}
+	os = ObserverView(vs, 0)
+	if got := len(os.Winners); got != 0 {
+		t.Errorf("ObserverView Winners before game over: got %v, want empty", got)
 	}
 }
 

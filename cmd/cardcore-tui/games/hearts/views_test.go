@@ -243,6 +243,53 @@ func TestRenderGameOverView(t *testing.T) {
 	}
 }
 
+// TestRenderGameOverViewWinnerDeclaration verifies the game-over view renders
+// the winner declaration: a sole winner, a draw between tied seats, and the
+// score-derived fallback when the snapshot carries no winners.
+func TestRenderGameOverViewWinnerDeclaration(t *testing.T) {
+	tests := []struct {
+		name    string
+		scores  []int
+		winners []int
+		want    string
+	}{
+		{
+			name:    "sole winner from winners field",
+			scores:  []int{26, 0, 0, 0},
+			winners: []int{1},
+			want:    "Seat 1 wins",
+		},
+		{
+			name:    "draw from winners field",
+			scores:  []int{26, 0, 0, 0},
+			winners: []int{1, 2, 3},
+			want:    "Draw between seats 1, 2, 3",
+		},
+		{
+			name:   "fallback derives sole winner from scores",
+			scores: []int{104, 98, 72, 64},
+			want:   "Seat 3 wins",
+		},
+		{
+			name:   "fallback derives draw from scores",
+			scores: []int{104, 64, 72, 64},
+			want:   "Draw between seats 1, 3",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			snap := heartsclient.PlayerSnapshot{
+				Scores:  tt.scores,
+				Winners: tt.winners,
+			}
+			got := stripANSI(RenderGameOverView(snap, 0, NewDarkTheme(), 80, 14))
+			if !strings.Contains(got, tt.want) {
+				t.Errorf("RenderGameOverView = %q, want to contain %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // TestRenderPassingViewInputDisabled verifies the status line when input is
 // disabled after the player has submitted.
 func TestRenderPassingViewInputDisabled(t *testing.T) {

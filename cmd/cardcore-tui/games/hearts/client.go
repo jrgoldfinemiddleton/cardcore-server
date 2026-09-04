@@ -160,6 +160,8 @@ func (c *Client) Render(width, height int) string {
 			return RenderDealView(c.theme, width, height)
 		case heartsclient.PhaseRoundComplete:
 			return RenderObserverRoundCompleteView(c.observerSnap, c.theme, width, height)
+		case heartsclient.PhaseGameOver:
+			return RenderObserverGameOverView(c.observerSnap, c.theme, width, height)
 		default:
 			return RenderObserverView(c.observerSnap, c.theme, width, height)
 		}

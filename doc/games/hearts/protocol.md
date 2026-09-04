@@ -154,6 +154,7 @@ game-specific fields for Hearts:
 | `hand_counts` | array of integers | Number of cards in each seat's hand, indexed by seat. |
 | `trick` | array of trick entries | Cards played to the current trick so far, in play order. During the `playing` phase this array contains up to three cards; when the fourth card is played, the next broadcast is the `trick_complete` phase with the full four-card trick. |
 | `scores` | array of integers | Cumulative scores per seat across all completed rounds. During an active round, this reflects the total as of the last completed round. |
+| `winners` | array of integers | Seat indexes tied for the lowest score. Present only on `game_over`; multiple indexes indicate a draw. |
 | `round_points` | array of integers | Penalty points accumulated this round per seat. Resets to zero at the start of each round. |
 | `paused` | boolean | `true` when the game is paused. `false` during normal play. Independent of `phase` — the game may pause during `passing` or `playing`. |
 | `legal_actions` | array of card objects | Cards the player may legally play or pass. Empty during `deal`. During `passing` it holds the player's full hand regardless of turn; during `playing` it is empty when it is not the player's turn. A paused snapshot keeps the legal actions of the underlying phase. |
@@ -178,7 +179,7 @@ Each trick entry (ordered by play sequence, not by seat index):
 | `paused` | The active human player has paused the game. No commands are processed except `resume` from the pausing seat; gameplay commands are rejected with `game_paused`. |
 | `trick_complete` | A trick has been won. Server-synthesized pause for UX. |
 | `round_complete` | A round has ended. Scores updated. |
-| `game_over` | Game has ended. Final scores in `scores`. |
+| `game_over` | Game has ended. Final scores in `scores`; winning seats in `winners`. |
 
 For Hearts, the first snapshot after start is `deal` at `seq=1`; after
 `deal_display_delay_ms` the actionable `passing` snapshot follows at
@@ -287,8 +288,8 @@ Player view, seat 0, round 1, trick 3:
 }
 ```
 
-Every field is always present — the player snapshot has no optional
-fields — so inert fields carry sentinel values: `trick_winner` is `-1`
+Every field is always present except `winners`, which is omitted outside
+`game_over` — so inert fields carry sentinel values: `trick_winner` is `-1`
 outside `trick_complete`, and `turn_deadline_ms` is `0` when no deadline
 is active. The `hand` is sorted by suit (clubs, diamonds, hearts,
 spades), then by rank within each suit.
